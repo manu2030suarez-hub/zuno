@@ -3,6 +3,14 @@ import { supabase, isSupabaseConfigured } from './lib/supabase'
 import { Heart, Eye, EyeOff, MoreVertical, Archive, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, StopCircle, Ban, Flag, SlidersHorizontal, Bell, Phone, PhoneOff, Video, MicOff, VideoOff } from 'lucide-react'
 import L from 'leaflet'
 
+function formatApproxDistance(km) {
+  if (km === null || km === undefined || !Number.isFinite(Number(km))) return ''
+  const value = Number(km)
+  if (value < 0.1) return 'A menos de 100 m'
+  if (value < 1) return `A unos ${Math.round(value * 10) * 100} m`
+  return `A unos ${value.toLocaleString('es-UY',{maximumFractionDigits:1})} km`
+}
+
 function ProfileAvatar({ person, className = '' }) {
   const label = (person?.display_name || person?.username || '').trim()
   if (person?.avatar_url) return <span className={`zuno-avatar ${className}`}><img src={person.avatar_url} alt=""/></span>
@@ -2086,7 +2094,7 @@ export default function App() {
           <div className="people-grid">
           {view === 'home' && <article className="person-card own-person-card person-card-clickable" key={session.user.id} role="button" tabIndex={0} onClick={()=>openMemberProfile({...profile,photos,visibleCity:profile?.show_location?[profile?.city,profile?.region].filter(Boolean).join(', '):''},true)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openMemberProfile({...profile,photos,visibleCity:profile?.show_location?[profile?.city,profile?.region].filter(Boolean).join(', '):''},true)}}}>
             <div className="person-card-gallery">
-              {photos.length ? <img src={photos[0].url} alt="Tu foto de perfil"/> : <div className="person-avatar">{profile?.avatar_url ? <img src={profile.avatar_url} alt=""/> : <span>{(profile?.display_name || displayName || '?').slice(0,1).toUpperCase()}</span>}</div>}
+              {photos.length ? <img src={photos[0].url} alt="Tu foto de perfil"/> : <ProfileAvatar person={{...profile,display_name:profile?.display_name||displayName}}/>}
             </div>
             <div className="person-info">
               <h3>{profile?.display_name || displayName || 'Tu perfil'} <span className="verified-dot" title="Este sos vos">★</span></h3>
@@ -2101,13 +2109,13 @@ export default function App() {
           {(view === 'home' ? discoveryPeople : view === 'favorites' ? people.filter(person => favoriteIds.includes(person.id)) : people).map(person => <article className="person-card person-card-clickable" key={person.id} role="button" tabIndex={0} onClick={()=>openMemberProfile(person,false)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openMemberProfile(person,false)}}}>
             <div className="person-card-gallery">
               {person.photos?.length ? <img src={person.photos[0].url} alt={`Foto de ${person.display_name || 'usuario'}`}/> : <ProfileAvatar person={person}/>}
-              {person.approximateDistanceKm!==null && person.approximateDistanceKm!==undefined && <span className="photo-distance-badge">{person.approximateDistanceKm===0?'A menos de 2.500 m':`≈ ${(person.approximateDistanceKm*1000).toLocaleString('es-UY')} m`}</span>}
+              {person.show_distance && person.approximateDistanceKm!==null && person.approximateDistanceKm!==undefined && <span className="photo-distance-badge">{formatApproxDistance(person.approximateDistanceKm)}</span>}
             </div>
             <div className="person-info">
               <div className="person-title-row"><h3>{person.display_name || 'Usuario ZUNO'} {person.zuno_verified && <span className="verified-dot" title="Cuenta verificada">✓</span>}</h3><button type="button" className={`favorite-btn ${favoriteIds.includes(person.id) ? 'is-favorite' : ''}`} aria-label={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} title={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} disabled={favoriteBusy === person.id} onClick={event=>{event.stopPropagation();toggleFavorite(person.id)}}><Heart size={18} fill={favoriteIds.includes(person.id) ? 'currentColor' : 'none'}/></button></div>
               {person.username && <p className="person-username">@{person.username}</p>}
               {person.show_online && person.activityStatus && <p className={`person-online-label ${person.activityStatus}`}><span/> {person.activityStatus === 'active' ? 'Activo ahora' : person.activityStatus === 'recent' ? 'En línea recientemente' : 'Desconectado'}</p>}
-               {person.show_distance && person.approximateDistanceKm!==null && person.approximateDistanceKm!==undefined && <p className="person-distance-label"><MapPin size={12}/> {person.approximateDistanceKm===0 ? 'A menos de 5 km' : `A unos ${person.approximateDistanceKm} km`}</p>}
+               {person.show_distance && person.approximateDistanceKm!==null && person.approximateDistanceKm!==undefined && <p className="person-distance-label"><MapPin size={12}/> {formatApproxDistance(person.approximateDistanceKm)}</p>}
               {person.visibleCity && <p className="person-location"><Compass size={13}/>{person.visibleCity}</p>}
               {person.bio && <p className="person-bio">{person.bio}</p>}
               {person.interests?.length > 0 && <div className="person-tags">{person.interests.slice(0,5).map(tag=><span key={tag}>{tag}</span>)}</div>}
