@@ -82,11 +82,37 @@ export default function App() {
     if (!session?.user || view !== 'home') return
     let active = true
     setPeopleLoading(true); setPeopleError('')
-    supabase.from('profiles').select('id, display_name, username, bio, avatar_url, zuno_verified, created_at').neq('id', session.user.id).order('created_at', { ascending: false }).limit(40)
-      .then(({ data, error: listError }) => {
+    supabase.from('profiles').select('id, display_name, username, bio, avatar_url, zuno_verified, city, region, interests, looking_for, show_location, created_at').neq('id', session.user.id).order('created_at', { ascending: false }).limit(40)
+      .then(async ({ data, error: listError }) => {
         if (!active) return
-        if (listError) setPeopleError('No pudimos cargar los perfiles. ' + listError.message)
-        else setPeople(data || [])
+        if (listError) {
+          setPeopleError('No pudimos cargar los perfiles. ' + listError.message)
+          setPeopleLoading(false)
+          return
+        }
+        const profiles = data || []
+        const ids = profiles.map(person => person.id)
+        let photosByUser = {}
+        if (ids.length) {
+          const { data: photoRows, error: photoError } = await supabase.from('profile_photos').select('id,user_id,storage_path,sort_order').in('user_id', ids).order('sort_order')
+          if (!photoError && photoRows?.length) {
+            const signedRows = await Promise.all(photoRows.map(async photo => {
+              const { data: signed } = await supabase.storage.from('zuno-profile-photos').createSignedUrl(photo.storage_path, 3600)
+              return { ...photo, url: signed?.signedUrl || '' }
+            }))
+            photosByUser = signedRows.reduce((groups, photo) => {
+              if (!groups[photo.user_id]) groups[photo.user_id] = []
+              if (photo.url) groups[photo.user_id].push(photo)
+              return groups
+            }, {})
+          }
+        }
+        if (!active) return
+        setPeople(profiles.map(person => ({
+          ...person,
+          photos: photosByUser[person.id] || [],
+          visibleCity: person.show_location ? [person.city, person.region].filter(Boolean).join(', ') : ''
+        })))
         setPeopleLoading(false)
       })
     return () => { active = false }
@@ -189,7 +215,19 @@ export default function App() {
         {peopleLoading ? <div className="empty-state">Buscando perfiles…</div> : people.length === 0 ? (
           <div className="empty-state"><div className="empty-icon"><Users size={26}/></div><h2>La comunidad está empezando</h2><p>Tu perfil ya está listo. Cuando otras personas se registren en ZUNO y completen sus perfiles, aparecerán acá.</p><button className="submit-btn home-refresh" onClick={()=>setPeopleRefresh(value=>value+1)}>Volver a buscar <span>→</span></button></div>
         ) : (
-          <div className="people-grid">{people.map(person => <article className="person-card" key={person.id}><div className="person-avatar">{person.avatar_url ? <img src={person.avatar_url} alt=""/> : <span>{(person.display_name || person.username || '?').slice(0,1).toUpperCase()}</span>}</div><div className="person-info"><h3>{person.display_name || 'Usuario ZUNO'} {person.zuno_verified && <span className="verified-dot" title="Cuenta verificada">✓</span>}</h3>{person.username && <p className="person-username">@{person.username}</p>}{person.bio && <p className="person-bio">{person.bio}</p>}</div></article>)}</div>
+          <div className="people-grid">{people.map(person => <article className="person-card" key={person.id}>
+            <div className="person-card-gallery">
+              {person.photos?.length ? person.photos.slice(0,3).map(photo => <img key={photo.id} src={photo.url} alt={`Foto de ${person.display_name || 'usuario'}`}/>) : <div className="person-avatar">{person.avatar_url ? <img src={person.avatar_url} alt=""/> : <span>{(person.display_name || person.username || '?').slice(0,1).toUpperCase()}</span>}</div>}
+            </div>
+            <div className="person-info">
+              <h3>{person.display_name || 'Usuario ZUNO'} {person.zuno_verified && <span className="verified-dot" title="Cuenta verificada">✓</span>}</h3>
+              {person.username && <p className="person-username">@{person.username}</p>}
+              {person.visibleCity && <p className="person-location"><Compass size={13}/>{person.visibleCity}</p>}
+              {person.bio && <p className="person-bio">{person.bio}</p>}
+              {person.interests?.length > 0 && <div className="person-tags">{person.interests.slice(0,5).map(tag=><span key={tag}>{tag}</span>)}</div>}
+              {person.looking_for?.length > 0 && <p className="person-looking"><strong>Busca:</strong> {person.looking_for.join(' · ')}</p>}
+            </div>
+          </article>)}</div>
         )}
       </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
