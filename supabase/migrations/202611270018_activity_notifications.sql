@@ -70,6 +70,8 @@ begin
 end;
 $$;
 
+revoke all on function public.zuno_create_activity_notification(uuid, uuid, text, uuid, text, text) from public, anon, authenticated;
+
 create or replace function public.zuno_notify_new_message()
 returns trigger
 language plpgsql
@@ -98,6 +100,8 @@ begin
 end;
 $$;
 
+revoke all on function public.zuno_notify_new_message() from public, anon, authenticated;
+
 drop trigger if exists zuno_notify_message_insert on public.messages;
 create trigger zuno_notify_message_insert
   after insert on public.messages
@@ -120,6 +124,8 @@ begin
 end;
 $$;
 
+revoke all on function public.zuno_notify_connection_request() from public, anon, authenticated;
+
 drop trigger if exists zuno_notify_connection_insert on public.connection_requests;
 create trigger zuno_notify_connection_insert
   after insert on public.connection_requests
@@ -139,6 +145,8 @@ begin
   return new;
 end;
 $$;
+
+revoke all on function public.zuno_notify_favorite() from public, anon, authenticated;
 
 drop trigger if exists zuno_notify_favorite_insert on public.profile_favorites;
 create trigger zuno_notify_favorite_insert
