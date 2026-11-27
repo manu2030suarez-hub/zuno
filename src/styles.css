@@ -1309,3 +1309,11 @@ button{touch-action:manipulation}
  .profile-top-five-actions{gap:3px}
  .profile-top-five-actions button{width:33px!important;height:33px!important;min-width:33px;padding:0}
 }
+
+
+/* Tap de fuego independiente del favorito */
+.profile-stage-name-row{display:flex;align-items:center;gap:12px;max-width:100%}
+.profile-stage-name-row .profile-stage-name{min-width:0;overflow-wrap:anywhere}
+.profile-name-fire{flex:0 0 44px;width:44px;height:44px;display:grid;place-items:center;border:1px solid #ffd44a88;border-radius:50%;background:#17100bcc;color:#ffca28;box-shadow:0 0 18px #ff9d1838;cursor:pointer;backdrop-filter:blur(8px)}
+.profile-name-fire:active{transform:scale(.92)}
+.profile-name-fire:disabled{opacity:.45;cursor:wait}
