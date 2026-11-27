@@ -109,3 +109,6 @@ USING (
     WHERE b.blocker_id = auth.uid() AND b.blocked_id = profiles.id
   )
 );
+
+REVOKE ALL ON public.user_reports FROM anon, authenticated;
+GRANT INSERT (reporter_id, reported_user_id, reason, details) ON public.user_reports TO authenticated;
