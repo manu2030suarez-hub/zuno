@@ -186,3 +186,7 @@
 .chat-gallery-strip button{position:relative;flex:0 0 62px;width:62px;height:62px;padding:0;border:1px solid #ffffff30;border-radius:9px;overflow:hidden;background:#211a28;cursor:pointer}
 .chat-gallery-strip img{width:100%;height:100%;object-fit:cover}.chat-gallery-strip button span{position:absolute;right:3px;bottom:3px;width:19px;height:19px;border-radius:50%;display:grid;place-items:center;background:#e76aa8;color:#fff;font-weight:800}
 @media(max-width:600px){.chat-editor-heading{align-items:flex-start;flex-direction:column}.chat-editor-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.chat-editor-preview{height:105px}.chat-image-editor,.chat-gallery-strip{padding:10px}}
+
+/* Botón para abrir/cerrar galería reutilizable */
+.chat-gallery-toggle{width:44px;height:44px;flex:0 0 44px;display:flex;align-items:center;justify-content:center;border:1px solid #ffffff20;border-radius:50%;background:transparent;color:#e9a2d2;cursor:pointer}
+.chat-gallery-toggle:hover,.chat-gallery-toggle.active{border-color:#e76aa8;background:#e76aa81c;color:#f3a4d0}
