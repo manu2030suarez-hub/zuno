@@ -2,6 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
 import { Heart, Eye, EyeOff, MoreVertical, Archive, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, StopCircle, Ban, Flag, SlidersHorizontal, Bell, Phone, PhoneOff, Video, MicOff, VideoOff } from 'lucide-react'
 import L from 'leaflet'
+
+function ProfileAvatar({ person, className = '' }) {
+  const label = (person?.display_name || person?.username || '').trim()
+  if (person?.avatar_url) return <span className={`zuno-avatar ${className}`}><img src={person.avatar_url} alt=""/></span>
+  if (!label) return <span className={`zuno-avatar zuno-avatar-empty ${className}`}><UserRound size={22}/></span>
+  let hash = 0
+  for (let i = 0; i < label.length; i++) hash = (hash * 31 + label.charCodeAt(i)) >>> 0
+  return <span className={`zuno-avatar zuno-avatar-initial ${className}`} style={{'--avatar-hue': hash % 360}}>{label.slice(0,1).toLocaleUpperCase('es-UY')}</span>
+}
 import 'leaflet/dist/leaflet.css'
 
 function ChatAudioPlayer({ src, error }) {
@@ -143,7 +152,7 @@ export default function App() {
   const [ageMin, setAgeMin] = useState('18')
   const [ageMax, setAgeMax] = useState('99')
   const [distanceKm, setDistanceKm] = useState('50')
-  const [privacy, setPrivacy] = useState({show_online:true,show_distance:false,show_age:true,show_location:true})
+  const [privacy, setPrivacy] = useState({show_online:true,show_distance:true,show_age:true,show_location:true})
   const [photos, setPhotos] = useState([])
   const [privateAlbumPhotos, setPrivateAlbumPhotos] = useState([])
   const [privateAlbumRequests, setPrivateAlbumRequests] = useState([])
@@ -493,6 +502,7 @@ export default function App() {
         if (!enableError && active) setMapVisible(true)
         else if (enableError) console.warn('No se pudo activar la preferencia de visibilidad:', enableError.message)
       } else setMapVisible(Boolean(data.map_visible))
+      if (active && (!data || data.map_visible)) refreshMyMapLocation()
     }
     initializeMapVisibility()
     return () => { active = false }
@@ -1062,36 +1072,36 @@ export default function App() {
     if (blockedUsers.some(item => item.blocked_id === person.id)) { setPeopleError('Esta cuenta está bloqueada. Desbloqueala antes de iniciar un chat.'); return }
     const ids = [session.user.id, person.id].sort()
     setOtherUserTyping(false)
-    setChatBusy(true); setPeopleError('')
+    setChatBusy(true); setPeopleError(''); setChatMessages([]); setMessageReceipts({}); setChatGallery([])
+    setActiveConversation({ id: null, member_one: ids[0], member_two: ids[1], ephemeral_duration_minutes: 0, person })
+    setChatDraft(''); setShowChatGallery(false); setActiveMessageMenu(null); setShowEphemeralMenu(false); setView('chat')
     const { data: conversation, error: conversationError } = await supabase.from('conversations').upsert({ member_one: ids[0], member_two: ids[1] }, { onConflict: 'member_one,member_two' }).select('id,member_one,member_two,ephemeral_duration_minutes').single()
     if (conversationError) { setChatBusy(false); setPeopleError('No pudimos abrir el chat. ' + conversationError.message); return }
-    await purgeExpiredMessages(conversation.id)
-    const { data: messages, error: messagesError } = await supabase.from('messages').select('id,conversation_id,sender_id,body,created_at,message_type,media_path,latitude,longitude,location_expires_at,expires_at').eq('conversation_id', conversation.id).or('expires_at.is.null,expires_at.gt.' + new Date().toISOString()).order('created_at')
-    setChatBusy(false)
-    if (messagesError) { setPeopleError('No pudimos cargar los mensajes. ' + messagesError.message); return }
-    const { data: hiddenRows, error: hiddenError } = await supabase.from('message_hidden_for').select('message_id').eq('user_id', session.user.id)
-    if (hiddenError) { setChatBusy(false); setPeopleError('No pudimos cargar tus mensajes ocultos. ' + hiddenError.message); return }
+    setActiveConversation({ ...conversation, ephemeral_duration_minutes: conversation.ephemeral_duration_minutes || 0, person })
+    purgeExpiredMessages(conversation.id).catch(error => console.warn('No se pudieron limpiar mensajes vencidos:', error))
+    const [{ data: messages, error: messagesError }, { data: hiddenRows, error: hiddenError }, { data: activeLocations }] = await Promise.all([
+      supabase.from('messages').select('id,conversation_id,sender_id,body,created_at,message_type,media_path,latitude,longitude,location_expires_at,expires_at').eq('conversation_id', conversation.id).or('expires_at.is.null,expires_at.gt.' + new Date().toISOString()).order('created_at'),
+      supabase.from('message_hidden_for').select('message_id').eq('user_id', session.user.id),
+      supabase.from('live_locations').select('id,conversation_id,sender_id,latitude,longitude,expires_at,ended_at,updated_at').eq('conversation_id', conversation.id).is('ended_at', null).gt('expires_at', new Date().toISOString())
+    ])
+    if (messagesError || hiddenError) { setChatBusy(false); setPeopleError(messagesError ? 'No pudimos cargar los mensajes. ' + messagesError.message : 'No pudimos cargar tus mensajes ocultos. ' + hiddenError.message); return }
     const hiddenIds = (hiddenRows || []).map(row => row.message_id)
     const displayMessages = await resolveChatMedia((messages || []).filter(item => !hiddenIds.includes(item.id)))
-    const { data: activeLocations } = await supabase.from('live_locations').select('id,conversation_id,sender_id,latitude,longitude,expires_at,ended_at,updated_at').eq('conversation_id', conversation.id).is('ended_at', null).gt('expires_at', new Date().toISOString())
-    setLiveLocations(activeLocations || [])
-    setLiveSharing((activeLocations || []).find(item => item.sender_id === session.user.id) || null)
-    const { data: priorImages } = await supabase.from('messages').select('id,media_path,created_at,expires_at').eq('sender_id', session.user.id).eq('message_type', 'image').not('media_path', 'is', null).or('expires_at.is.null,expires_at.gt.' + new Date().toISOString()).order('created_at', { ascending: false }).limit(30)
-    const gallery = await Promise.all((priorImages || []).map(async item => { const { data: signed } = await supabase.storage.from('zuno-chat-media').createSignedUrl(item.media_path, 3600); return { ...item, url: signed?.signedUrl || '' } }))
-    setChatGallery(gallery.filter(item => item.url))
+    setChatMessages(displayMessages); setLiveLocations(activeLocations || []); setLiveSharing((activeLocations || []).find(item => item.sender_id === session.user.id) || null); setChatBusy(false)
     const incomingMessages = (messages || []).filter(item => item.sender_id !== session.user.id)
+    const sentIds = (messages || []).filter(item => item.sender_id === session.user.id).map(item => item.id)
+    const backgroundTasks = [markConversationRead(conversation.id)]
     if (incomingMessages.length) {
       const now = new Date().toISOString()
-      await supabase.from('message_receipts').upsert(incomingMessages.map(item => ({ message_id: item.id, user_id: session.user.id, delivered_at: now, read_at: now })), { onConflict: 'message_id,user_id' })
+      backgroundTasks.push(supabase.from('message_receipts').upsert(incomingMessages.map(item => ({ message_id: item.id, user_id: session.user.id, delivered_at: now, read_at: now })), { onConflict: 'message_id,user_id' }))
     }
-    const sentIds = (messages || []).filter(item => item.sender_id === session.user.id).map(item => item.id)
-    let receiptMap = {}
-    if (sentIds.length) {
-      const { data: receipts } = await supabase.from('message_receipts').select('message_id,user_id,delivered_at,read_at').in('message_id', sentIds).neq('user_id', session.user.id)
-      receiptMap = Object.fromEntries((receipts || []).map(item => [item.message_id, item]))
-    }
-    setMessageReceipts(receiptMap)
-    setActiveConversation({ ...conversation, ephemeral_duration_minutes: conversation.ephemeral_duration_minutes || 0, person }); setChatMessages(displayMessages); setChatDraft(''); setShowChatGallery(false); setActiveMessageMenu(null); setShowEphemeralMenu(false); await markConversationRead(conversation.id); setView('chat')
+    if (sentIds.length) backgroundTasks.push(supabase.from('message_receipts').select('message_id,user_id,delivered_at,read_at').in('message_id', sentIds).neq('user_id', session.user.id).then(({data}) => setMessageReceipts(Object.fromEntries((data || []).map(item => [item.message_id, item])))))
+    backgroundTasks.push((async () => {
+      const { data: priorImages } = await supabase.from('messages').select('id,media_path,created_at,expires_at').eq('sender_id', session.user.id).eq('message_type', 'image').not('media_path', 'is', null).or('expires_at.is.null,expires_at.gt.' + new Date().toISOString()).order('created_at', { ascending: false }).limit(30)
+      const gallery = await Promise.all((priorImages || []).map(async item => { const { data: signed } = await supabase.storage.from('zuno-chat-media').createSignedUrl(item.media_path, 3600); return { ...item, url: signed?.signedUrl || '' } }))
+      setChatGallery(gallery.filter(item => item.url))
+    })())
+    Promise.allSettled(backgroundTasks)
   }
 
   function getBrowserPosition() {
@@ -1760,7 +1770,7 @@ export default function App() {
     if (normalizedUsername && !/^[a-z0-9_.]{3,24}$/.test(normalizedUsername)) { setBusy(false); setError('El usuario debe tener entre 3 y 24 caracteres: letras, números, puntos o guion bajo.'); return }
     if (!birthDate || Math.floor((Date.now()-new Date(birthDate+'T00:00:00').getTime())/31557600000)<18) { setBusy(false); setError('Ingresá una fecha válida: ZUNO es exclusivo para mayores de 18 años.'); return }
     if (Number(ageMin)>Number(ageMax)) { setBusy(false); setError('La edad mínima no puede superar la máxima.'); return }
-    const payload = {id:session.user.id,display_name:displayName.trim(),username:normalizedUsername||null,bio:bio.trim(),city:city.trim()||null,region:region.trim()||null,interests,looking_for:lookingFor,preferred_age_min:Number(ageMin),preferred_age_max:Number(ageMax),preferred_distance_km:Number(distanceKm),...privacy}
+    const payload = {id:session.user.id,display_name:displayName.trim(),username:normalizedUsername||null,bio:bio.trim(),city:city.trim()||null,region:region.trim()||null,interests,looking_for:lookingFor,preferred_age_min:Number(ageMin),preferred_age_max:Number(ageMax),preferred_distance_km:Number(distanceKm),...privacy,show_distance:privacy.show_distance ?? true}
     const {data,error:saveError}=await supabase.from('profiles').upsert(payload,{onConflict:'id'}).select('display_name,username,bio,avatar_url,zuno_verified,city,region,interests,looking_for,preferred_age_min,preferred_age_max,preferred_distance_km,show_online,show_distance,show_age,show_location').maybeSingle()
     if(saveError){setBusy(false);setError(saveError.code==='23505'?'Ese nombre de usuario ya está ocupado. Probá con otro.':saveError.message);return}
     const {error:privateError}=await supabase.from('private_profiles').upsert({user_id:session.user.id,birth_date:birthDate,updated_at:new Date().toISOString()},{onConflict:'user_id'})
@@ -2005,7 +2015,7 @@ export default function App() {
     <main className="app-shell">{callOverlay}<header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
       <section className="chat-page"><div className="home-heading"><div><div className="eyebrow"><span/> MENSAJES PRIVADOS</div><h1>Tus <span>chats.</span></h1><p>Podés hablar con cualquier persona, sin conexión previa.</p></div><button className="refresh-btn" onClick={()=>setView('home')}>Descubrir personas</button></div>
         {peopleError && <div className="notice error">{peopleError}</div>}
-        <div className="chat-list">{conversations.length ? conversations.map(item=><button className="chat-list-item" key={item.id} onClick={()=>openChat({...item.person,id:item.member_one===session.user.id?item.member_two:item.member_one})}><span className="chat-list-avatar">{item.person?.avatar_url?<img src={item.person.avatar_url} alt=""/>:(item.person?.display_name||'Z').slice(0,1)}</span><span className="chat-list-name"><strong>{item.person?.display_name||'Miembro de ZUNO'}</strong><small>{item.lastMessage ? (item.lastMessage.message_type==='image'?'📷 Foto':item.lastMessage.message_type==='audio'?'🎤 Audio':item.lastMessage.message_type==='location'?'📍 Ubicación':(item.lastMessage.body||'Mensaje').slice(0,90)) : 'Todavía no hay mensajes' }{item.lastMessage?.sender_id===session.user.id && <span className={'message-ticks '+(item.lastReceipt?.read_at?'is-read':item.lastReceipt?.delivered_at?'is-delivered':'')}>{item.lastReceipt?.delivered_at?'✓✓':'✓'}</span>}</small></span>{(unreadCounts[item.id]||0)>0 && <span className="chat-unread-count">{unreadCounts[item.id]}</span>}<MessageCircle size={18}/></button>) : <div className="connections-empty">Todavía no tenés conversaciones. Iniciá un chat desde cualquier perfil.</div>}</div>
+        <div className="chat-list">{conversations.length ? conversations.map(item=><button className="chat-list-item" key={item.id} onClick={()=>openChat({...item.person,id:item.member_one===session.user.id?item.member_two:item.member_one})}><span className="chat-list-avatar"><ProfileAvatar person={item.person}/></span><span className="chat-list-name"><strong>{item.person?.display_name||'Miembro de ZUNO'}</strong><small>{item.lastMessage ? (item.lastMessage.message_type==='image'?'📷 Foto':item.lastMessage.message_type==='audio'?'🎤 Audio':item.lastMessage.message_type==='location'?'📍 Ubicación':(item.lastMessage.body||'Mensaje').slice(0,90)) : 'Todavía no hay mensajes' }{item.lastMessage?.sender_id===session.user.id && <span className={'message-ticks '+(item.lastReceipt?.read_at?'is-read':item.lastReceipt?.delivered_at?'is-delivered':'')}>{item.lastReceipt?.delivered_at?'✓✓':'✓'}</span>}</small></span>{(unreadCounts[item.id]||0)>0 && <span className="chat-unread-count">{unreadCounts[item.id]}</span>}<MessageCircle size={18}/></button>) : <div className="connections-empty">Todavía no tenés conversaciones. Iniciá un chat desde cualquier perfil.</div>}</div>
       </section><ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer></main>
   )
   if (session?.user && ['home', 'favorites', 'connections'].includes(view)) return (
@@ -2090,14 +2100,14 @@ export default function App() {
           </article>}
           {(view === 'home' ? discoveryPeople : view === 'favorites' ? people.filter(person => favoriteIds.includes(person.id)) : people).map(person => <article className="person-card person-card-clickable" key={person.id} role="button" tabIndex={0} onClick={()=>openMemberProfile(person,false)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openMemberProfile(person,false)}}}>
             <div className="person-card-gallery">
-              {person.photos?.length ? <img src={person.photos[0].url} alt={`Foto de ${person.display_name || 'usuario'}`}/> : <div className="person-avatar">{person.avatar_url ? <img src={person.avatar_url} alt=""/> : <span>{(person.display_name || person.username || '?').slice(0,1).toUpperCase()}</span>}</div>}
+              {person.photos?.length ? <img src={person.photos[0].url} alt={`Foto de ${person.display_name || 'usuario'}`}/> : <ProfileAvatar person={person}/>}
               {person.approximateDistanceKm!==null && person.approximateDistanceKm!==undefined && <span className="photo-distance-badge">{person.approximateDistanceKm===0?'A menos de 2.500 m':`≈ ${(person.approximateDistanceKm*1000).toLocaleString('es-UY')} m`}</span>}
             </div>
             <div className="person-info">
               <div className="person-title-row"><h3>{person.display_name || 'Usuario ZUNO'} {person.zuno_verified && <span className="verified-dot" title="Cuenta verificada">✓</span>}</h3><button type="button" className={`favorite-btn ${favoriteIds.includes(person.id) ? 'is-favorite' : ''}`} aria-label={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} title={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} disabled={favoriteBusy === person.id} onClick={event=>{event.stopPropagation();toggleFavorite(person.id)}}><Heart size={18} fill={favoriteIds.includes(person.id) ? 'currentColor' : 'none'}/></button></div>
               {person.username && <p className="person-username">@{person.username}</p>}
               {person.show_online && person.activityStatus && <p className={`person-online-label ${person.activityStatus}`}><span/> {person.activityStatus === 'active' ? 'Activo ahora' : person.activityStatus === 'recent' ? 'En línea recientemente' : 'Desconectado'}</p>}
-               {person.show_distance && person.approximateDistanceKm!==null && person.approximateDistanceKm!==undefined && <p className="person-distance-label"><MapPin size={12}/> {person.approximateDistanceKm===0 ? 'A menos de 2.500 m' : `A ≈ ${(person.approximateDistanceKm*1000).toLocaleString('es-UY')} m`}</p>}
+               {person.show_distance && person.approximateDistanceKm!==null && person.approximateDistanceKm!==undefined && <p className="person-distance-label"><MapPin size={12}/> {person.approximateDistanceKm===0 ? 'A menos de 5 km' : `A unos ${person.approximateDistanceKm} km`}</p>}
               {person.visibleCity && <p className="person-location"><Compass size={13}/>{person.visibleCity}</p>}
               {person.bio && <p className="person-bio">{person.bio}</p>}
               {person.interests?.length > 0 && <div className="person-tags">{person.interests.slice(0,5).map(tag=><span key={tag}>{tag}</span>)}</div>}
