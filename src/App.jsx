@@ -618,6 +618,7 @@ export default function App() {
 
   async function openStory(story) {
     setStoryViewer(story)
+    setStoryMessage('')
     setStoryRemainingMs(7000); setStoryPaused(false); setShowStoryMenu(false)
     setShowStoryViewers(false)
     setStoryViewers([]); setStoryLikes([]); setStoryLiked(false); setStoryLikeCount(0); setStoryReplyDraft('')
@@ -701,6 +702,7 @@ export default function App() {
     setStoryReplyBusy(false)
     if (messageError) { if (mediaPath) await supabase.storage.from('zuno-chat-media').remove([mediaPath]); setStoryMessage('No se pudo enviar la respuesta: ' + messageError.message); return }
     setStoryReplyDraft('')
+    setStoryPaused(false)
     setStoryMessage('¡Respuesta enviada! Podés seguir viendo historias.')
     if (activeConversation?.id === conversation.id && sentMessage) {
       const [displayMessage] = await resolveChatMedia([sentMessage])
