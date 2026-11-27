@@ -388,17 +388,19 @@ export default function App() {
     const path = `${activeConversation.id}/${session.user.id}/${crypto.randomUUID()}.${extension}`
     try {
       const file = new File([audioDraft.blob], `zuno-audio.${extension}`, { type: mime })
-      const { error: uploadError } = await supabase.storage.from('zuno-chat-media').upload(path, file, { contentType: mime, upsert: false })
+      const { data: uploadedAudio, error: uploadError } = await supabase.storage.from('zuno-chat-media').upload(path, file, { contentType: mime, upsert: false })
       if (uploadError) throw uploadError
+      const storedPath = uploadedAudio?.path
+      if (!storedPath) throw new Error('Supabase no confirmó la ruta del archivo subido.')
       const { data, error: insertError } = await supabase.from('messages').insert({
         conversation_id: activeConversation.id,
         sender_id: session.user.id,
         body: null,
         message_type: 'audio',
-        media_path: path
+        media_path: storedPath
       }).select('id,conversation_id,sender_id,body,created_at,message_type,media_path').single()
       if (insertError) {
-        await supabase.storage.from('zuno-chat-media').remove([path])
+        await supabase.storage.from('zuno-chat-media').remove([storedPath])
         throw insertError
       }
       const [displayMessage] = await resolveChatMedia([data])
