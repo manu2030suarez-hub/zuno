@@ -103,3 +103,24 @@
 .favorite-detail-btn{display:flex;align-items:center;justify-content:center;gap:9px;margin:26px auto 0;border:1px solid #ffffff25;border-radius:12px;background:#1b1520;color:#e8d9e9;padding:12px 18px;font:600 13px 'DM Sans';cursor:pointer}
 .favorite-detail-btn.is-favorite{border-color:#e76aa8;color:#f078b8;background:#e76aa81c}
 @media(max-width:600px){.home-actions{width:100%}.home-actions .refresh-btn{flex:1}}
+
+
+/* Connection requests */
+.connect-btn,.accept-btn,.reject-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid #ffffff24;border-radius:10px;padding:9px 12px;font:600 12px 'DM Sans';cursor:pointer;transition:all .18s ease}
+.connect-btn{margin-top:12px;background:#24172b;color:#f3b4d3;border-color:#a84b7b70}
+.connect-btn:hover{background:#3a1e34;border-color:#e76aa8}
+.accept-btn{background:#183327;color:#a8e4bd;border-color:#4b9d6b70}
+.reject-btn{background:#2b2027;color:#e5a8b4}
+.connect-btn:disabled,.accept-btn:disabled,.reject-btn:disabled{opacity:.55;cursor:wait}
+.connection-status,.connected-label{display:inline-flex;align-items:center;gap:6px;margin-top:12px;color:#b9a9c3;font-size:12px}
+.connected-label{color:#9dd9b0}
+.connections-panel{max-width:900px;margin:26px auto 0;padding:22px;border:1px solid #ffffff18;border-radius:16px;background:#141119}
+.connections-panel h2{margin:22px 0 10px;font-size:16px}
+.connections-panel h2:first-child{margin-top:0}
+.connection-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid #ffffff12}
+.connection-row>div:first-child{display:flex;flex-direction:column;gap:4px}
+.connection-row strong{font-size:14px}
+.connection-row span{font-size:12px;color:#b9a9c3}
+.connection-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.connections-empty{font-size:13px;color:#a99eaf;padding:8px 0}
+@media(max-width:600px){.connections-panel{padding:16px}.connection-row{align-items:flex-start;flex-direction:column}.connection-actions{width:100%}.connection-actions button{flex:1}}
