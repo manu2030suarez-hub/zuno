@@ -2102,12 +2102,18 @@ export default function App() {
             {currentPhoto?.url ? <img className="profile-stage-image" src={currentPhoto.url} alt={`Foto de ${selectedProfile.display_name || 'usuario'}`} onClick={()=>setProfilePhotoFullscreen(true)}/> : <div className="profile-stage-empty"><UserRound size={66}/><span>Sin fotos por ahora</span></div>}
             <div className="profile-stage-top">
               <button type="button" className="profile-stage-back" onClick={()=>{setSelectedProfile(null);setView('home')}} aria-label="Volver a descubrir"><X size={23}/></button>
-              <div className="profile-stage-top-actions">
-                {!selectedProfile.isOwn && <button type="button" onClick={()=>toggleFavorite(selectedProfile.id)} aria-label="Favorito"><Heart size={22} fill={favoriteIds.includes(selectedProfile.id)?'currentColor':'none'}/></button>}
+              <div className="profile-stage-top-actions profile-top-five-actions">
+                {!selectedProfile.isOwn && <>
+                  <button type="button" onClick={()=>toggleFavorite(selectedProfile.id)} aria-label="Tap" title="Tap"><Heart size={19} fill={favoriteIds.includes(selectedProfile.id)?'currentColor':'none'}/></button>
+                  <button type="button" disabled={blockBusy===selectedProfile.id} onClick={()=>blockUser(selectedProfile)} aria-label="Bloquear" title="Bloquear"><Ban size={19}/></button>
+                  <button type="button" onClick={()=>{setReportTarget(selectedProfile);setReportReason('harassment');setReportDetails('')}} aria-label="Denunciar" title="Denunciar"><Flag size={19}/></button>
+                  <button type="button" onClick={()=>{setHiddenProfileIds(items=>items.includes(selectedProfile.id)?items:[...items,selectedProfile.id]);setSelectedProfile(null);setView('home')}} aria-label="Ocultar" title="Ocultar"><EyeOff size={19}/></button>
+                </>}
+                <button type="button" onClick={()=>setShowProfileAlbum(true)} aria-label="Álbum privado" title="Álbum"><Images size={19}/></button>
               </div>
             </div>
             {publicPhotos.length>1 && <div className="profile-photo-segments" aria-label="Fotos del perfil">{publicPhotos.map((photo,index)=><button key={photo.id||photo.url||index} type="button" className={index===profilePhotoIndex?'active':''} onClick={()=>setProfilePhotoIndex(index)} aria-label={`Ver foto ${index+1}`}/>)}</div>}
-            <button type="button" className="profile-album-shortcut" onClick={()=>setShowProfileAlbum(true)} aria-label="Abrir álbum privado"><Images size={20}/><span>Álbum</span></button>
+
             <div className="profile-stage-caption">
               <div className="profile-stage-name">{selectedProfile.display_name || 'Usuario ZUNO'}{selectedProfile.age ? <span> {selectedProfile.age}</span> : null}</div>
               {selectedProfile.username && <div className="profile-stage-username">@{selectedProfile.username}</div>}
@@ -2129,11 +2135,7 @@ export default function App() {
             {selectedProfile.looking_for?.length>0 && <section className="detail-section"><h2>PREFERENCIAS</h2><div className="profile-stat-row"><Users size={18}/><span>Lo que busco: <strong>{selectedProfile.looking_for.join(', ')}</strong></span></div></section>}
             {!selectedProfile.bio&&!selectedProfile.interests?.length&&!selectedProfile.looking_for?.length&&!selectedProfile.visibleCity&&<p className="detail-private-note">Esta persona todavía no agregó información pública a su perfil.</p>}
             {!selectedProfile.isOwn && <>
-              <div className="profile-safety-actions profile-safety-inline">
-                <button type="button" className="logout-btn" disabled={blockBusy===selectedProfile.id} onClick={()=>blockUser(selectedProfile)}><Ban size={15}/> Bloquear</button>
-                <button type="button" className="logout-btn" onClick={()=>{setReportTarget(selectedProfile);setReportReason('harassment');setReportDetails('')}}><Flag size={15}/> Denunciar</button>
-                <button type="button" className="logout-btn" onClick={()=>{setHiddenProfileIds(items=>items.includes(selectedProfile.id)?items:[...items,selectedProfile.id]);setSelectedProfile(null);setView('home')}}><EyeOff size={15}/> Ocultar</button>
-              </div>
+
             </>}
             {selectedProfile.isOwn && <p className="detail-private-note">Este es tu perfil. Podés administrar tu álbum privado desde el botón Álbum.</p>}
           </div>
@@ -2200,21 +2202,21 @@ export default function App() {
     <main className="app-shell">{callOverlay}
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
       <section className="notifications-page">
-        <div className="home-heading"><div><div className="eyebrow"><span/> TU ACTIVIDAD</div><h1>Tu <span>actividad.</span></h1><p>Tu actividad: mensajes, conexiones, favoritos y álbum privado.</p></div>
+        <div className="home-heading"><div><div className="eyebrow"><span/> TU ACTIVIDAD</div><h1>Tu <span>actividad.</span></h1><p>Notificaciones de taps y solicitudes de álbum privado.</p></div>
           <button type="button" className="refresh-btn" disabled={!notifications.some(item=>!item.read_at)} onClick={async()=>{const unread=notifications.filter(item=>!item.read_at);if(!unread.length)return;const now=new Date().toISOString();const {error}=await supabase.from('notifications').update({read_at:now}).eq('recipient_id',session.user.id).is('read_at',null);if(!error)setNotifications(current=>current.map(item=>({...item,read_at:item.read_at||now})))}}>Marcar todas leídas</button>
         </div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         <div className="notifications-list">
-          {notifications.length ? notifications.map(item=>{const actor=notificationActors[item.actor_id];const name=actor?.display_name||actor?.username||'Un miembro de ZUNO';return <article className={'notification-card '+(!item.read_at?'unread':'')} key={item.id}>
+          {notifications.filter(item=>['favorite','album_access_request'].includes(item.notification_type)).length ? notifications.filter(item=>['favorite','album_access_request'].includes(item.notification_type)).map(item=>{const actor=notificationActors[item.actor_id];const name=actor?.display_name||actor?.username||'Un miembro de ZUNO';return <article className={'notification-card '+(!item.read_at?'unread':'')} key={item.id}>
             <button type="button" className="notification-main" onClick={()=>openNotification(item)}>
-              <span className={'notification-symbol '+item.notification_type}>{item.notification_type==='message'?<MessageCircle size={19}/>:item.notification_type==='connection_request'?<UserPlus size={19}/>:item.notification_type==='favorite'?<Heart size={19}/>:item.notification_type==='album_access_request'?<Images size={19}/>:<ShieldCheck size={19}/>}</span>
+              <span className={'notification-symbol '+item.notification_type}>{item.notification_type==='favorite'?<Heart size={19}/>:<Images size={19}/>}</span>
               <span className="notification-copy"><strong>{item.title}</strong><span>{name} · {item.body}</span><time>{new Date(item.created_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}</time></span>
               {!item.read_at && <i className="notification-unread-dot"/>}
             </button>
-            {item.notification_type==='connection_request' && !item.read_at && <div className="notification-actions"><button type="button" className="accept-btn" disabled={notificationBusy===item.id} onClick={async()=>{setNotificationBusy(item.id);await respondToConnection(item.entity_id,'accepted');await markNotificationRead(item.id);setNotificationBusy('')}}><Check size={15}/> Aceptar</button><button type="button" className="reject-btn" disabled={notificationBusy===item.id} onClick={async()=>{setNotificationBusy(item.id);await respondToConnection(item.entity_id,'rejected');await markNotificationRead(item.id);setNotificationBusy('')}}><X size={15}/> Rechazar</button></div>}
-            {item.notification_type==='album_access_request' && <div className="notification-actions"><button type="button" className="accept-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'approved')}><Check size={15}/> {notificationBusy===item.id?'Guardando…':'Dar acceso'}</button><button type="button" className="reject-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'rejected')}><X size={15}/> Rechazar</button></div>}
+
+            {item.notification_type==='album_access_request' && <div className="notification-actions"><button type="button" className="accept-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'approved')}><Check size={15}/> {notificationBusy===item.id?'Guardando…':'Permitir'}</button><button type="button" className="reject-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'rejected')}><X size={15}/> Rechazar</button><button type="button" className="later-btn" disabled={notificationBusy===item.id} onClick={()=>markNotificationRead(item.id)}>Más tarde</button></div>}
             <button type="button" className="notification-delete" aria-label="Eliminar notificación" onClick={()=>deleteNotification(item.id)}><Trash2 size={15}/></button>
-          </article>}) : <div className="empty-state"><Bell size={28}/><h3>Todo al día</h3><p>Cuando recibas un mensaje, una solicitud, un favorito o una interacción con tu álbum privado, aparecerá acá.</p></div>}
+          </article>}) : <div className="empty-state"><Bell size={28}/><h3>Todo al día</h3><p>Cuando alguien te dé un tap o solicite acceso a tu álbum privado, aparecerá acá.</p></div>}
         </div>
       </section>
       <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
@@ -2411,7 +2413,7 @@ function ZunoBottomNav({ view, setView, unreadCount, notificationCount, onLogout
     <nav className="zuno-bottom-nav" aria-label="Navegación principal">
       <button type="button" className={active==='home'?'active':''} onClick={()=>go('home')}><Compass size={21}/><span>Descubrir</span></button>
       <button type="button" className={active==='chats'?'active':''} onClick={()=>go('chats')}><span className="zuno-nav-icon"><MessageCircle size={21}/>{unreadCount>0&&<i>{unreadCount>99?'99+':unreadCount}</i>}</span><span>Chats</span></button>
-      <button type="button" className={active==='notifications'?'active':''} onClick={()=>go('notifications')}><span className="zuno-nav-icon"><Bell size={21}/>{notificationCount>0&&<i>{notificationCount>99?'99+':notificationCount}</i>}</span><span>Avisos</span></button>
+      <button type="button" className={active==='notifications'?'active':''} onClick={()=>go('notifications')}><span className="zuno-nav-icon"><Bell size={21}/>{notificationCount>0&&<i>{notificationCount>99?'99+':notificationCount}</i>}</span><span>Notificaciones</span></button>
       <button type="button" className={active==='map'?'active':''} onClick={()=>go('map')}><MapPin size={21}/><span>Mapa</span></button>
       <div className="zuno-profile-nav-wrap">
         {profileMenuOpen && <div className="zuno-profile-menu" role="menu">
