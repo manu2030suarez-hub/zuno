@@ -87,10 +87,10 @@ export default function App() {
     } else setMessage(mode === 'signup' ? '¡Cuenta creada! Bienvenido a ZUNO.' : '¡Sesión iniciada!')
   }
 
-  async function resendVerification() {
-    if (!verificationEmail) return
+  async function resendVerification(targetEmail = verificationEmail) {
+    if (!targetEmail) return
     setBusy(true); setError(''); setMessage('')
-    const { error: resendError } = await supabase.auth.resend({ type: 'signup', email: verificationEmail })
+    const { error: resendError } = await supabase.auth.resend({ type: 'signup', email: targetEmail })
     setBusy(false)
     if (resendError) setError(resendError.message)
     else setMessage('Te reenviamos el correo. Revisá también la carpeta de spam.')
@@ -121,7 +121,7 @@ export default function App() {
       <section className="loading-state verification-screen">
         <div className="card-icon"><ShieldCheck size={21}/></div><h2>Confirmá tu correo electrónico</h2>
         <p>Necesitamos confirmar que esta dirección te pertenece antes de entrar a ZUNO.</p>
-        <button className="submit-btn verification-action" onClick={async()=>{setVerificationEmail(session.user.email || ''); await resendVerification()}} disabled={busy}>{busy ? 'Enviando…' : 'Reenviar correo de confirmación'}</button>
+        <button className="submit-btn verification-action" onClick={async()=>{setVerificationEmail(session.user.email || ''); await resendVerification(session.user.email || '')}} disabled={busy}>{busy ? 'Enviando…' : 'Reenviar correo de confirmación'}</button>
         {error && <div className="notice error">{error}</div>}{message && <div className="notice success">{message}</div>}
       </section>
     </main>
