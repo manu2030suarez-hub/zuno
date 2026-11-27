@@ -169,6 +169,7 @@ export default function App() {
   const [privateAlbumMessage, setPrivateAlbumMessage] = useState('')
   const [photoBusy, setPhotoBusy] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [showTermsModal, setShowTermsModal] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -506,6 +507,7 @@ export default function App() {
           setView('home')
         } else {
           setProfile({})
+          setLocationTermsAccepted(Boolean(session.user.user_metadata?.location_terms_accepted))
           setView('profile')
         }
         setProfileLoading(false)
@@ -1765,11 +1767,12 @@ export default function App() {
     if (!isSupabaseConfigured) { setError('La conexión con Supabase todavía no está configurada.'); return }
     if (password.length < 8) { setError('La contraseña debe tener al menos 8 caracteres.'); return }
     if (mode === 'signup' && !displayName.trim()) { setError('Escribí cómo querés que te llamemos.'); return }
+    if (mode === 'signup' && !locationTermsAccepted) { setError('Para crear tu cuenta tenés que aceptar los términos y condiciones.'); return }
     const identifier = email.trim()
     if (!identifier) { setError(mode === 'signup' ? 'Ingresá tu correo electrónico.' : 'Ingresá tu correo electrónico.'); return }
     setBusy(true)
     if (mode === 'signup') {
-      const result = await supabase.auth.signUp({ email: identifier, password, options: { data: { display_name: displayName.trim() } } })
+      const result = await supabase.auth.signUp({ email: identifier, password, options: { data: { display_name: displayName.trim(), location_terms_accepted: true, location_terms_accepted_at: new Date().toISOString() } } })
       setBusy(false)
       if (result.error) {
         setError(result.error.message)
@@ -2209,9 +2212,11 @@ export default function App() {
             {mode === 'signup' && <><label htmlFor="displayName">¿Cómo querés que te llamemos?</label><input id="displayName" value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="Tu nombre para mostrar" required maxLength={40}/></>}
             <label htmlFor="email">Correo electrónico</label><input id="email" type="email" autoComplete="email" placeholder="tu@email.com" value={email} onChange={e=>setEmail(e.target.value)} required/>
             <label htmlFor="password">Contraseña</label><div className="password-field"><input id="password" type={showPassword?'text':'password'} autoComplete={mode==='signup'?'new-password':'current-password'} placeholder="Mínimo 8 caracteres" value={password} onChange={e=>setPassword(e.target.value)} required minLength={8}/><button type="button" aria-label={showPassword?'Ocultar contraseña':'Mostrar contraseña'} onClick={()=>setShowPassword(!showPassword)}>{showPassword?<EyeOff size={18}/>:<Eye size={18}/>}</button></div>
+            {mode === 'signup' && <label className="signup-terms-check"><input type="checkbox" checked={locationTermsAccepted} onChange={e=>setLocationTermsAccepted(e.target.checked)}/><span>Acepto los <button type="button" className="terms-inline-link" onClick={()=>setShowTermsModal(true)}>términos y condiciones</button> de ZUNO.</span></label>}
             {error && <div className="notice error" role="alert">{error}</div>}{message && <div className="notice success" role="status">{message}</div>}
-            <button className="submit-btn" type="submit" disabled={busy}>{busy?'Un momento…':mode==='signup'?'Crear mi cuenta':'Iniciar sesión'} <span>→</span></button>
+            <button className="submit-btn" type="submit" disabled={busy || (mode === 'signup' && !locationTermsAccepted)}>{busy?'Un momento…':mode==='signup'?'Crear mi cuenta':'Iniciar sesión'} <span>→</span></button>
           </form>
+          {showTermsModal && <div className="terms-modal-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setShowTermsModal(false)}}><section className="terms-modal" role="dialog" aria-modal="true" aria-labelledby="zuno-terms-title"><div className="terms-modal-header"><div><span className="eyebrow">ZUNO · CONDICIONES DE USO</span><h2 id="zuno-terms-title">Términos y condiciones</h2></div><button type="button" className="terms-modal-close" onClick={()=>setShowTermsModal(false)} aria-label="Cerrar términos">×</button></div><div className="terms-modal-content"><p><strong>1. Requisitos de uso.</strong> ZUNO es una plataforma destinada exclusivamente a personas mayores de 18 años. Al crear una cuenta declarás que cumplís este requisito y que los datos que proporcionás son correctos.</p><p><strong>2. Uso de ubicación precisa.</strong> Para calcular distancias entre usuarios, ZUNO puede solicitar permiso de ubicación al dispositivo y recibir coordenadas precisas (latitud y longitud). Estas coordenadas se utilizan para calcular la distancia entre personas y, cuando corresponda y esté habilitada la función, para ubicarte de forma aproximada en el mapa. La ubicación precisa no se muestra públicamente como dirección ni como coordenadas.</p><p><strong>3. Distancias y visibilidad.</strong> La distancia que se muestra puede expresarse en metros o kilómetros y es una estimación calculada a partir de las ubicaciones compartidas más recientes. Puede variar por movimiento, señal GPS, permisos y precisión del dispositivo. Para que se muestre la distancia, ambas personas deben haber aceptado estos términos, habilitado la visibilidad correspondiente y compartido una ubicación reciente.</p><p><strong>4. Almacenamiento y control.</strong> Las coordenadas se almacenan para permitir las funciones de proximidad y mapa. Podés dejar de compartir tu ubicación o desactivar la visibilidad desde los controles de privacidad de ZUNO; al desactivar la visibilidad, ZUNO elimina las coordenadas guardadas para esa función. Si retirás el permiso de ubicación en el dispositivo, no podremos obtener nuevas ubicaciones.</p><p><strong>5. Privacidad.</strong> ZUNO no debe utilizar tu ubicación para revelar tu domicilio exacto a otros usuarios. Aun así, la distancia y la posición aproximada pueden permitir inferir cercanía. Evitá compartir información personal que no quieras hacer pública y revisá tus opciones de privacidad.</p><p><strong>6. Conducta y seguridad.</strong> Te comprometés a respetar a las demás personas, no acosar, amenazar, suplantar identidades, publicar contenido ilegal ni utilizar la plataforma para actividades ilícitas. Podés bloquear o denunciar cuentas que incumplan estas reglas.</p><p><strong>7. Consentimiento.</strong> Al marcar «Acepto los términos y condiciones» y crear tu cuenta, confirmás que leíste y aceptás estas condiciones, incluido el uso de ubicación precisa descrito arriba. La aceptación queda asociada a tu cuenta y a la fecha de registro. Podés retirar el consentimiento de ubicación desde Privacidad; algunas funciones de proximidad dejarán de estar disponibles.</p><p className="terms-modal-note">La aceptación es obligatoria para registrarte. Si no estás de acuerdo, no marques la casilla y no podrás crear una cuenta.</p></div><div className="terms-modal-actions"><button type="button" className="logout-btn" onClick={()=>setShowTermsModal(false)}>Cerrar</button><button type="button" className="submit-btn" onClick={()=>{setLocationTermsAccepted(true);setShowTermsModal(false)}}>Acepto los términos</button></div></section></div>}
           {verificationEmail && <div className="verification-resend"><p>¿No recibiste el correo de confirmación?</p><button type="button" className="logout-btn" onClick={resendVerification} disabled={busy}>Reenviar correo</button></div>}
           <p className="legal">ZUNO es para mayores de 18 años. Al continuar confirmás que tenés al menos 18 años y aceptás nuestras condiciones y política de privacidad.</p>
           {!isSupabaseConfigured && <p className="config-hint">Configuración pendiente: conectar las variables de Supabase.</p>}
