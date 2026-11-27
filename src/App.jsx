@@ -48,6 +48,10 @@ export default function App() {
   const [conversations, setConversations] = useState([])
   const [unreadCounts, setUnreadCounts] = useState({})
   const [notifications, setNotifications] = useState([])
+  const [stories, setStories] = useState([])
+  const [storyViewer, setStoryViewer] = useState(null)
+  const [storyBusy, setStoryBusy] = useState(false)
+  const [storyMessage, setStoryMessage] = useState('')
   const [notificationActors, setNotificationActors] = useState({})
   const [notificationBusy, setNotificationBusy] = useState('')
   const [activeConversation, setActiveConversation] = useState(null)
@@ -219,6 +223,66 @@ export default function App() {
     initializeMapVisibility()
     return () => { active = false }
   }, [session?.user?.id, Boolean(profile)])
+
+  useEffect(() => {
+    if (!session?.user || view !== 'home') return
+    let active = true
+    const loadStories = async () => {
+      const { data, error: storyError } = await supabase.from('stories').select('id,user_id,media_path,media_type,caption,created_at,expires_at').gt('expires_at', new Date().toISOString()).order('created_at', { ascending: true })
+      if (!active) return
+      if (storyError) { setStoryMessage('No pudimos cargar las historias: ' + storyError.message); return }
+      const rows = data || [], userIds = [...new Set(rows.map(row => row.user_id))]
+      let names = {}
+      if (userIds.length) {
+        const { data: profiles } = await supabase.from('profiles').select('id,display_name,username,avatar_url').in('id', userIds)
+        names = Object.fromEntries((profiles || []).map(person => [person.id, person]))
+      }
+      const signed = await Promise.all(rows.map(async row => {
+        const { data: link } = await supabase.storage.from('zuno-stories').createSignedUrl(row.media_path, 86400)
+        return { ...row, url: link?.signedUrl || '', owner: names[row.user_id] || null }
+      }))
+      if (active) setStories(signed.filter(row => row.url))
+    }
+    loadStories()
+    const channel = supabase.channel('zuno-stories-' + session.user.id).on('postgres_changes', { event: '*', schema: 'public', table: 'stories' }, () => loadStories()).subscribe()
+    return () => { active = false; supabase.removeChannel(channel) }
+  }, [session?.user?.id, view])
+
+  async function uploadStory(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !session?.user || storyBusy) return
+    const allowed = ['image/jpeg','image/png','image/webp','video/mp4','video/webm','video/quicktime']
+    if (!allowed.includes(file.type) || file.size > 50 * 1024 * 1024) { setStoryMessage('Elegí una foto o video compatible de hasta 50 MB.'); return }
+    setStoryBusy(true); setStoryMessage('')
+    const ext = (file.name.split('.').pop() || (file.type.startsWith('video/') ? 'mp4' : 'jpg')).toLowerCase()
+    const path = session.user.id + '/' + crypto.randomUUID() + '.' + ext
+    const { error: uploadError } = await supabase.storage.from('zuno-stories').upload(path, file, { contentType: file.type })
+    if (uploadError) setStoryMessage('No se pudo subir la historia: ' + uploadError.message)
+    else {
+      const { error: insertError } = await supabase.from('stories').insert({ user_id: session.user.id, media_path: path, media_type: file.type.startsWith('video/') ? 'video' : 'image', expires_at: new Date(Date.now() + 86400000).toISOString() })
+      if (insertError) { await supabase.storage.from('zuno-stories').remove([path]); setStoryMessage('No se pudo publicar: ' + insertError.message) }
+      else setStoryMessage('¡Tu historia se publicó! Estará disponible durante 24 horas.')
+    }
+    setStoryBusy(false)
+  }
+
+  async function openStory(story) {
+    setStoryViewer(story)
+    if (story.user_id !== session?.user?.id) {
+      const { error: viewError } = await supabase.from('story_views').upsert({ story_id: story.id, viewer_id: session.user.id, viewed_at: new Date().toISOString() }, { onConflict: 'story_id,viewer_id' })
+      if (viewError) console.warn('No se pudo registrar la visualización:', viewError.message)
+    }
+  }
+
+  async function deleteStory(story) {
+    if (story.user_id !== session?.user?.id || storyBusy) return
+    setStoryBusy(true)
+    const { error: deleteError } = await supabase.from('stories').delete().eq('id', story.id).eq('user_id', session.user.id)
+    if (!deleteError) { await supabase.storage.from('zuno-stories').remove([story.media_path]); setStories(current => current.filter(item => item.id !== story.id)); setStoryViewer(null) }
+    else setStoryMessage('No se pudo eliminar la historia: ' + deleteError.message)
+    setStoryBusy(false)
+  }
 
   useEffect(() => {
     if (!session?.user) { setNotifications([]); setNotificationActors({}); return }
@@ -1460,6 +1524,26 @@ export default function App() {
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
       <section className="direct-chat"><div className="direct-chat-header"><button className="logout-btn" onClick={()=>setView('home')}>← Volver</button><div><strong>{activeConversation.person?.display_name || 'Chat ZUNO'}</strong><small>{activeConversation.person?.username ? '@'+activeConversation.person.username : 'Conversación privada'}</small></div><div className="ephemeral-settings"><button type="button" className={'logout-btn '+(activeConversation.ephemeral_duration_minutes?'ephemeral-active':'')} onClick={()=>setShowEphemeralMenu(value=>!value)}><span>◷</span> {activeConversation.ephemeral_duration_minutes ? 'Mensajes efímeros' : 'Mensajes normales'}</button>{showEphemeralMenu && <div className="ephemeral-menu"><strong>Desaparición de mensajes</strong><p>Los mensajes nuevos se eliminarán para ambos al cumplirse el plazo.</p>{[{value:0,label:'Desactivado'},{value:10,label:'Después de 10 minutos'},{value:60,label:'Después de 1 hora'},{value:1440,label:'Después de 24 horas'},{value:10080,label:'Después de 7 días'}].map(option=><button key={option.value} type="button" disabled={ephemeralBusy} className={activeConversation.ephemeral_duration_minutes===option.value?'selected':''} onClick={()=>changeEphemeralDuration(option.value)}>{option.label}{activeConversation.ephemeral_duration_minutes===option.value?' ✓':''}</button>)}</div>}</div></div>
         <div ref={chatMessagesContainerRef} className={`direct-chat-messages ${chatDragOver ? 'is-drag-over' : ''}`} onTouchStart={handleChatSwipeStart} onTouchEnd={handleChatSwipeEnd} onDragOver={event=>{event.preventDefault();setChatDragOver(true)}} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget))setChatDragOver(false)}} onDrop={handleChatDrop}>{chatMessages.map(message=><div key={message.id} className={message.sender_id===session.user.id?'chat-bubble own':'chat-bubble'} onTouchStart={()=>{if(longPressTimerRef.current)window.clearTimeout(longPressTimerRef.current);longPressTimerRef.current=window.setTimeout(()=>setActiveMessageMenu(message.id),550)}} onTouchEnd={()=>{if(longPressTimerRef.current)window.clearTimeout(longPressTimerRef.current)}} onTouchMove={()=>{if(longPressTimerRef.current)window.clearTimeout(longPressTimerRef.current)}} onTouchCancel={()=>{if(longPressTimerRef.current)window.clearTimeout(longPressTimerRef.current)}} onContextMenu={event=>event.preventDefault()}>{message.message_type==='image' ? <div className="chat-image-protected" onContextMenu={event=>event.preventDefault()}><img src={message.media_url || ''} alt="Imagen privada del chat" draggable="false"/><span className="chat-image-watermark">@{profile?.username || profile?.display_name || 'ZUNO'}</span></div> : message.message_type==='audio' ? <ChatAudioPlayer src={message.media_url} error={message.media_error}/> : message.message_type==='location' ? <div className="chat-location-message"><MapPin size={20}/><strong>Ubicación compartida</strong><a href={`https://www.openstreetmap.org/?mlat=${message.latitude}&mlon=${message.longitude}#map=16/${message.latitude}/${message.longitude}`} target="_blank" rel="noreferrer">Abrir mapa</a></div> : <p>{message.body}</p>}<time>{new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}{message.sender_id===session.user.id && <span className={'message-ticks '+(messageReceipts[message.id]?.read_at?'is-read':messageReceipts[message.id]?.delivered_at?'is-delivered':'')}>{messageReceipts[message.id]?.read_at?'✓✓':messageReceipts[message.id]?.delivered_at?'✓✓':'✓'}</span>}{message.expires_at && <small className="message-expiry-label"> · Se elimina {new Date(message.expires_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</small>}</time><div className="chat-message-actions"><button type="button" className="chat-message-menu-trigger" aria-label="Opciones del mensaje" onClick={()=>setActiveMessageMenu(current=>current===message.id?null:message.id)}>⋯</button>{activeMessageMenu===message.id && <div className="chat-message-menu"><button type="button" onClick={()=>hideMessageForMe(message)}>Eliminar para mí</button>{message.sender_id===session.user.id && <button type="button" onClick={()=>deleteMessageForEveryone(message)}>Eliminar para todos</button>}</div>}</div></div>)}{otherUserTyping && <div className="chat-typing-indicator"><span/><span/><span/> Está escribiendo…</div>}{chatDragOver && <div className="chat-drop-hint">Soltá las imágenes acá para prepararlas</div>}</div>
+        {view === 'home' && <section className="zuno-stories" aria-label="Historias de 24 horas">
+          <div className="stories-heading"><strong>Historias</strong><span>Desaparecen en 24 horas</span></div>
+          <div className="stories-rail">
+            <label className="story-create"><span className="story-create-avatar"><ImagePlus size={23}/></span><span>{storyBusy ? 'Subiendo…' : 'Tu historia'}</span><input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" onChange={uploadStory} disabled={storyBusy}/></label>
+            {stories.filter(story => story.user_id !== session.user.id).reduce((groups, story) => {
+              const last = groups[groups.length - 1]
+              if (last?.user_id === story.user_id) last.items.push(story)
+              else groups.push({ user_id: story.user_id, owner: story.owner, items: [story] })
+              return groups
+            }, []).map(group => <button type="button" className="story-person" key={group.user_id} onClick={() => openStory(group.items[0])}><span className="story-ring"><img src={group.owner?.avatar_url || ''} alt=""/></span><span>{group.owner?.display_name || group.owner?.username || 'Usuario'}</span></button>)}
+            {stories.filter(story => story.user_id === session.user.id).map(story => <button type="button" className="story-person own-story" key={story.id} onClick={() => openStory(story)}><span className="story-ring"><img src={profile?.avatar_url || ''} alt=""/></span><span>Tu historia</span></button>)}
+          </div>
+          {storyMessage && <p className="story-feedback">{storyMessage}</p>}
+        </section>}
+        {storyViewer && <div className="story-viewer-backdrop" role="presentation" onClick={() => setStoryViewer(null)}><section className="story-viewer" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}>
+          <div className="story-viewer-top"><span>{storyViewer.owner?.display_name || storyViewer.owner?.username || 'Tu historia'}</span><button type="button" onClick={() => setStoryViewer(null)} aria-label="Cerrar historia"><X/></button></div>
+          {storyViewer.media_type === 'video' ? <video src={storyViewer.url} controls autoPlay playsInline/> : <img src={storyViewer.url} alt="Historia"/>}
+          {storyViewer.caption && <p>{storyViewer.caption}</p>}
+          {storyViewer.user_id === session.user.id && <button type="button" className="story-delete" disabled={storyBusy} onClick={() => deleteStory(storyViewer)}><Trash2 size={16}/> Eliminar historia</button>}
+        </section></div>}
         {peopleError && <div className="notice error">{peopleError}</div>}
         {deleteConfirmMessage && <div className="zuno-modal-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setDeleteConfirmMessage(null)}}><section className="zuno-modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title"><h2 id="delete-modal-title">¿Eliminar para todos?</h2><p>Este mensaje desaparecerá del chat de ambas personas. Esta acción no se puede deshacer.</p><div><button type="button" className="logout-btn" disabled={chatMediaBusy} onClick={()=>setDeleteConfirmMessage(null)}>Cancelar</button><button type="button" className="zuno-modal-danger" disabled={chatMediaBusy} onClick={confirmDeleteMessageForEveryone}>{chatMediaBusy?'Eliminando…':'Eliminar para todos'}</button></div></section></div>}
         {chatDraftImages.length > 0 && <div className="chat-image-editor"><div className="chat-editor-heading"><strong>Prepará tus fotos ({chatDraftImages.length}/5)</strong><span>Se enviarán solo cuando pulses Enviar fotos</span></div><div className="chat-editor-grid">{chatDraftImages.map(item=><div className="chat-editor-card" key={item.id}><div className="chat-editor-preview" onPointerDown={event=>startCropDrag(event,item)} title={item.zoom>1?"Arrastrá para elegir el recorte":"Acercá la imagen para poder moverla"}><img src={item.url} alt="Vista previa" draggable="false" style={{transform:`translate(${(item.offsetX||0)*((item.zoom-1)/(2*item.zoom))*100}%, ${(item.offsetY||0)*((item.zoom-1)/(2*item.zoom))*100}%) rotate(${item.rotation}deg) scale(${item.zoom})`}}/></div><div className="chat-editor-controls"><button type="button" onClick={()=>updateDraftImage(item.id,{rotation:(item.rotation+270)%360})}>↶ Girar</button><button type="button" onClick={()=>updateDraftImage(item.id,{rotation:(item.rotation+90)%360})}>↷</button><label>Recorte <input type="range" min="1" max="2.5" step="0.05" value={item.zoom} onChange={event=>updateDraftImage(item.id,{zoom:Number(event.target.value),offsetX:0,offsetY:0})}/></label><button type="button" className="chat-editor-remove" onClick={()=>removeDraftImage(item.id)}>Quitar</button></div></div>)}</div><button type="button" className="chat-send-images" onClick={sendPreparedImages} disabled={chatMediaBusy}>{chatMediaBusy?'Enviando…':`Enviar ${chatDraftImages.length} foto(s)`}</button></div>}
