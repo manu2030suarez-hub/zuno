@@ -9,6 +9,7 @@ export default function App() {
   const [profileLoading, setProfileLoading] = useState(true)
   const [people, setPeople] = useState([])
   const [peopleLoading, setPeopleLoading] = useState(false)
+  const [peopleRefresh, setPeopleRefresh] = useState(0)
   const [peopleError, setPeopleError] = useState('')
   const [mode, setMode] = useState('signup')
   const [displayName, setDisplayName] = useState('')
@@ -63,7 +64,7 @@ export default function App() {
         setPeopleLoading(false)
       })
     return () => { active = false }
-  }, [session, view])
+  }, [session, view, peopleRefresh])
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -102,7 +103,7 @@ export default function App() {
     <main className="app-shell">
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span><button className="logout-btn" onClick={()=>setView('profile')}><Pencil size={15}/> Editar perfil</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
       <section className="home-content">
-        <div className="home-heading"><div><div className="eyebrow"><span/> DESCUBRÍ ZUNO</div><h1>Hola, <span>{profile?.display_name || displayName || 'bienvenido'}.</span></h1><p>Estas son algunas de las personas de la comunidad. ¡Tu próxima conexión puede empezar acá!</p></div><button className="refresh-btn" onClick={()=>setView('refresh-home')}><RefreshCw size={16}/> Actualizar</button></div>
+        <div className="home-heading"><div><div className="eyebrow"><span/> DESCUBRÍ ZUNO</div><h1>Hola, <span>{profile?.display_name || displayName || 'bienvenido'}.</span></h1><p>Estas son algunas de las personas de la comunidad. ¡Tu próxima conexión puede empezar acá!</p></div><button className="refresh-btn" onClick={()=>setPeopleRefresh(value=>value+1)}><RefreshCw size={16}/> Actualizar</button></div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         {peopleLoading ? <div className="empty-state">Buscando perfiles…</div> : people.length === 0 ? (
           <div className="empty-state"><div className="empty-icon"><Users size={26}/></div><h2>La comunidad está empezando</h2><p>Tu perfil ya está listo. Cuando otras personas se registren en ZUNO y completen sus perfiles, aparecerán acá.</p><button className="submit-btn home-refresh" onClick={()=>setView('refresh-home')}>Volver a buscar <span>→</span></button></div>
@@ -112,8 +113,6 @@ export default function App() {
       </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
   )
-
-  if (session?.user && view === 'refresh-home') { setView('home'); return null }
 
   if (session?.user) return (
     <main className="app-shell">
