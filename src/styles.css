@@ -204,3 +204,11 @@
 .chat-audio-draft button:last-child{background:linear-gradient(120deg,#df579f,#9258dc);font-weight:700}
 .chat-audio-draft button:disabled{opacity:.5}
 .chat-audio-player{display:block;max-width:100%;margin:2px 0}
+
+/* Compact cross-device voice message player */
+.chat-audio-player{display:flex;align-items:center;gap:10px;min-width:150px;max-width:100%;margin:2px 0;color:#fff}
+.chat-audio-player audio{display:none}
+.chat-audio-player button{width:36px;height:36px;flex:0 0 36px;border:0;border-radius:50%;background:#fff;color:#8b3f86;font-size:15px;font-weight:800;cursor:pointer}
+.chat-audio-player button:disabled{opacity:.45;cursor:not-allowed}
+.chat-audio-player span{font-size:12px;font-variant-numeric:tabular-nums;color:#fff}
+.chat-audio-player small{font-size:10px;color:#ffd2dc}
