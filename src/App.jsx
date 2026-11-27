@@ -20,6 +20,7 @@ export default function App() {
   const [messageReceipts, setMessageReceipts] = useState({})
   const [chatDraft, setChatDraft] = useState('')
   const [chatBusy, setChatBusy] = useState(false)
+  const [chatMediaBusy, setChatMediaBusy] = useState(false)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [peopleLoading, setPeopleLoading] = useState(false)
   const [peopleRefresh, setPeopleRefresh] = useState(0)
@@ -228,15 +229,24 @@ export default function App() {
     } catch (error) { /* El navegador puede bloquear audio automático. */ }
   }
 
+  async function resolveChatMedia(rows) {
+    return Promise.all((rows || []).map(async item => {
+      if (item.message_type !== 'image' || !item.media_path) return item
+      const { data } = await supabase.storage.from('zuno-chat-media').createSignedUrl(item.media_path, 300)
+      return { ...item, media_url: data?.signedUrl || '' }
+    }))
+  }
+
   async function openChat(person) {
     if (!session?.user || !person?.id) return
     const ids = [session.user.id, person.id].sort()
     setChatBusy(true); setPeopleError('')
     const { data: conversation, error: conversationError } = await supabase.from('conversations').upsert({ member_one: ids[0], member_two: ids[1] }, { onConflict: 'member_one,member_two' }).select('id,member_one,member_two').single()
     if (conversationError) { setChatBusy(false); setPeopleError('No pudimos abrir el chat. ' + conversationError.message); return }
-    const { data: messages, error: messagesError } = await supabase.from('messages').select('id,conversation_id,sender_id,body,created_at').eq('conversation_id', conversation.id).order('created_at')
+    const { data: messages, error: messagesError } = await supabase.from('messages').select('id,conversation_id,sender_id,body,created_at,message_type,media_path').eq('conversation_id', conversation.id).order('created_at')
     setChatBusy(false)
     if (messagesError) { setPeopleError('No pudimos cargar los mensajes. ' + messagesError.message); return }
+    const displayMessages = await resolveChatMedia(messages || [])
     const incomingMessages = (messages || []).filter(item => item.sender_id !== session.user.id)
     if (incomingMessages.length) {
       const now = new Date().toISOString()
@@ -249,7 +259,7 @@ export default function App() {
       receiptMap = Object.fromEntries((receipts || []).map(item => [item.message_id, item]))
     }
     setMessageReceipts(receiptMap)
-    setActiveConversation({ ...conversation, person }); setChatMessages(messages || []); setChatDraft(''); await markConversationRead(conversation.id); setView('chat')
+    setActiveConversation({ ...conversation, person }); setChatMessages(displayMessages); setChatDraft(''); await markConversationRead(conversation.id); setView('chat')
   }
 
   async function sendChatMessage(event) {
@@ -257,17 +267,40 @@ export default function App() {
     const body = chatDraft.trim()
     if (!body || !activeConversation || chatBusy) return
     setChatBusy(true)
-    const { data, error: sendError } = await supabase.from('messages').insert({ conversation_id: activeConversation.id, sender_id: session.user.id, body }).select('id,conversation_id,sender_id,body,created_at').single()
+    const { data, error: sendError } = await supabase.from('messages').insert({ conversation_id: activeConversation.id, sender_id: session.user.id, body }).select('id,conversation_id,sender_id,body,created_at,message_type,media_path').single()
     setChatBusy(false)
     if (sendError) { setPeopleError('No pudimos enviar el mensaje. ' + sendError.message); return }
     setChatMessages(current => [...current, data]); setChatDraft('')
+  }
+
+  async function sendChatImage(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !activeConversation || chatMediaBusy) return
+    if (!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type) || file.size > 10 * 1024 * 1024) {
+      setPeopleError('Elegí una imagen JPG, PNG, WEBP o GIF de hasta 10 MB.')
+      return
+    }
+    setChatMediaBusy(true); setPeopleError('')
+    const extension = ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'})[file.type]
+    const path = `${activeConversation.id}/${session.user.id}/${crypto.randomUUID()}.${extension}`
+    const { error: uploadError } = await supabase.storage.from('zuno-chat-media').upload(path, file, { contentType: file.type, upsert: false })
+    if (uploadError) { setChatMediaBusy(false); setPeopleError('No pudimos subir la foto. ' + uploadError.message); return }
+    const { data, error: insertError } = await supabase.from('messages').insert({ conversation_id: activeConversation.id, sender_id: session.user.id, body: null, message_type: 'image', media_path: path }).select('id,conversation_id,sender_id,body,created_at,message_type,media_path').single()
+    if (insertError) {
+      await supabase.storage.from('zuno-chat-media').remove([path])
+      setChatMediaBusy(false); setPeopleError('No pudimos enviar la foto. ' + insertError.message); return
+    }
+    const [displayMessage] = await resolveChatMedia([data])
+    setChatMessages(current => current.some(item => item.id === data.id) ? current : [...current, displayMessage])
+    setChatMediaBusy(false)
   }
 
   useEffect(() => {
     if (!activeConversation?.id || view !== 'chat') return
     const channel = supabase.channel('zuno-chat-' + activeConversation.id)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + activeConversation.id }, payload => {
-        setChatMessages(current => current.some(message => message.id === payload.new.id) ? current : [...current, payload.new])
+        resolveChatMedia([payload.new]).then(([displayMessage]) => setChatMessages(current => current.some(message => message.id === payload.new.id) ? current : [...current, displayMessage]))
         if (payload.new.sender_id !== session.user.id) recordMessageReceipt(payload.new.id, true)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'message_receipts' }, payload => {
@@ -462,9 +495,9 @@ export default function App() {
     <main className="app-shell">
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('chats')}><MessageCircle size={15}/> Todos los chats</button><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
       <section className="direct-chat"><div className="direct-chat-header"><button className="logout-btn" onClick={()=>setView('home')}>← Volver</button><div><strong>{activeConversation.person?.display_name || 'Chat ZUNO'}</strong><small>{activeConversation.person?.username ? '@'+activeConversation.person.username : 'Conversación privada'}</small></div></div>
-        <div className="direct-chat-messages">{chatMessages.map(message=><div key={message.id} className={message.sender_id===session.user.id?'chat-bubble own':'chat-bubble'}><p>{message.body}</p><time>{new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}{message.sender_id===session.user.id && <span className={'message-ticks '+(messageReceipts[message.id]?.read_at?'is-read':messageReceipts[message.id]?.delivered_at?'is-delivered':'')}>{messageReceipts[message.id]?.read_at?'✓✓':messageReceipts[message.id]?.delivered_at?'✓✓':'✓'}</span>}</time></div>)}</div>
+        <div className="direct-chat-messages">{chatMessages.map(message=><div key={message.id} className={message.sender_id===session.user.id?'chat-bubble own':'chat-bubble'}>{message.message_type==='image' ? <div className="chat-image-protected" onContextMenu={event=>event.preventDefault()}><img src={message.media_url || ''} alt="Imagen privada del chat" draggable="false"/><span className="chat-image-watermark">@{profile?.username || profile?.display_name || 'ZUNO'}</span></div> : <p>{message.body}</p>}<time>{new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}{message.sender_id===session.user.id && <span className={'message-ticks '+(messageReceipts[message.id]?.read_at?'is-read':messageReceipts[message.id]?.delivered_at?'is-delivered':'')}>{messageReceipts[message.id]?.read_at?'✓✓':messageReceipts[message.id]?.delivered_at?'✓✓':'✓'}</span>}</time></div>)}</div>
         {peopleError && <div className="notice error">{peopleError}</div>}
-        <form className="chat-compose" onSubmit={sendChatMessage}><input value={chatDraft} onChange={event=>setChatDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="submit" disabled={chatBusy||!chatDraft.trim()}><Send size={18}/></button></form>
+        <form className="chat-compose" onSubmit={sendChatMessage}><label className="chat-image-upload" title="Enviar foto"><ImagePlus size={19}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={sendChatImage} disabled={chatMediaBusy}/></label><input value={chatDraft} onChange={event=>setChatDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="submit" disabled={chatBusy||!chatDraft.trim()}><Send size={18}/></button></form>
       </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
   )
