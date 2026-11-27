@@ -1270,3 +1270,28 @@ button{touch-action:manipulation}
  .profile-detail-content{padding:0 17px}
  .profile-album-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
 }
+
+
+/* Profile lower information section and fixed contact controls */
+.profile-detail-screen{position:relative;padding-bottom:88px}
+.profile-detail-content{padding-bottom:26px}
+.profile-detail-content .detail-section h2{margin:0 0 18px;color:#9e9ba5;font-size:13px;font-weight:800;letter-spacing:.02em}
+.profile-detail-content .detail-section p{color:#ddd;font-size:15px;line-height:1.65}
+.profile-stats-section{display:flex;flex-direction:column;gap:17px}
+.profile-stats-section h2{margin-bottom:3px!important}
+.profile-stat-row{display:flex;align-items:center;gap:13px;min-height:25px;color:#e8e6eb;font-size:15px;line-height:1.5}
+.profile-stat-row>svg{flex:0 0 19px;color:#aaa5b0;stroke-width:1.7}
+.profile-stat-row i{width:2px;height:22px;background:#57535d;margin:0 3px}
+.profile-stat-row strong{color:#fff;font-weight:700}
+.profile-contact-bar{position:fixed;z-index:30;left:50%;bottom:calc(0px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(100%,760px);display:flex;align-items:center;gap:12px;padding:12px 18px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(180deg,#09090aee,#050506);border-top:1px solid #ffffff12;box-shadow:0 -12px 32px #0009}
+.profile-message-action{flex:1;min-width:0;height:52px;display:flex;align-items:center;justify-content:center;gap:10px;border:0;border-radius:28px;background:#242126;color:#fff;font-size:15px;font-weight:700;cursor:pointer}
+.profile-message-action svg{color:#f1c900}
+.profile-fire-action{width:54px;height:52px;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:#ffd000;cursor:pointer}
+.profile-fire-action:disabled{opacity:.45}
+.profile-safety-inline{display:flex;flex-wrap:wrap;gap:9px;margin:18px 0 25px}
+.profile-safety-inline .logout-btn{display:flex;align-items:center;gap:7px}
+@media(max-width:600px){
+ .profile-detail-screen{padding-bottom:82px}
+ .profile-contact-bar{width:100%;padding-left:18px;padding-right:18px}
+ .profile-detail-content .detail-section{padding:22px 0}
+}
