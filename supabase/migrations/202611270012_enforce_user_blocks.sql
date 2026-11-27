@@ -97,3 +97,15 @@ WITH CHECK (
   AND status IN ('accepted', 'rejected')
   AND NOT public.zuno_is_blocked_between(sender_id, receiver_id)
 );
+
+-- Allow a blocker to retrieve the profile card for their own blocked list,
+-- without making it appear in public discovery.
+DROP POLICY IF EXISTS "Users can view profiles they have blocked" ON public.profiles;
+CREATE POLICY "Users can view profiles they have blocked"
+ON public.profiles FOR SELECT TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.user_blocks b
+    WHERE b.blocker_id = auth.uid() AND b.blocked_id = profiles.id
+  )
+);
