@@ -25,6 +25,7 @@ export default function App() {
   const [audioDraft, setAudioDraft] = useState(null)
   const [audioPlaying, setAudioPlaying] = useState(false)
   const recorderRef = useRef(null)
+  const recordingRequestedRef = useRef(false)
   const recordingStreamRef = useRef(null)
   const recordingChunksRef = useRef([])
   const [chatDraftImages, setChatDraftImages] = useState([])
@@ -289,12 +290,15 @@ export default function App() {
   async function startChatRecording(event) {
     if (!activeConversation || isRecording || audioDraft || chatMediaBusy) return
     event?.preventDefault?.()
+    recordingRequestedRef.current = true
     try {
       if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
         setPeopleError('Tu navegador no permite grabar audio desde esta página.')
         return
       }
+      event?.currentTarget?.setPointerCapture?.(event.pointerId)
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      if (!recordingRequestedRef.current) { stream.getTracks().forEach(track => track.stop()); return }
       recordingStreamRef.current = stream
       recordingChunksRef.current = []
       const candidates = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4']
@@ -320,12 +324,14 @@ export default function App() {
     } catch (error) {
       recordingStreamRef.current?.getTracks().forEach(track => track.stop())
       recordingStreamRef.current = null
+      recordingRequestedRef.current = false
       setIsRecording(false)
       setPeopleError(error.name === 'NotAllowedError' ? 'Necesitás permitir el acceso al micrófono para grabar.' : 'No pudimos iniciar la grabación. ' + error.message)
     }
   }
 
   function stopChatRecording() {
+    recordingRequestedRef.current = false
     const recorder = recorderRef.current
     if (recorder && recorder.state !== 'inactive') recorder.stop()
   }
