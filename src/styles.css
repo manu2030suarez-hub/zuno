@@ -713,3 +713,35 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
   .direct-chat-header{gap:6px}
   .ephemeral-settings>.logout-btn{font-size:9px}
 }
+
+/* Navegación principal de la aplicación ZUNO */
+.zuno-bottom-nav{
+  position:fixed;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);
+  z-index:500;display:grid;grid-template-columns:repeat(4,minmax(72px,1fr));gap:6px;
+  width:min(620px,calc(100% - 28px));padding:9px 12px;
+  border:1px solid rgba(226,156,255,.28);border-radius:24px;
+  background:rgba(12,8,25,.91);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  box-shadow:0 12px 48px rgba(0,0,0,.58),0 0 28px rgba(157,45,255,.23),inset 0 1px rgba(255,255,255,.08);
+}
+.zuno-bottom-nav button{
+  min-width:0;min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  border:0;border-radius:16px;background:transparent;color:#a99bb9;font-size:11px;font-weight:700;
+  transition:background .18s,color .18s,transform .18s;
+}
+.zuno-bottom-nav button.active{
+  color:#fff;background:linear-gradient(135deg,rgba(255,39,151,.24),rgba(112,49,255,.30));
+  box-shadow:inset 0 0 0 1px rgba(231,91,218,.23),0 0 20px rgba(176,48,255,.13);
+}
+.zuno-bottom-nav button.active svg{color:#ff69c2;filter:drop-shadow(0 0 7px #ff32b9)}
+.zuno-nav-icon{position:relative;display:flex}
+.zuno-nav-icon i{
+  position:absolute;right:-12px;top:-7px;min-width:17px;height:17px;padding:0 4px;
+  border-radius:99px;background:#ff267f;color:#fff;font-size:10px;font-style:normal;
+  display:grid;place-items:center;border:2px solid #10091d;
+}
+.app-shell:has(.zuno-bottom-nav){padding-bottom:110px}
+@media(max-width:760px){
+ .zuno-bottom-nav{bottom:max(8px,env(safe-area-inset-bottom));width:calc(100% - 20px);border-radius:21px;padding:7px 9px}
+ .zuno-bottom-nav button{min-height:50px;font-size:10px}
+ .app-shell:has(.zuno-bottom-nav){padding-bottom:95px}
+}
