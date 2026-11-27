@@ -272,11 +272,6 @@ export default function App() {
         if (!active) return
         setPeople(profiles.map(person => ({
           ...person,
-          photos: photosByUser[person.id] || [],
-          visibleCity: person.show_location ? [person.city, person.region].filter(Boolean).join(', ') : ''
-        })))
-        setPeople(profiles.map(person => ({
-          ...person,
           approximateDistanceKm:distanceByUser[person.id] ?? null,
           photos: photosByUser[person.id] || [],
           visibleCity: person.show_location ? [person.city, person.region].filter(Boolean).join(', ') : ''
