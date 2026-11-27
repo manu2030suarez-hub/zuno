@@ -212,9 +212,8 @@ export default function App() {
       <section className="home-content">
         <div className="home-heading"><div><div className="eyebrow"><span/> DESCUBRÍ ZUNO</div><h1>Hola, <span>{profile?.display_name || displayName || 'bienvenido'}.</span></h1><p>Estas son algunas de las personas de la comunidad. ¡Tu próxima conexión puede empezar acá!</p></div><button className="refresh-btn" onClick={()=>setPeopleRefresh(value=>value+1)}><RefreshCw size={16}/> Actualizar</button></div>
         {peopleError && <div className="notice error">{peopleError}</div>}
-        {peopleLoading ? <div className="empty-state">Buscando perfiles…</div> : people.length === 0 ? (
-          <div className="empty-state"><div className="empty-icon"><Users size={26}/></div><h2>La comunidad está empezando</h2><p>Tu perfil ya está listo. Cuando otras personas se registren en ZUNO y completen sus perfiles, aparecerán acá.</p><button className="submit-btn home-refresh" onClick={()=>setPeopleRefresh(value=>value+1)}>Volver a buscar <span>→</span></button></div>
-        ) : (
+        {peopleLoading ? <div className="empty-state">Buscando perfiles…</div> : (
+          <>
           <div className="people-grid">
           <article className="person-card own-person-card" key={session.user.id}>
             <div className="person-card-gallery">
@@ -243,6 +242,8 @@ export default function App() {
               {person.looking_for?.length > 0 && <p className="person-looking"><strong>Busca:</strong> {person.looking_for.join(' · ')}</p>}
             </div>
           </article>)}</div>
+          {people.length === 0 && <div className="empty-state"><div className="empty-icon"><Users size={26}/></div><h2>La comunidad está empezando</h2><p>Tu perfil ya está listo. Cuando otras personas se registren en ZUNO y completen sus perfiles, aparecerán acá.</p><button className="submit-btn home-refresh" onClick={()=>setPeopleRefresh(value=>value+1)}>Volver a buscar <span>→</span></button></div>}
+          </>
         )}
       </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
