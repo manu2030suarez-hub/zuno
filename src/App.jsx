@@ -1777,15 +1777,15 @@ export default function App() {
   )
 
   if (session?.user && profileLoading) return (
-    <main className="app-shell"><header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header><section className="loading-state"><div className="card-icon"><Heart size={21}/></div><h2>Preparando tu espacio…</h2><p>Estamos cargando tu perfil.</p></section></main>
+    <main className="app-shell">{callOverlay}<header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header><section className="loading-state"><div className="card-icon"><Heart size={21}/></div><h2>Preparando tu espacio…</h2><p>Estamos cargando tu perfil.</p></section></main>
   )
 
   if (session?.user && profileLoadError) return (
-    <main className="app-shell"><header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header><section className="loading-state"><div className="card-icon"><ShieldCheck size={21}/></div><h2>No pudimos cargar tu perfil</h2><p>{profileLoadError}</p><p>Por seguridad, no te vamos a pedir que crees otro perfil mientras no podamos comprobar si ya existe.</p><button className="submit-btn" onClick={()=>window.location.reload()}>Volver a intentar <span>→</span></button></section></main>
+    <main className="app-shell">{callOverlay}<header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header><section className="loading-state"><div className="card-icon"><ShieldCheck size={21}/></div><h2>No pudimos cargar tu perfil</h2><p>{profileLoadError}</p><p>Por seguridad, no te vamos a pedir que crees otro perfil mientras no podamos comprobar si ya existe.</p><button className="submit-btn" onClick={()=>window.location.reload()}>Volver a intentar <span>→</span></button></section></main>
   )
 
   if (session?.user && view === 'detail' && selectedProfile) return (
-    <main className="app-shell">
+    <main className="app-shell">{callOverlay}
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>{setSelectedProfile(null);setView('home')}}><Compass size={15}/> Volver a descubrir</button></div></header>
       <section className="member-detail">
         <div className="detail-heading"><div className="eyebrow"><span/> PERFIL ZUNO</div><h1>{selectedProfile.display_name || 'Usuario ZUNO'}</h1>{selectedProfile.username && <p className="detail-username">@{selectedProfile.username}</p>}</div>
@@ -1806,7 +1806,7 @@ export default function App() {
 
 
   if (session?.user && view === 'chat' && activeConversation) return (
-    <main className="app-shell">
+    <main className="app-shell">{callOverlay}
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
       <section className="direct-chat"><div className="direct-chat-header"><button className="logout-btn" onClick={()=>setView('home')}>← Volver</button><div><strong>{activeConversation.person?.display_name || 'Chat ZUNO'}</strong><small>{activeConversation.person?.username ? '@'+activeConversation.person.username : 'Conversación privada'}</small></div><div className="chat-call-actions"><button type="button" className="chat-call-button" title="Llamada de voz" aria-label="Llamada de voz" disabled={callBusy || !!callSession} onClick={()=>startCall('audio')}><Phone size={18}/></button><button type="button" className="chat-call-button" title="Videollamada" aria-label="Videollamada" disabled={callBusy || !!callSession} onClick={()=>startCall('video')}><Video size={19}/></button></div><div className="ephemeral-settings"><button type="button" className={'logout-btn '+(activeConversation.ephemeral_duration_minutes?'ephemeral-active':'')} onClick={()=>setShowEphemeralMenu(value=>!value)}><span>◷</span> {activeConversation.ephemeral_duration_minutes ? 'Mensajes efímeros' : 'Mensajes normales'}</button>{showEphemeralMenu && <div className="ephemeral-menu"><strong>Desaparición de mensajes</strong><p>Los mensajes nuevos se eliminarán para ambos al cumplirse el plazo.</p>{[{value:0,label:'Desactivado'},{value:10,label:'Después de 10 minutos'},{value:60,label:'Después de 1 hora'},{value:1440,label:'Después de 24 horas'},{value:10080,label:'Después de 7 días'}].map(option=><button key={option.value} type="button" disabled={ephemeralBusy} className={activeConversation.ephemeral_duration_minutes===option.value?'selected':''} onClick={()=>changeEphemeralDuration(option.value)}>{option.label}{activeConversation.ephemeral_duration_minutes===option.value?' ✓':''}</button>)}</div>}</div></div>
 
@@ -1825,7 +1825,7 @@ export default function App() {
   )
 
   if (session?.user && view === 'map') return (
-    <main className="app-shell">
+    <main className="app-shell">{callOverlay}
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
       <section className="map-page">
         <div className="home-heading"><div><div className="eyebrow"><span/> COMUNIDAD CERCANA</div><h1>Mapa de <span>usuarios.</span></h1><p>Encontrá personas cerca sin compartir tu dirección exacta.</p></div><button className="refresh-btn" onClick={()=>setView('home')}>Volver a descubrir</button></div>
@@ -1846,7 +1846,7 @@ export default function App() {
   )
 
   if (session?.user && view === 'notifications') return (
-    <main className="app-shell">
+    <main className="app-shell">{callOverlay}
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
       <section className="notifications-page">
         <div className="home-heading"><div><div className="eyebrow"><span/> TU ACTIVIDAD</div><h1>Tu <span>actividad.</span></h1><p>Tu actividad: mensajes, conexiones, favoritos y álbum privado.</p></div>
@@ -1871,14 +1871,14 @@ export default function App() {
   )
 
   if (session?.user && view === 'chats') return (
-    <main className="app-shell"><header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
+    <main className="app-shell">{callOverlay}<header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
       <section className="chat-page"><div className="home-heading"><div><div className="eyebrow"><span/> MENSAJES PRIVADOS</div><h1>Tus <span>chats.</span></h1><p>Podés hablar con cualquier persona, sin conexión previa.</p></div><button className="refresh-btn" onClick={()=>setView('home')}>Descubrir personas</button></div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         <div className="chat-list">{conversations.length ? conversations.map(item=><button className="chat-list-item" key={item.id} onClick={()=>openChat({...item.person,id:item.member_one===session.user.id?item.member_two:item.member_one})}><span className="chat-list-avatar">{item.person?.avatar_url?<img src={item.person.avatar_url} alt=""/>:(item.person?.display_name||'Z').slice(0,1)}</span><span className="chat-list-name"><strong>{item.person?.display_name||'Miembro de ZUNO'}</strong><small>{item.lastMessage ? (item.lastMessage.message_type==='image'?'📷 Foto':item.lastMessage.message_type==='audio'?'🎤 Audio':item.lastMessage.message_type==='location'?'📍 Ubicación':(item.lastMessage.body||'Mensaje').slice(0,90)) : 'Todavía no hay mensajes' }{item.lastMessage?.sender_id===session.user.id && <span className={'message-ticks '+(item.lastReceipt?.read_at?'is-read':item.lastReceipt?.delivered_at?'is-delivered':'')}>{item.lastReceipt?.delivered_at?'✓✓':'✓'}</span>}</small></span>{(unreadCounts[item.id]||0)>0 && <span className="chat-unread-count">{unreadCounts[item.id]}</span>}<MessageCircle size={18}/></button>) : <div className="connections-empty">Todavía no tenés conversaciones. Iniciá un chat desde cualquier perfil.</div>}</div>
       </section><ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer></main>
   )
   if (session?.user && ['home', 'favorites', 'connections'].includes(view)) return (
-    <main className="app-shell">
+    <main className="app-shell">{callOverlay}
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span></div></header>
       <section className="home-content">
         {view !== 'home' && <div className="home-heading"><div><div className="eyebrow"><span/> {view === 'favorites' ? 'TUS PERSONAS GUARDADAS' : 'TUS CONEXIONES'}</div><h1>{view === 'favorites' ? <>Tus <span>favoritos.</span></> : <>Tus <span>conexiones.</span></>}</h1><p>{view === 'favorites' ? 'Perfiles que guardaste para volver a encontrarlos.' : 'Solicitudes recibidas, enviadas y conexiones aceptadas.'}</p></div><div className="home-actions"><button className="refresh-btn" onClick={()=>setView('home')}><Compass size={16}/> Descubrir</button></div></div>}
@@ -1980,7 +1980,7 @@ export default function App() {
   )
 
   if (session?.user) return (
-    <main className="app-shell">
+    <main className="app-shell">{callOverlay}
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions">{profile?.display_name && <button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Volver</button>}<span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span></div></header>
       <section className="account-layout">
         <div className="account-intro"><div className="eyebrow"><span/> TU ESPACIO EN ZUNO</div><h1>Hola,<br/><span>{displayName || 'bienvenido' }.</span></h1><p>Tu cuenta ya está activa. Ahora podés completar tu perfil para que otras personas te conozcan.</p><div className="feature-row"><span><ShieldCheck size={17}/> Cuenta protegida</span><span><Users size={17}/> Comunidad ZUNO</span></div></div>
@@ -2006,7 +2006,7 @@ export default function App() {
   )
 
   return (
-    <main className="app-shell">
+    <main className="app-shell">{callOverlay}
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><span className="top-note">CONEXIONES AUTÉNTICAS</span></header>
       <section className="hero auth-landing">
         <div className="hero-copy auth-brand-panel">
