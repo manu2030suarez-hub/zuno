@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
-import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, LogOut, UserRound, Sparkles } from 'lucide-react'
+import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw } from 'lucide-react'
 
 export default function App() {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
+  const [view, setView] = useState('profile')
+  const [profileLoading, setProfileLoading] = useState(true)
+  const [people, setPeople] = useState([])
+  const [peopleLoading, setPeopleLoading] = useState(false)
+  const [peopleError, setPeopleError] = useState('')
   const [mode, setMode] = useState('signup')
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
@@ -24,23 +29,41 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!session?.user) { setProfile(null); return }
+    if (!session?.user) { setProfile(null); setProfileLoading(false); setView('profile'); return }
+    setProfileLoading(true)
     let active = true
     supabase.from('profiles').select('display_name, username, bio, avatar_url, zuno_verified').eq('id', session.user.id).maybeSingle()
       .then(({ data, error: profileError }) => {
         if (!active) return
-        if (profileError) setError('No pudimos cargar tu perfil. ' + profileError.message)
+        if (profileError) { setError('No pudimos cargar tu perfil. ' + profileError.message); setProfileLoading(false); return }
         if (data) {
           setProfile(data)
           setDisplayName(data.display_name || '')
           setUsername(data.username || '')
           setBio(data.bio || '')
+          setView(data.display_name ? 'home' : 'profile')
         } else {
           setProfile({})
+          setView('profile')
         }
+        setProfileLoading(false)
       })
     return () => { active = false }
   }, [session])
+
+  useEffect(() => {
+    if (!session?.user || view !== 'home') return
+    let active = true
+    setPeopleLoading(true); setPeopleError('')
+    supabase.from('profiles').select('id, display_name, username, bio, avatar_url, zuno_verified, created_at').neq('id', session.user.id).order('created_at', { ascending: false }).limit(40)
+      .then(({ data, error: listError }) => {
+        if (!active) return
+        if (listError) setPeopleError('No pudimos cargar los perfiles. ' + listError.message)
+        else setPeople(data || [])
+        setPeopleLoading(false)
+      })
+    return () => { active = false }
+  }, [session, view])
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -66,10 +89,31 @@ export default function App() {
     }, { onConflict: 'id' }).select('display_name, username, bio, avatar_url, zuno_verified').maybeSingle()
     setBusy(false)
     if (saveError) setError(saveError.code === '23505' ? 'Ese nombre de usuario ya está ocupado. Probá con otro.' : saveError.message)
-    else { setProfile(data); setMessage('¡Perfil guardado correctamente!') }
+    else { setProfile(data); setMessage('¡Perfil guardado correctamente!'); setView('home') }
   }
 
   async function logout() { await supabase.auth.signOut(); setSession(null); setProfile(null); setMessage('') }
+
+  if (session?.user && profileLoading) return (
+    <main className="app-shell"><header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header><section className="loading-state"><div className="card-icon"><Heart size={21}/></div><h2>Preparando tu espacio…</h2><p>Estamos cargando tu perfil.</p></section></main>
+  )
+
+  if (session?.user && view === 'home') return (
+    <main className="app-shell">
+      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span><button className="logout-btn" onClick={()=>setView('profile')}><Pencil size={15}/> Editar perfil</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
+      <section className="home-content">
+        <div className="home-heading"><div><div className="eyebrow"><span/> DESCUBRÍ ZUNO</div><h1>Hola, <span>{profile?.display_name || displayName || 'bienvenido'}.</span></h1><p>Estas son algunas de las personas de la comunidad. ¡Tu próxima conexión puede empezar acá!</p></div><button className="refresh-btn" onClick={()=>setView('refresh-home')}><RefreshCw size={16}/> Actualizar</button></div>
+        {peopleError && <div className="notice error">{peopleError}</div>}
+        {peopleLoading ? <div className="empty-state">Buscando perfiles…</div> : people.length === 0 ? (
+          <div className="empty-state"><div className="empty-icon"><Users size={26}/></div><h2>La comunidad está empezando</h2><p>Tu perfil ya está listo. Cuando otras personas se registren en ZUNO y completen sus perfiles, aparecerán acá.</p><button className="submit-btn home-refresh" onClick={()=>setView('refresh-home')}>Volver a buscar <span>→</span></button></div>
+        ) : (
+          <div className="people-grid">{people.map(person => <article className="person-card" key={person.id}><div className="person-avatar">{person.avatar_url ? <img src={person.avatar_url} alt=""/> : <span>{(person.display_name || person.username || '?').slice(0,1).toUpperCase()}</span>}</div><div className="person-info"><h3>{person.display_name || 'Usuario ZUNO'} {person.zuno_verified && <span className="verified-dot" title="Cuenta verificada">✓</span>}</h3>{person.username && <p className="person-username">@{person.username}</p>}{person.bio && <p className="person-bio">{person.bio}</p>}</div></article>)}</div>
+        )}
+      </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+    </main>
+  )
+
+  if (session?.user && view === 'refresh-home') { setView('home'); return null }
 
   if (session?.user) return (
     <main className="app-shell">
