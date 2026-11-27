@@ -1072,3 +1072,22 @@ button{touch-action:manipulation}
  .call-incoming-banner>button{padding:6px 7px}
  .call-incoming-banner-copy strong{max-width:110px}
 }
+
+
+/* Archivo privado, pausa de historias y presencia */
+.story-viewer-top{position:relative}
+.story-viewer-top-actions{display:flex;align-items:center;gap:7px;margin-left:auto}
+.story-viewer-top-actions button{display:grid;place-items:center;width:34px;height:34px;border:1px solid #ffffff22;border-radius:50%;background:#ffffff0c;color:#fff;cursor:pointer}
+.story-options-menu{position:absolute;z-index:8;right:42px;top:42px;min-width:180px;padding:6px;border:1px solid #694080;border-radius:12px;background:#21152d;box-shadow:0 12px 30px #0009}
+.story-options-menu button{display:flex;align-items:center;gap:9px;width:100%;padding:11px;border:0;border-radius:8px;background:transparent;color:#f7eaff;text-align:left;font-weight:700;cursor:pointer}
+.story-options-menu button:hover{background:#ffffff12}
+.story-archive-panel{width:min(520px,100%);max-height:82dvh;display:flex;flex-direction:column;gap:14px;padding:17px;border:1px solid #9d63c3;border-radius:20px;background:#150e20;box-shadow:0 0 45px #8b35a955;color:#fff;overflow:hidden}
+.story-archive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;overflow:auto;padding:2px}
+.story-archive-grid button{position:relative;min-width:0;aspect-ratio:3/4;border:1px solid #74428e;border-radius:11px;overflow:hidden;background:#0b0810;padding:0}
+.story-archive-grid img,.story-archive-grid video{width:100%;height:100%;object-fit:cover}
+.story-archive-grid button span{position:absolute;left:5px;right:5px;bottom:5px;padding:4px;border-radius:6px;background:#09050bbd;color:#fff;font-size:10px}
+.story-archive-grid>p{grid-column:1/-1;color:#bca9c9;font-size:13px;text-align:center;padding:24px}
+.person-online-label.active{color:#9df5c5}.person-online-label.active span{background:#39df91;box-shadow:0 0 10px #39df91}
+.person-online-label.recent{color:#f1d28d}.person-online-label.recent span{background:#e9b84e;box-shadow:0 0 8px #e9b84e}
+.person-online-label.offline{color:#aaa2b2}.person-online-label.offline span{background:#77717f;box-shadow:none}
+.person-distance-label{display:flex;align-items:center;gap:5px;margin:4px 0 0;color:#d8b9ff;font-size:10px;font-weight:700}
