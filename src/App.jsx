@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
-import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, StopCircle, Ban, Flag, SlidersHorizontal } from 'lucide-react'
+import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, StopCircle, Ban, Flag, SlidersHorizontal, Bell } from 'lucide-react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -47,6 +47,9 @@ export default function App() {
   const [connectionBusy, setConnectionBusy] = useState('')
   const [conversations, setConversations] = useState([])
   const [unreadCounts, setUnreadCounts] = useState({})
+  const [notifications, setNotifications] = useState([])
+  const [notificationActors, setNotificationActors] = useState({})
+  const [notificationBusy, setNotificationBusy] = useState('')
   const [activeConversation, setActiveConversation] = useState(null)
   const [showEphemeralMenu, setShowEphemeralMenu] = useState(false)
   const [ephemeralBusy, setEphemeralBusy] = useState(false)
@@ -196,6 +199,70 @@ export default function App() {
     if (!session?.user) { setPrivateAlbumPhotos([]); setPrivateAlbumRequests([]); return }
     if (view === 'profile') loadPrivateAlbumOwnerData()
   }, [session, view])
+
+  useEffect(() => {
+    if (!session?.user) { setNotifications([]); setNotificationActors({}); return }
+    let active = true
+    const loadNotifications = async () => {
+      const { data, error: notificationError } = await supabase.from('notifications')
+        .select('id,recipient_id,actor_id,notification_type,entity_id,title,body,created_at,read_at,metadata')
+        .eq('recipient_id', session.user.id).order('created_at', { ascending: false }).limit(100)
+      if (!active) return
+      if (notificationError) { setPeopleError('No pudimos cargar las notificaciones. ' + notificationError.message); return }
+      setNotifications(data || [])
+      const actorIds = [...new Set((data || []).map(item => item.actor_id).filter(Boolean))]
+      if (actorIds.length) {
+        const { data: actors } = await supabase.from('profiles')
+          .select('id,display_name,username,avatar_url').in('id', actorIds)
+        if (active) setNotificationActors(Object.fromEntries((actors || []).map(actor => [actor.id, actor])))
+      }
+    }
+    loadNotifications()
+    const channel = supabase.channel('zuno-notifications-' + session.user.id)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: 'recipient_id=eq.' + session.user.id }, async payload => {
+        const item = payload.new
+        const peerId = activeConversation?.person?.id
+        if (item.notification_type === 'message' && view === 'chat' && peerId === item.actor_id) {
+          await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', item.id).eq('recipient_id', session.user.id)
+          return
+        }
+        setNotifications(current => current.some(existing => existing.id === item.id) ? current : [item, ...current].slice(0, 100))
+        if (item.actor_id) {
+          const { data: actor } = await supabase.from('profiles').select('id,display_name,username,avatar_url').eq('id', item.actor_id).maybeSingle()
+          if (actor) setNotificationActors(current => ({ ...current, [actor.id]: actor }))
+        }
+        if (item.notification_type === 'message') playMessageSound()
+      }).subscribe()
+    return () => { active = false; supabase.removeChannel(channel) }
+  }, [session?.user?.id, activeConversation?.person?.id, view])
+
+  async function markNotificationRead(notificationId) {
+    if (!session?.user || !notificationId) return
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('notifications').update({ read_at: now }).eq('id', notificationId).eq('recipient_id', session.user.id)
+    if (!error) setNotifications(current => current.map(item => item.id === notificationId ? { ...item, read_at: item.read_at || now } : item))
+  }
+
+  async function deleteNotification(notificationId) {
+    const { error } = await supabase.from('notifications').delete().eq('id', notificationId).eq('recipient_id', session.user.id)
+    if (!error) setNotifications(current => current.filter(item => item.id !== notificationId))
+    else setPeopleError('No pudimos eliminar la notificación. ' + error.message)
+  }
+
+  async function openNotification(item) {
+    const actor = notificationActors[item.actor_id]
+    if (item.notification_type === 'connection_request') {
+      setView('connections')
+      if (!item.read_at) await markNotificationRead(item.id)
+      return
+    }
+    if (item.notification_type === 'message' && actor) {
+      await markNotificationRead(item.id)
+      await openChat(actor)
+      return
+    }
+    await markNotificationRead(item.id)
+  }
 
   useEffect(() => {
     if (!session?.user) { setFavoriteIds([]); return }
@@ -1340,7 +1407,7 @@ export default function App() {
         </div>
       </section>
       {reportTarget && <div className="security-modal-backdrop" role="presentation"><form className="security-modal" onSubmit={submitUserReport}><div className="security-modal-heading"><h2>Denunciar perfil</h2><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)} aria-label="Cerrar"><X size={17}/></button></div><p>Tu denuncia sobre {reportTarget.display_name || 'este usuario'} será privada y revisada por el equipo de ZUNO.</p><label>Motivo<select value={reportReason} onChange={event=>setReportReason(event.target.value)}><option value="fake_profile">Perfil falso o suplantación</option><option value="harassment">Acoso o amenazas</option><option value="inappropriate_content">Contenido inapropiado</option><option value="spam">Spam</option><option value="underage">Posible menor de edad</option><option value="scam">Estafa o fraude</option><option value="other">Otro motivo</option></select></label><label>Detalles (opcional)<textarea rows="4" maxLength="2000" value={reportDetails} onChange={event=>setReportDetails(event.target.value)} placeholder="Contanos qué pasó…"/></label><div className="security-modal-actions"><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)}>Cancelar</button><button type="submit" className="submit-btn" disabled={reportBusy}>{reportBusy ? 'Enviando…' : 'Enviar denuncia'}</button></div></form></div>}
-      <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+      <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
   )
 
@@ -1381,6 +1448,30 @@ export default function App() {
         {mapVisible && mapUsers.length === 0 && <p className="map-empty-hint">Todavía no hay otros usuarios visibles en tu zona. Podés volver a actualizar más tarde.</p>}
       </section>
       <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+    </main>
+  )
+
+  if (session?.user && view === 'notifications') return (
+    <main className="app-shell">
+      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
+      <section className="notifications-page">
+        <div className="home-heading"><div><div className="eyebrow"><span/> TU ACTIVIDAD</div><h1>Notifica<span>ciones.</span></h1><p>Mensajes, solicitudes y personas que te agregaron a favoritos.</p></div>
+          <button type="button" className="refresh-btn" disabled={!notifications.some(item=>!item.read_at)} onClick={async()=>{const unread=notifications.filter(item=>!item.read_at);if(!unread.length)return;const now=new Date().toISOString();const {error}=await supabase.from('notifications').update({read_at:now}).eq('recipient_id',session.user.id).is('read_at',null);if(!error)setNotifications(current=>current.map(item=>({...item,read_at:item.read_at||now})))}}>Marcar todas leídas</button>
+        </div>
+        {peopleError && <div className="notice error">{peopleError}</div>}
+        <div className="notifications-list">
+          {notifications.length ? notifications.map(item=>{const actor=notificationActors[item.actor_id];const name=actor?.display_name||actor?.username||'Un miembro de ZUNO';return <article className={'notification-card '+(!item.read_at?'unread':'')} key={item.id}>
+            <button type="button" className="notification-main" onClick={()=>openNotification(item)}>
+              <span className={'notification-symbol '+item.notification_type}>{item.notification_type==='message'?<MessageCircle size={19}/>:item.notification_type==='connection_request'?<UserPlus size={19}/>:<Heart size={19}/>}</span>
+              <span className="notification-copy"><strong>{item.title}</strong><span>{name} · {item.body}</span><time>{new Date(item.created_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}</time></span>
+              {!item.read_at && <i className="notification-unread-dot"/>}
+            </button>
+            {item.notification_type==='connection_request' && !item.read_at && <div className="notification-actions"><button type="button" className="accept-btn" disabled={notificationBusy===item.id} onClick={async()=>{setNotificationBusy(item.id);await respondToConnection(item.entity_id,'accepted');await markNotificationRead(item.id);setNotificationBusy('')}}><Check size={15}/> Aceptar</button><button type="button" className="reject-btn" disabled={notificationBusy===item.id} onClick={async()=>{setNotificationBusy(item.id);await respondToConnection(item.entity_id,'rejected');await markNotificationRead(item.id);setNotificationBusy('')}}><X size={15}/> Rechazar</button></div>}
+            <button type="button" className="notification-delete" aria-label="Eliminar notificación" onClick={()=>deleteNotification(item.id)}><Trash2 size={15}/></button>
+          </article>}) : <div className="empty-state"><Bell size={28}/><h3>Todo al día</h3><p>Cuando recibas un mensaje, una solicitud o un favorito, aparecerá acá.</p></div>}
+        </div>
+      </section>
+      <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
   )
 
@@ -1530,7 +1621,7 @@ export default function App() {
 }
 
 
-function ZunoBottomNav({ view, setView, unreadCount, onLogout }) {
+function ZunoBottomNav({ view, setView, unreadCount, notificationCount, onLogout }) {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const active = view === 'chat' ? 'chats' : ['detail','favorites','connections'].includes(view) ? (view==='favorites'?'favorites':'home') : view
   const go = (nextView) => { setProfileMenuOpen(false); setView(nextView) }
@@ -1538,6 +1629,7 @@ function ZunoBottomNav({ view, setView, unreadCount, onLogout }) {
     <nav className="zuno-bottom-nav" aria-label="Navegación principal">
       <button type="button" className={active==='home'?'active':''} onClick={()=>go('home')}><Compass size={21}/><span>Descubrir</span></button>
       <button type="button" className={active==='chats'?'active':''} onClick={()=>go('chats')}><span className="zuno-nav-icon"><MessageCircle size={21}/>{unreadCount>0&&<i>{unreadCount>99?'99+':unreadCount}</i>}</span><span>Chats</span></button>
+      <button type="button" className={active==='notifications'?'active':''} onClick={()=>go('notifications')}><span className="zuno-nav-icon"><Bell size={21}/>{notificationCount>0&&<i>{notificationCount>99?'99+':notificationCount}</i>}</span><span>Avisos</span></button>
       <button type="button" className={active==='map'?'active':''} onClick={()=>go('map')}><MapPin size={21}/><span>Mapa</span></button>
       <div className="zuno-profile-nav-wrap">
         {profileMenuOpen && <div className="zuno-profile-menu" role="menu">
