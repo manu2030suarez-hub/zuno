@@ -233,6 +233,22 @@ export default function App() {
     setConnectionRows(current => current.filter(row => row.id !== requestId))
   }
 
+  useEffect(() => {
+    if (!session?.user || view !== 'chats') return
+    let active = true
+    async function fetchChats() {
+      const { data: rows, error: listError } = await supabase.from('conversations').select('id,member_one,member_two,last_message_at').order('last_message_at', { ascending: false, nullsFirst: false })
+      if (!active) return
+      if (listError) { setPeopleError('No pudimos cargar tus chats. ' + listError.message); return }
+      const ids = (rows || []).map(row => row.member_one === session.user.id ? row.member_two : row.member_one)
+      const { data: members } = ids.length ? await supabase.from('profiles').select('id,display_name,username,avatar_url').in('id', ids) : { data: [] }
+      if (!active) return
+      const byId = Object.fromEntries((members || []).map(member => [member.id, member]))
+      setConversations((rows || []).map(row => ({ ...row, person: byId[row.member_one === session.user.id ? row.member_two : row.member_one] || { display_name: 'Miembro de ZUNO' } })))
+    }
+    fetchChats()
+    return () => { active = false }
+  }, [session, view])
   async function handleSubmit(event) {
     event.preventDefault()
     setMessage(''); setError('')
@@ -362,7 +378,7 @@ export default function App() {
     <main className="app-shell"><header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
       <section className="chat-page"><div className="home-heading"><div><div className="eyebrow"><span/> MENSAJES PRIVADOS</div><h1>Tus <span>chats.</span></h1><p>Podés hablar con cualquier persona, sin conexión previa.</p></div><button className="refresh-btn" onClick={()=>setView('home')}>Descubrir personas</button></div>
         {peopleError && <div className="notice error">{peopleError}</div>}
-        <div className="chat-list">{people.map(person=><button className="chat-list-item" key={person.id} onClick={()=>openChat(person)}><span className="chat-list-avatar">{person.photos?.[0]?.url?<img src={person.photos[0].url} alt=""/>:(person.display_name||'Z').slice(0,1)}</span><span className="chat-list-name"><strong>{person.display_name||'Miembro de ZUNO'}</strong><small>{person.username?'@'+person.username:'Iniciar conversación'}</small></span><MessageCircle size={18}/></button>)}</div>
+        <div className="chat-list">{conversations.length ? conversations.map(item=><button className="chat-list-item" key={item.id} onClick={()=>openChat({...item.person,id:item.member_one===session.user.id?item.member_two:item.member_one})}><span className="chat-list-avatar">{item.person?.avatar_url?<img src={item.person.avatar_url} alt=""/>:(item.person?.display_name||'Z').slice(0,1)}</span><span className="chat-list-name"><strong>{item.person?.display_name||'Miembro de ZUNO'}</strong><small>{item.person?.username?'@'+item.person.username:'Abrir conversación'}</small></span><MessageCircle size={18}/></button>) : <div className="connections-empty">Todavía no tenés conversaciones. Iniciá un chat desde cualquier perfil.</div>}</div>
       </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer></main>
   )
   if (session?.user && ['home', 'favorites', 'connections'].includes(view)) return (
