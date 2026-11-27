@@ -1168,3 +1168,56 @@ button{touch-action:manipulation}
 .terms-modal-actions{display:flex;justify-content:flex-end;gap:10px;padding:14px 22px 20px;border-top:1px solid rgba(255,255,255,.09)}
 .terms-modal-actions .submit-btn{width:auto;min-width:170px;margin:0}
 @media(max-width:560px){.terms-modal-backdrop{padding:10px;align-items:flex-end}.terms-modal{max-height:88dvh;border-radius:20px 20px 14px 14px}.terms-modal-header{padding:18px 18px 12px}.terms-modal-content{padding:15px 18px}.terms-modal-actions{padding:12px 18px 18px}.terms-modal-actions .submit-btn{min-width:0;flex:1}}
+
+
+/* ZUNO Direct: visor de fotos a pantalla completa */
+.chat-image-protected img { cursor: zoom-in; }
+.chat-image-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100dvh;
+  padding: 24px;
+  background: #000;
+}
+.chat-image-fullscreen > img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.chat-image-fullscreen-close {
+  position: absolute;
+  z-index: 2;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: #fff;
+  background: rgba(35,35,35,.78);
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.chat-video-message {
+  display: block;
+  width: min(100%, 340px);
+  max-height: 55vh;
+  border-radius: 12px;
+  background: #000;
+}
+@media (max-width: 600px) {
+  .chat-image-fullscreen { padding: 12px; }
+  .chat-image-fullscreen > img { max-width: 100%; max-height: 100%; }
+}
