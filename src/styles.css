@@ -745,3 +745,73 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
  .zuno-bottom-nav button{min-height:50px;font-size:10px}
  .app-shell:has(.zuno-bottom-nav){padding-bottom:95px}
 }
+
+
+/* ZUNO NEON — primera pantalla: Descubrir */
+.home-content{max-width:1320px;padding-top:34px}
+.home-heading{align-items:flex-end;margin-bottom:22px}
+.home-heading h1{font-size:clamp(34px,4.4vw,54px);letter-spacing:-.055em;line-height:1.02}
+.home-heading h1 span{background:linear-gradient(100deg,#ff55b5 5%,#b56bff 58%,#6c8dff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.home-heading p{max-width:590px;color:#b9accb}
+.home-shortcuts{display:flex;align-items:center;gap:9px;margin:0 0 22px;overflow-x:auto;padding:2px 1px 8px;scrollbar-width:none}
+.home-shortcuts::-webkit-scrollbar{display:none}
+.home-shortcuts button{display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;border:1px solid #9c65c65c;border-radius:999px;padding:10px 17px;background:rgba(24,15,43,.82);color:#d9c9e8;font-size:13px;font-weight:750;transition:.2s}
+.home-shortcuts button span{display:grid;place-items:center;min-width:19px;height:19px;padding:0 5px;border-radius:99px;background:#ffffff16;color:#f8d9f0;font-size:10px}
+.home-shortcuts button.selected,.home-shortcuts button:hover{border-color:transparent;background:linear-gradient(105deg,#f52a9b,#843dff);color:#fff;box-shadow:0 5px 24px #a02ee64d}
+.discovery-filters{position:relative;border:1px solid #9d63c34d;border-radius:23px;padding:19px 21px;background:linear-gradient(135deg,rgba(35,19,57,.94),rgba(13,10,29,.96));box-shadow:0 15px 42px #05020d70,inset 0 1px #ffffff0c}
+.discovery-filter-heading strong{font-size:15px;letter-spacing:.01em}
+.discovery-filter-heading small{color:#a99bb9}
+.discovery-filter-grid{gap:12px}
+.discovery-filter-grid label>span{font-size:11px;color:#d6c3e4;font-weight:700}
+.discovery-filter-grid input,.discovery-filter-grid select{background:#0c0919;border:1px solid #79529a70;color:#f9efff;border-radius:13px}
+.discovery-filter-grid input:focus,.discovery-filter-grid select:focus{border-color:#ec55c3;box-shadow:0 0 0 3px #d638ad20}
+.discovery-filter-toggles{padding-top:13px;border-top:1px solid #ffffff10}
+.people-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,245px),1fr));gap:20px}
+.people-grid>.person-card{position:relative;display:block;min-height:390px;aspect-ratio:3/4.25;padding:0;overflow:hidden;border:1px solid #b66ce75c;border-radius:23px;background:#130d25;box-shadow:0 12px 35px #0008,0 0 18px #8c35ce18;isolation:isolate}
+.people-grid>.person-card:hover{transform:translateY(-5px);border-color:#fa65cb;box-shadow:0 18px 44px #0009,0 0 28px #d12cbf36}
+.person-card-gallery{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto;border-radius:0;background:radial-gradient(circle at 50% 25%,#633d83,#171025 68%)}
+.person-card-gallery>img{width:100%;height:100%;object-fit:cover;border-radius:0;transition:transform .45s,filter .3s}
+.person-card:hover .person-card-gallery>img{transform:scale(1.045);filter:saturate(1.08)}
+.person-card-gallery:after{content:"";position:absolute;inset:25% 0 0;background:linear-gradient(180deg,transparent 0%,rgba(10,6,19,.18) 28%,rgba(9,5,18,.92) 100%);pointer-events:none}
+.person-avatar{width:100%;height:100%;border-radius:0;display:grid;place-items:center;background:radial-gradient(circle at 50% 30%,#78469b,#20112f 66%,#0d0918);font-size:90px;color:#f9d7f2}
+.person-avatar img{width:100%;height:100%;object-fit:cover}
+.person-info{position:absolute;z-index:2;left:0;right:0;bottom:0;padding:42px 15px 15px;background:linear-gradient(180deg,transparent,rgba(9,5,18,.10));color:#fff}
+.person-title-row{align-items:center;gap:8px}
+.person-title-row h3,.person-info>h3{font-size:clamp(16px,1.5vw,20px);font-weight:850;letter-spacing:-.025em;color:#fff;margin:0}
+.person-username{font-size:11px;color:#f6a7df;margin:3px 0}
+.person-location{font-size:12px;color:#e5d7f0;margin:5px 0}
+.person-bio,.person-looking{display:none}
+.person-tags{display:flex;gap:5px;overflow:hidden;max-height:26px;margin:7px 0}
+.person-tags span{font-size:10px;padding:4px 8px;background:#ffffff18;border:1px solid #ffffff22;color:#f5dff2;white-space:nowrap}
+.favorite-btn{width:39px;height:39px;flex:0 0 39px;border:1px solid #ffffff50;background:#130d27b8;color:#fff;box-shadow:0 4px 18px #0006;backdrop-filter:blur(10px)}
+.favorite-btn.is-favorite{background:#ff3b9b;color:white;border-color:#ff78c2;box-shadow:0 0 18px #ff319b70}
+.person-card-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:11px}
+.person-card-actions button{min-width:0;justify-content:center;padding:10px 8px;font-size:11px}
+.chat-start-btn{background:linear-gradient(105deg,#fa299d,#743aff);box-shadow:0 5px 18px #9b35e64d}
+.connect-btn{background:#ffffff12;border:1px solid #ffffff4a;color:#fff}
+.connected-label,.connection-status{font-size:11px;color:#d9c5e9}
+.own-person-card{border-style:dashed!important}
+.own-person-card .person-info{background:linear-gradient(180deg,transparent,#10091feF)}
+@media(min-width:1100px){.people-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:760px){
+ .home-content{padding-top:24px}
+ .home-heading{align-items:flex-start}
+ .home-heading h1{font-size:clamp(30px,8vw,43px)}
+ .home-shortcuts{margin-bottom:15px}
+ .home-shortcuts button{padding:9px 13px;font-size:12px}
+ .people-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+ .people-grid>.person-card{min-height:275px;aspect-ratio:3/4.2;border-radius:17px}
+ .person-info{padding:32px 9px 10px}
+ .person-title-row h3,.person-info>h3{font-size:13px}
+ .person-location{font-size:10px}
+ .person-tags{display:none}
+ .person-card-actions{grid-template-columns:1fr;gap:5px;margin-top:8px}
+ .person-card-actions button{padding:8px 6px;font-size:10px}
+ .favorite-btn{width:34px;height:34px;flex-basis:34px}
+ .discovery-filters{padding:14px}
+}
+@media(max-width:390px){
+ .people-grid>.person-card{min-height:250px}
+ .person-info{padding-left:8px;padding-right:8px}
+ .person-card-actions button{font-size:9px}
+}
