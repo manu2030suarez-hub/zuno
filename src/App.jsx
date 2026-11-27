@@ -61,7 +61,7 @@ export default function App() {
   async function saveProfile(event) {
     event.preventDefault()
     setBusy(true); setError(''); setMessage('')
-    const { data, error: saveError } = await supabase.from('profiles').update({
+    const { data, error: saveError } = await supabase.from('profiles').upsert({
       display_name: displayName.trim(), username: username.trim().toLowerCase() || null, bio: bio.trim(), id: session.user.id
     }, { onConflict: 'id' }).select('display_name, username, bio, avatar_url, zuno_verified').maybeSingle()
     setBusy(false)
