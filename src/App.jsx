@@ -46,6 +46,8 @@ export default function App() {
   const [conversations, setConversations] = useState([])
   const [unreadCounts, setUnreadCounts] = useState({})
   const [activeConversation, setActiveConversation] = useState(null)
+  const [showEphemeralMenu, setShowEphemeralMenu] = useState(false)
+  const [ephemeralBusy, setEphemeralBusy] = useState(false)
   const [chatMessages, setChatMessages] = useState([])
   const [messageReceipts, setMessageReceipts] = useState({})
   const [activeMessageMenu, setActiveMessageMenu] = useState(null)
@@ -285,13 +287,33 @@ export default function App() {
     }))
   }
 
+  async function purgeExpiredMessages(conversationId) {
+    if (!conversationId) return
+    const now = new Date().toISOString()
+    const { data: expiredRows } = await supabase.from('messages').select('id,media_path').eq('conversation_id', conversationId).not('expires_at', 'is', null).lte('expires_at', now)
+    const paths = (expiredRows || []).map(item => item.media_path).filter(Boolean)
+    if (paths.length) await supabase.storage.from('zuno-chat-media').remove(paths)
+    const { error } = await supabase.rpc('purge_expired_chat_messages', { p_conversation_id: conversationId })
+    if (error) console.error('No se pudieron limpiar mensajes vencidos:', error.message)
+  }
+
+  async function changeEphemeralDuration(minutes) {
+    if (!activeConversation || ephemeralBusy) return
+    setEphemeralBusy(true); setPeopleError('')
+    const { error } = await supabase.rpc('set_conversation_ephemeral_duration', { p_conversation_id: activeConversation.id, p_duration_minutes: minutes })
+    if (error) setPeopleError('No pudimos cambiar el modo efímero. ' + error.message)
+    else setActiveConversation(current => current ? { ...current, ephemeral_duration_minutes: minutes } : current)
+    setEphemeralBusy(false); setShowEphemeralMenu(false)
+  }
+
   async function openChat(person) {
     if (!session?.user || !person?.id) return
     const ids = [session.user.id, person.id].sort()
     setChatBusy(true); setPeopleError('')
-    const { data: conversation, error: conversationError } = await supabase.from('conversations').upsert({ member_one: ids[0], member_two: ids[1] }, { onConflict: 'member_one,member_two' }).select('id,member_one,member_two').single()
+    const { data: conversation, error: conversationError } = await supabase.from('conversations').upsert({ member_one: ids[0], member_two: ids[1] }, { onConflict: 'member_one,member_two' }).select('id,member_one,member_two,ephemeral_duration_minutes').single()
     if (conversationError) { setChatBusy(false); setPeopleError('No pudimos abrir el chat. ' + conversationError.message); return }
-    const { data: messages, error: messagesError } = await supabase.from('messages').select('id,conversation_id,sender_id,body,created_at,message_type,media_path,latitude,longitude,location_expires_at').eq('conversation_id', conversation.id).order('created_at')
+    await purgeExpiredMessages(conversation.id)
+    const { data: messages, error: messagesError } = await supabase.from('messages').select('id,conversation_id,sender_id,body,created_at,message_type,media_path,latitude,longitude,location_expires_at,expires_at').eq('conversation_id', conversation.id).or('expires_at.is.null,expires_at.gt.' + new Date().toISOString()).order('created_at')
     setChatBusy(false)
     if (messagesError) { setPeopleError('No pudimos cargar los mensajes. ' + messagesError.message); return }
     const { data: hiddenRows, error: hiddenError } = await supabase.from('message_hidden_for').select('message_id').eq('user_id', session.user.id)
@@ -316,7 +338,7 @@ export default function App() {
       receiptMap = Object.fromEntries((receipts || []).map(item => [item.message_id, item]))
     }
     setMessageReceipts(receiptMap)
-    setActiveConversation({ ...conversation, person }); setChatMessages(displayMessages); setChatDraft(''); setShowChatGallery(false); setActiveMessageMenu(null); await markConversationRead(conversation.id); setView('chat')
+    setActiveConversation({ ...conversation, ephemeral_duration_minutes: conversation.ephemeral_duration_minutes || 0, person }); setChatMessages(displayMessages); setChatDraft(''); setShowChatGallery(false); setActiveMessageMenu(null); setShowEphemeralMenu(false); await markConversationRead(conversation.id); setView('chat')
   }
 
   function getBrowserPosition() {
@@ -342,7 +364,7 @@ export default function App() {
         message_type: 'location',
         latitude: coords.latitude,
         longitude: coords.longitude
-      }).select('id,conversation_id,sender_id,body,created_at,message_type,media_path,latitude,longitude,location_expires_at').single()
+      }).select('id,conversation_id,sender_id,body,created_at,message_type,media_path,latitude,longitude,location_expires_at,expires_at').single()
       if (locationError) throw locationError
       setChatMessages(current => [...current, data])
     } catch (error) { setPeopleError('No pudimos enviar tu ubicación. ' + error.message) }
@@ -432,7 +454,7 @@ export default function App() {
     const body = chatDraft.trim()
     if (!body || !activeConversation || chatBusy) return
     setChatBusy(true)
-    const { data, error: sendError } = await supabase.from('messages').insert({ conversation_id: activeConversation.id, sender_id: session.user.id, body }).select('id,conversation_id,sender_id,body,created_at,message_type,media_path').single()
+    const { data, error: sendError } = await supabase.from('messages').insert({ conversation_id: activeConversation.id, sender_id: session.user.id, body }).select('id,conversation_id,sender_id,body,created_at,message_type,media_path,expires_at').single()
     setChatBusy(false)
     if (sendError) { setPeopleError('No pudimos enviar el mensaje. ' + sendError.message); return }
     setChatMessages(current => [...current, data]); setChatDraft('')
@@ -651,6 +673,7 @@ export default function App() {
     if (!activeConversation?.id || view !== 'chat') return
     const channel = supabase.channel('zuno-chat-' + activeConversation.id)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + activeConversation.id }, payload => {
+        if (payload.new.expires_at && new Date(payload.new.expires_at).getTime() <= Date.now()) return
         resolveChatMedia([payload.new]).then(([displayMessage]) => setChatMessages(current => current.some(message => message.id === payload.new.id) ? current : [...current, displayMessage]))
         if (payload.new.sender_id !== session.user.id) recordMessageReceipt(payload.new.id, true)
       })
@@ -669,6 +692,16 @@ export default function App() {
         if (location.sender_id === session.user.id) setLiveSharing(location.ended_at ? null : location)
       }).subscribe()
     return () => { supabase.removeChannel(channel) }
+  }, [activeConversation?.id, view])
+
+  useEffect(() => {
+    if (!activeConversation?.id || view !== 'chat') return
+    const timer = window.setInterval(() => {
+      const now = Date.now()
+      setChatMessages(current => current.filter(message => !message.expires_at || new Date(message.expires_at).getTime() > now))
+      purgeExpiredMessages(activeConversation.id)
+    }, 15000)
+    return () => window.clearInterval(timer)
   }, [activeConversation?.id, view])
 
   async function deleteConnection(requestId) {
@@ -768,12 +801,12 @@ export default function App() {
       const ids = (rows || []).map(row => row.member_one === session.user.id ? row.member_two : row.member_one)
       const { data: members } = ids.length ? await supabase.from('profiles').select('id,display_name,username,avatar_url').in('id', ids) : { data: [] }
       const conversationIds = (rows || []).map(row => row.id)
-      const { data: latestMessages } = conversationIds.length ? await supabase.from('messages').select('id,conversation_id,sender_id,body,created_at,message_type,location_expires_at').in('conversation_id', conversationIds).order('created_at', { ascending: false }).limit(500) : { data: [] }
+      const { data: latestMessages } = conversationIds.length ? await supabase.from('messages').select('id,conversation_id,sender_id,body,created_at,message_type,location_expires_at,expires_at').in('conversation_id', conversationIds).order('created_at', { ascending: false }).limit(500) : { data: [] }
       const allLatestIds = (latestMessages || []).map(msg => msg.id)
       const { data: hiddenLatest } = allLatestIds.length ? await supabase.from('message_hidden_for').select('message_id').eq('user_id', session.user.id).in('message_id', allLatestIds) : { data: [] }
       const hiddenLatestIds = new Set((hiddenLatest || []).map(item => item.message_id))
       const latestByConversation = {}
-      for (const msg of latestMessages || []) if (!hiddenLatestIds.has(msg.id) && !latestByConversation[msg.conversation_id]) latestByConversation[msg.conversation_id] = msg
+      for (const msg of latestMessages || []) if ((!msg.expires_at || new Date(msg.expires_at).getTime() > Date.now()) && !hiddenLatestIds.has(msg.id) && !latestByConversation[msg.conversation_id]) latestByConversation[msg.conversation_id] = msg
       const ownLatestIds = Object.values(latestByConversation).filter(msg => msg.sender_id === session.user.id && !hiddenLatestIds.has(msg.id)).map(msg => msg.id)
       const { data: latestReceipts } = ownLatestIds.length ? await supabase.from('message_receipts').select('message_id,delivered_at,read_at').in('message_id', ownLatestIds).neq('user_id', session.user.id) : { data: [] }
       const latestReceiptById = Object.fromEntries((latestReceipts || []).map(item => [item.message_id, item]))
@@ -901,8 +934,8 @@ export default function App() {
   if (session?.user && view === 'chat' && activeConversation) return (
     <main className="app-shell">
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('chats')}><MessageCircle size={15}/> Todos los chats</button><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
-      <section className="direct-chat"><div className="direct-chat-header"><button className="logout-btn" onClick={()=>setView('home')}>← Volver</button><div><strong>{activeConversation.person?.display_name || 'Chat ZUNO'}</strong><small>{activeConversation.person?.username ? '@'+activeConversation.person.username : 'Conversación privada'}</small></div></div>
-        <div className={`direct-chat-messages ${chatDragOver ? 'is-drag-over' : ''}`} onDragOver={event=>{event.preventDefault();setChatDragOver(true)}} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget))setChatDragOver(false)}} onDrop={handleChatDrop}>{chatMessages.map(message=><div key={message.id} className={message.sender_id===session.user.id?'chat-bubble own':'chat-bubble'} onTouchStart={()=>{if(longPressTimerRef.current)window.clearTimeout(longPressTimerRef.current);longPressTimerRef.current=window.setTimeout(()=>setActiveMessageMenu(message.id),550)}} onTouchEnd={()=>{if(longPressTimerRef.current)window.clearTimeout(longPressTimerRef.current)}} onTouchMove={()=>{if(longPressTimerRef.current)window.clearTimeout(longPressTimerRef.current)}} onTouchCancel={()=>{if(longPressTimerRef.current)window.clearTimeout(longPressTimerRef.current)}} onContextMenu={event=>event.preventDefault()}>{message.message_type==='image' ? <div className="chat-image-protected" onContextMenu={event=>event.preventDefault()}><img src={message.media_url || ''} alt="Imagen privada del chat" draggable="false"/><span className="chat-image-watermark">@{profile?.username || profile?.display_name || 'ZUNO'}</span></div> : message.message_type==='audio' ? <ChatAudioPlayer src={message.media_url} error={message.media_error}/> : message.message_type==='location' ? <div className="chat-location-message"><MapPin size={20}/><strong>Ubicación compartida</strong><a href={`https://www.openstreetmap.org/?mlat=${message.latitude}&mlon=${message.longitude}#map=16/${message.latitude}/${message.longitude}`} target="_blank" rel="noreferrer">Abrir mapa</a></div> : <p>{message.body}</p>}<time>{new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}{message.sender_id===session.user.id && <span className={'message-ticks '+(messageReceipts[message.id]?.read_at?'is-read':messageReceipts[message.id]?.delivered_at?'is-delivered':'')}>{messageReceipts[message.id]?.read_at?'✓✓':messageReceipts[message.id]?.delivered_at?'✓✓':'✓'}</span>}</time><div className="chat-message-actions"><button type="button" className="chat-message-menu-trigger" aria-label="Opciones del mensaje" onClick={()=>setActiveMessageMenu(current=>current===message.id?null:message.id)}>⋯</button>{activeMessageMenu===message.id && <div className="chat-message-menu"><button type="button" onClick={()=>hideMessageForMe(message)}>Eliminar para mí</button>{message.sender_id===session.user.id && <button type="button" onClick={()=>deleteMessageForEveryone(message)}>Eliminar para todos</button>}</div>}</div></div>)}{chatDragOver && <div className="chat-drop-hint">Soltá las imágenes acá para prepararlas</div>}</div>
+      <section className="direct-chat"><div className="direct-chat-header"><button className="logout-btn" onClick={()=>setView('home')}>← Volver</button><div><strong>{activeConversation.person?.display_name || 'Chat ZUNO'}</strong><small>{activeConversation.person?.username ? '@'+activeConversation.person.username : 'Conversación privada'}</small></div><div className="ephemeral-settings"><button type="button" className={'logout-btn '+(activeConversation.ephemeral_duration_minutes?'ephemeral-active':'')} onClick={()=>setShowEphemeralMenu(value=>!value)}><span>◷</span> {activeConversation.ephemeral_duration_minutes ? 'Mensajes efímeros' : 'Mensajes normales'}</button>{showEphemeralMenu && <div className="ephemeral-menu"><strong>Desaparición de mensajes</strong><p>Los mensajes nuevos se eliminarán para ambos al cumplirse el plazo.</p>{[{value:0,label:'Desactivado'},{value:10,label:'Después de 10 minutos'},{value:60,label:'Después de 1 hora'},{value:1440,label:'Después de 24 horas'},{value:10080,label:'Después de 7 días'}].map(option=><button key={option.value} type="button" disabled={ephemeralBusy} className={activeConversation.ephemeral_duration_minutes===option.value?'selected':''} onClick={()=>changeEphemeralDuration(option.value)}>{option.label}{activeConversation.ephemeral_duration_minutes===option.value?' ✓':''}</button>)}</div>}</div></div>
+        <div className={`direct-chat-messages ${chatDragOver ? 'is-drag-over' : ''}`} onDragOver={event=>{event.preventDefault();setChatDragOver(true)}} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget))setChatDragOver(false)}} onDrop={handleChatDrop}>{chatMessages.map(message=><div key={message.id} className={message.sender_id===session.user.id?'chat-bubble own':'chat-bubble'} onTouchStart={()=>{if(longPressTimerRef.current)window.clearTimeout(longPressTimerRef.current);longPressTimerRef.current=window.setTimeout(()=>setActiveMessageMenu(message.id),550)}} onTouchEnd={()=>{if(longPressTimerRef.current)window.clearTimeout(longPressTimerRef.current)}} onTouchMove={()=>{if(longPressTimerRef.current)window.clearTimeout(longPressTimerRef.current)}} onTouchCancel={()=>{if(longPressTimerRef.current)window.clearTimeout(longPressTimerRef.current)}} onContextMenu={event=>event.preventDefault()}>{message.message_type==='image' ? <div className="chat-image-protected" onContextMenu={event=>event.preventDefault()}><img src={message.media_url || ''} alt="Imagen privada del chat" draggable="false"/><span className="chat-image-watermark">@{profile?.username || profile?.display_name || 'ZUNO'}</span></div> : message.message_type==='audio' ? <ChatAudioPlayer src={message.media_url} error={message.media_error}/> : message.message_type==='location' ? <div className="chat-location-message"><MapPin size={20}/><strong>Ubicación compartida</strong><a href={`https://www.openstreetmap.org/?mlat=${message.latitude}&mlon=${message.longitude}#map=16/${message.latitude}/${message.longitude}`} target="_blank" rel="noreferrer">Abrir mapa</a></div> : <p>{message.body}</p>}<time>{new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}{message.sender_id===session.user.id && <span className={'message-ticks '+(messageReceipts[message.id]?.read_at?'is-read':messageReceipts[message.id]?.delivered_at?'is-delivered':'')}>{messageReceipts[message.id]?.read_at?'✓✓':messageReceipts[message.id]?.delivered_at?'✓✓':'✓'}</span>}{message.expires_at && <small className="message-expiry-label"> · Se elimina {new Date(message.expires_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</small>}</time><div className="chat-message-actions"><button type="button" className="chat-message-menu-trigger" aria-label="Opciones del mensaje" onClick={()=>setActiveMessageMenu(current=>current===message.id?null:message.id)}>⋯</button>{activeMessageMenu===message.id && <div className="chat-message-menu"><button type="button" onClick={()=>hideMessageForMe(message)}>Eliminar para mí</button>{message.sender_id===session.user.id && <button type="button" onClick={()=>deleteMessageForEveryone(message)}>Eliminar para todos</button>}</div>}</div></div>)}{chatDragOver && <div className="chat-drop-hint">Soltá las imágenes acá para prepararlas</div>}</div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         {deleteConfirmMessage && <div className="zuno-modal-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setDeleteConfirmMessage(null)}}><section className="zuno-modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title"><h2 id="delete-modal-title">¿Eliminar para todos?</h2><p>Este mensaje desaparecerá del chat de ambas personas. Esta acción no se puede deshacer.</p><div><button type="button" className="logout-btn" disabled={chatMediaBusy} onClick={()=>setDeleteConfirmMessage(null)}>Cancelar</button><button type="button" className="zuno-modal-danger" disabled={chatMediaBusy} onClick={confirmDeleteMessageForEveryone}>{chatMediaBusy?'Eliminando…':'Eliminar para todos'}</button></div></section></div>}
         {chatDraftImages.length > 0 && <div className="chat-image-editor"><div className="chat-editor-heading"><strong>Prepará tus fotos ({chatDraftImages.length}/5)</strong><span>Se enviarán solo cuando pulses Enviar fotos</span></div><div className="chat-editor-grid">{chatDraftImages.map(item=><div className="chat-editor-card" key={item.id}><div className="chat-editor-preview" onPointerDown={event=>startCropDrag(event,item)} title={item.zoom>1?"Arrastrá para elegir el recorte":"Acercá la imagen para poder moverla"}><img src={item.url} alt="Vista previa" draggable="false" style={{transform:`translate(${(item.offsetX||0)*((item.zoom-1)/(2*item.zoom))*100}%, ${(item.offsetY||0)*((item.zoom-1)/(2*item.zoom))*100}%) rotate(${item.rotation}deg) scale(${item.zoom})`}}/></div><div className="chat-editor-controls"><button type="button" onClick={()=>updateDraftImage(item.id,{rotation:(item.rotation+270)%360})}>↶ Girar</button><button type="button" onClick={()=>updateDraftImage(item.id,{rotation:(item.rotation+90)%360})}>↷</button><label>Recorte <input type="range" min="1" max="2.5" step="0.05" value={item.zoom} onChange={event=>updateDraftImage(item.id,{zoom:Number(event.target.value),offsetX:0,offsetY:0})}/></label><button type="button" className="chat-editor-remove" onClick={()=>removeDraftImage(item.id)}>Quitar</button></div></div>)}</div><button type="button" className="chat-send-images" onClick={sendPreparedImages} disabled={chatMediaBusy}>{chatMediaBusy?'Enviando…':`Enviar ${chatDraftImages.length} foto(s)`}</button></div>}
