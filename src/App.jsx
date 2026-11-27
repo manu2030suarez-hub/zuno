@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
-import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, StopCircle, Ban, Flag, SlidersHorizontal, Bell, Phone, PhoneOff, Video, MicOff, VideoOff } from 'lucide-react'
+import { Heart, Eye, EyeOff, MoreVertical, Archive, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, StopCircle, Ban, Flag, SlidersHorizontal, Bell, Phone, PhoneOff, Video, MicOff, VideoOff } from 'lucide-react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -50,6 +50,12 @@ export default function App() {
   const [notifications, setNotifications] = useState([])
   const [stories, setStories] = useState([])
   const [storyViewer, setStoryViewer] = useState(null)
+  const [archivedStories, setArchivedStories] = useState([])
+  const [showStoryArchive, setShowStoryArchive] = useState(false)
+  const [showStoryMenu, setShowStoryMenu] = useState(false)
+  const [storyPaused, setStoryPaused] = useState(false)
+  const [storyRemainingMs, setStoryRemainingMs] = useState(7000)
+  const storyPauseStartedRef = useRef(null)
   const [storyViewers, setStoryViewers] = useState([])
   const [showStoryViewers, setShowStoryViewers] = useState(false)
   const [storyBusy, setStoryBusy] = useState(false)
@@ -491,7 +497,7 @@ export default function App() {
     if (!session?.user || view !== 'home') return
     let active = true
     const loadStories = async () => {
-      const { data, error: storyError } = await supabase.from('stories').select('id,user_id,media_path,media_type,caption,created_at,expires_at').gt('expires_at', new Date().toISOString()).order('created_at', { ascending: true })
+      const { data, error: storyError } = await supabase.from('stories').select('id,user_id,media_path,media_type,caption,created_at,expires_at,archived_at').is('archived_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: true })
       if (!active) return
       if (storyError) { setStoryMessage('No pudimos cargar las historias: ' + storyError.message); return }
       const rows = data || [], userIds = [...new Set(rows.map(row => row.user_id))]
@@ -505,6 +511,9 @@ export default function App() {
         return { ...row, url: link?.signedUrl || '', owner: names[row.user_id] || null }
       }))
       if (active) setStories(signed.filter(row => row.url))
+      const { data: archived } = await supabase.from('stories').select('id,user_id,media_path,media_type,caption,created_at,expires_at,archived_at').eq('user_id', session.user.id).not('archived_at', 'is', null).order('archived_at', { ascending: false })
+      const archivedSigned = await Promise.all((archived || []).map(async row => { const { data: link } = await supabase.storage.from('zuno-stories').createSignedUrl(row.media_path, 86400); return { ...row, url: link?.signedUrl || '', owner: profile } }))
+      if (active) setArchivedStories(archivedSigned.filter(row => row.url))
     }
     loadStories()
     const channel = supabase.channel('zuno-stories-' + session.user.id).on('postgres_changes', { event: '*', schema: 'public', table: 'stories' }, () => loadStories()).subscribe()
@@ -532,12 +541,14 @@ export default function App() {
 
   useEffect(() => {
     if (!storyViewer || storyViewer.media_type === 'video') return
-    const timer = window.setTimeout(() => setStoryViewer(null), 7000)
+    if (storyPaused) return
+    const timer = window.setTimeout(() => setStoryViewer(null), storyRemainingMs)
     return () => window.clearTimeout(timer)
-  }, [storyViewer?.id, storyViewer?.media_type])
+  }, [storyViewer?.id, storyViewer?.media_type, storyPaused, storyRemainingMs])
 
   async function openStory(story) {
     setStoryViewer(story)
+    setStoryRemainingMs(7000); setStoryPaused(false); setShowStoryMenu(false)
     setShowStoryViewers(false)
     setStoryViewers([])
     if (story.user_id !== session?.user?.id) {
@@ -553,6 +564,15 @@ export default function App() {
         setStoryViewers((views || []).map(row => ({ ...row, person: byId[row.viewer_id] || null })))
       }
     }
+  }
+
+  async function archiveStory(story) {
+    if (story.user_id !== session?.user?.id || storyBusy) return
+    setStoryBusy(true)
+    const { error: archiveError } = await supabase.from('stories').update({ archived_at: new Date().toISOString() }).eq('id', story.id).eq('user_id', session.user.id)
+    if (!archiveError) { setStories(current => current.filter(item => item.id !== story.id)); setArchivedStories(current => [{ ...story, archived_at: new Date().toISOString() }, ...current]); setStoryViewer(null); setShowStoryMenu(false) }
+    else setStoryMessage('No se pudo archivar la historia: ' + archiveError.message)
+    setStoryBusy(false)
   }
 
   async function deleteStory(story) {
@@ -698,7 +718,7 @@ export default function App() {
         onlineRecentlyByUser=(matches||[]).reduce((acc,row)=>{acc[row.user_id]=row.online_recently===true;return acc},{})
         if (!discoveryIds.length) {setPeople([]);setPeopleLoading(false);return}
       }
-      let profileQuery=supabase.from('profiles').select('id, display_name, username, bio, avatar_url, zuno_verified, city, region, interests, looking_for, show_location, show_online, created_at').neq('id', session.user.id).order('created_at', { ascending: false }).limit(100)
+      let profileQuery=supabase.from('profiles').select('id, display_name, username, bio, avatar_url, zuno_verified, city, region, interests, looking_for, show_location, show_online, show_distance, last_seen_at, created_at').neq('id', session.user.id).order('created_at', { ascending: false }).limit(100)
       if (discoveryIds) profileQuery=profileQuery.in('id',discoveryIds)
       const { data, error: listError } = await profileQuery
       if (!active) return
@@ -729,6 +749,7 @@ export default function App() {
           ...person,
           approximateDistanceKm:distanceByUser[person.id] ?? null,
           onlineRecently:onlineRecentlyByUser[person.id]===true,
+          activityStatus:!person.show_online ? null : (person.last_seen_at && Date.now()-new Date(person.last_seen_at).getTime()<=120000 ? 'active' : person.last_seen_at && Date.now()-new Date(person.last_seen_at).getTime()<=900000 ? 'recent' : 'offline'),
           photos: photosByUser[person.id] || [],
           visibleCity: person.show_location ? [person.city, person.region].filter(Boolean).join(', ') : ''
         })))
@@ -1903,8 +1924,8 @@ export default function App() {
           {storyMessage && <p className="story-feedback">{storyMessage}</p>}
         </section>}
         {storyViewer && <div className="story-viewer-backdrop" role="presentation" onClick={() => setStoryViewer(null)}><section className="story-viewer" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}>
-          <div className="story-progress-track" aria-hidden="true"><span key={storyViewer.id} style={{ animationDuration: storyViewer.media_type === 'video' ? '30s' : '7s' }}/></div><div className="story-viewer-top"><span>{storyViewer.owner?.display_name || storyViewer.owner?.username || 'Tu historia'}</span><button type="button" onClick={() => setStoryViewer(null)} aria-label="Cerrar historia"><X/></button></div>
-          {storyViewer.media_type === 'video' ? <video src={storyViewer.url} controls autoPlay playsInline onEnded={() => setStoryViewer(null)}/> : <img src={storyViewer.url} alt="Historia"/>}
+          <div className="story-progress-track" aria-hidden="true"><span key={storyViewer.id} style={{ animationDuration: storyViewer.media_type === 'video' ? '30s' : '7s' }}/></div><div className="story-viewer-top"><span>{storyViewer.owner?.display_name || storyViewer.owner?.username || 'Tu historia'}</span><div className="story-viewer-top-actions">{storyViewer.user_id === session.user.id && <button type="button" onClick={() => setShowStoryMenu(value => !value)} aria-label="Opciones de historia"><MoreVertical/></button>}<button type="button" onClick={() => setStoryViewer(null)} aria-label="Cerrar historia"><X/></button></div>{showStoryMenu && <div className="story-options-menu"><button type="button" disabled={storyBusy} onClick={() => archiveStory(storyViewer)}><Archive size={16}/> Archivar historia</button></div>}</div>
+          {storyViewer.media_type === 'video' ? <video src={storyViewer.url} controls autoPlay playsInline onEnded={() => setStoryViewer(null)}/> : <img src={storyViewer.url} alt="Historia" onPointerDown={() => { if (!storyPaused) { storyPauseStartedRef.current = Date.now(); setStoryPaused(true) } }} onPointerUp={() => { if (storyPauseStartedRef.current) { setStoryRemainingMs(value => Math.max(0, value - (Date.now() - storyPauseStartedRef.current))); storyPauseStartedRef.current = null } setStoryPaused(false) }} onPointerLeave={() => { if (storyPauseStartedRef.current) { setStoryRemainingMs(value => Math.max(0, value - (Date.now() - storyPauseStartedRef.current))); storyPauseStartedRef.current = null } setStoryPaused(false) }} onContextMenu={event => event.preventDefault()}/> }
           {storyViewer.caption && <p>{storyViewer.caption}</p>}
           {storyViewer.user_id === session.user.id && <button type="button" className="story-viewers-trigger" onClick={() => setShowStoryViewers(true)}><Eye size={17}/><strong>Visto por {storyViewers.length}</strong><span>Ver lista</span></button>}
           {showStoryViewers && storyViewer.user_id === session.user.id && <div className="story-viewers-sheet-backdrop" onClick={() => setShowStoryViewers(false)}><section className="story-viewers-sheet" role="dialog" aria-modal="true" aria-label="Personas que vieron tu historia" onClick={event => event.stopPropagation()}><div className="story-viewers-sheet-heading"><div><strong>Visualizaciones</strong><small>{storyViewers.length} {storyViewers.length === 1 ? 'persona vio' : 'personas vieron'} tu historia</small></div><button type="button" onClick={() => setShowStoryViewers(false)} aria-label="Cerrar"><X size={19}/></button></div>{storyViewers.length ? <div className="story-viewers-list">{storyViewers.map(item => <div className="story-viewer-person" key={item.viewer_id}><img src={item.person?.avatar_url || ''} alt=""/><div><strong>{item.person?.display_name || item.person?.username || 'Usuario'}</strong><small>@{item.person?.username || 'usuario'}</small></div><time>{new Date(item.viewed_at).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'})}</time></div>)}</div> : <div className="story-viewers-empty"><Eye size={25}/><strong>Todavía nadie vio tu historia</strong><small>Cuando alguien la vea, aparecerá acá.</small></div>}</section></div>}
@@ -1961,7 +1982,8 @@ export default function App() {
             <div className="person-info">
               <div className="person-title-row"><h3>{person.display_name || 'Usuario ZUNO'} {person.zuno_verified && <span className="verified-dot" title="Cuenta verificada">✓</span>}</h3><button type="button" className={`favorite-btn ${favoriteIds.includes(person.id) ? 'is-favorite' : ''}`} aria-label={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} title={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} disabled={favoriteBusy === person.id} onClick={event=>{event.stopPropagation();toggleFavorite(person.id)}}><Heart size={18} fill={favoriteIds.includes(person.id) ? 'currentColor' : 'none'}/></button></div>
               {person.username && <p className="person-username">@{person.username}</p>}
-              {person.show_online && person.onlineRecently && <p className="person-online-label"><span/> En línea recientemente</p>}
+              {person.show_online && person.activityStatus && <p className={`person-online-label ${person.activityStatus}`}><span/> {person.activityStatus === 'active' ? 'Activo ahora' : person.activityStatus === 'recent' ? 'En línea recientemente' : 'Desconectado'}</p>}
+               {person.show_distance && person.approximateDistanceKm!==null && person.approximateDistanceKm!==undefined && <p className="person-distance-label"><MapPin size={12}/> A {(person.approximateDistanceKm*1000).toLocaleString('es-UY')} m aprox.</p>}
               {person.visibleCity && <p className="person-location"><Compass size={13}/>{person.visibleCity}</p>}
               {person.bio && <p className="person-bio">{person.bio}</p>}
               {person.interests?.length > 0 && <div className="person-tags">{person.interests.slice(0,5).map(tag=><span key={tag}>{tag}</span>)}</div>}
