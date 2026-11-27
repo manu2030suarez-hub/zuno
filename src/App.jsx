@@ -1823,6 +1823,24 @@ export default function App() {
     fetchChats()
     return () => { active = false }
   }, [session, view])
+  async function acceptRequiredTerms() {
+    if (!session?.user || busy) return
+    setBusy(true); setError('')
+    const acceptedAt = new Date().toISOString()
+    const [{ error: profileConsentError }, { error: metadataError }] = await Promise.all([
+      supabase.from('profiles').upsert({ id: session.user.id, location_terms_accepted: true }, { onConflict: 'id' }),
+      supabase.auth.updateUser({ data: { location_terms_accepted: true, location_terms_accepted_at: acceptedAt } })
+    ])
+    setBusy(false)
+    if (profileConsentError || metadataError) {
+      setError('No pudimos guardar tu aceptación. Revisá tu conexión e intentá nuevamente. ' + (profileConsentError?.message || metadataError?.message || ''))
+      return
+    }
+    setLocationTermsAccepted(true)
+    setProfile(current => ({ ...(current || {}), location_terms_accepted: true }))
+    setMessage('¡Términos aceptados! Ya podés usar ZUNO.')
+  }
+
   async function handleSubmit(event) {
     event.preventDefault()
     setMessage(''); setError('')
@@ -2002,6 +2020,30 @@ export default function App() {
       </section></div>}
     </>
   ) : null
+
+  if (session?.user && !profileLoading && !profileLoadError && !locationTermsAccepted) return (
+    <main className="app-shell">
+      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header>
+      <div className="terms-modal-backdrop" role="presentation">
+        <section className="terms-modal" role="dialog" aria-modal="true" aria-labelledby="zuno-required-terms-title">
+          <div className="terms-modal-header"><div><span className="eyebrow">ZUNO · CONDICIONES DE USO</span><h2 id="zuno-required-terms-title">Necesitás aceptar los términos y condiciones</h2></div></div>
+          <div className="terms-modal-content">
+            <p>Para continuar usando ZUNO, necesitamos que leas y aceptes estas condiciones. La aceptación se guarda en tu cuenta y no tendrás que repetir este paso.</p>
+            <p><strong>1. Requisitos de uso.</strong> ZUNO está destinado exclusivamente a personas mayores de 18 años. Declarás que cumplís este requisito y que los datos que proporcionás son correctos.</p>
+            <p><strong>2. Uso de ubicación precisa.</strong> Para calcular distancias, ZUNO puede solicitar permiso de ubicación al dispositivo y recibir coordenadas precisas. Se utilizan para calcular proximidad y, si habilitás la función, mostrar tu posición aproximada en el mapa. Nunca mostramos públicamente tu dirección ni tus coordenadas exactas.</p>
+            <p><strong>3. Distancias y visibilidad.</strong> Las distancias son estimaciones basadas en ubicaciones recientes y pueden variar según movimiento, señal GPS y precisión del dispositivo. Solo se muestran cuando las personas involucradas aceptaron estas condiciones y habilitaron la visibilidad correspondiente.</p>
+            <p><strong>4. Almacenamiento y control.</strong> Las coordenadas se utilizan para las funciones de proximidad y mapa. Podés activar o desactivar la visibilidad de tu ubicación y distancia desde las opciones de Explorar. También podés retirar el permiso de ubicación desde tu dispositivo.</p>
+            <p><strong>5. Privacidad.</strong> ZUNO no muestra tu domicilio exacto ni tus coordenadas a otros usuarios. La distancia y la posición aproximada pueden permitir inferir cercanía; compartí únicamente la información que quieras hacer visible.</p>
+            <p><strong>6. Conducta y seguridad.</strong> Te comprometés a respetar a las demás personas, no acosar, amenazar, suplantar identidades, publicar contenido ilegal ni utilizar la plataforma para actividades ilícitas. Podés bloquear o denunciar cuentas.</p>
+            <p><strong>7. Aceptación.</strong> Al pulsar «Acepto los términos y condiciones», confirmás que leíste y aceptás estas condiciones, incluido el tratamiento de ubicación descrito. La aceptación queda asociada a tu cuenta.</p>
+            <p className="terms-modal-note">Es necesario aceptar estas condiciones para utilizar ZUNO. Si no estás de acuerdo, podés cerrar sesión.</p>
+          </div>
+          {error && <div className="notice error" role="alert">{error}</div>}
+          <div className="terms-modal-actions"><button type="button" className="logout-btn" onClick={logout} disabled={busy}>Cerrar sesión</button><button type="button" className="submit-btn" onClick={acceptRequiredTerms} disabled={busy}>{busy ? 'Guardando…' : 'Acepto los términos y condiciones'}</button></div>
+        </section>
+      </div>
+    </main>
+  )
 
   if (session?.user && !emailConfirmed) return (
     <main className="app-shell">{callOverlay}
@@ -2245,7 +2287,7 @@ export default function App() {
             <div className="profile-section"><h3>Datos personales</h3><label htmlFor="birthDate">Fecha de nacimiento (privada)</label><input id="birthDate" type="date" value={birthDate} max={new Date().toISOString().slice(0,10)} onChange={e=>setBirthDate(e.target.value)}/><p className="field-hint">Tu fecha completa no se muestra públicamente. ZUNO es solo para mayores de 18 años.</p><label htmlFor="city">Ciudad o localidad aproximada</label><input id="city" value={city} onChange={e=>setCity(e.target.value)} placeholder="Ej. Montevideo"/><label htmlFor="region">Departamento / región</label><input id="region" value={region} onChange={e=>setRegion(e.target.value)} placeholder="Ej. Montevideo"/></div>
             <div className="profile-section"><h3>Intereses y gustos</h3><div className="choice-chips">{interestOptions.map(item=><button type="button" key={item} className={interests.includes(item)?'selected':''} onClick={()=>setInterests(cur=>cur.includes(item)?cur.filter(x=>x!==item):[...cur,item])}>{item}</button>)}</div></div>
             <div className="profile-section"><h3>¿Qué estás buscando?</h3><div className="choice-chips">{lookingOptions.map(item=><button type="button" key={item} className={lookingFor.includes(item)?'selected':''} onClick={()=>setLookingFor(cur=>cur.includes(item)?cur.filter(x=>x!==item):[...cur,item])}>{item}</button>)}</div><label htmlFor="ageMin">Edad mínima</label><input id="ageMin" type="number" min="18" max="99" value={ageMin} onChange={e=>setAgeMin(e.target.value)}/><label htmlFor="ageMax">Edad máxima</label><input id="ageMax" type="number" min="18" max="99" value={ageMax} onChange={e=>setAgeMax(e.target.value)}/><label htmlFor="distanceKm">Distancia máxima aproximada (km)</label><input id="distanceKm" type="number" min="1" max="500" value={distanceKm} onChange={e=>setDistanceKm(e.target.value)}/></div>
-            <div className="profile-section"><h3><ShieldCheck size={17}/> Privacidad</h3><div className="privacy-options"><label className="privacy-toggle"><span>Acepto los términos de uso de ubicación y distancias</span><input type="checkbox" checked={locationTermsAccepted} onChange={async e=>{const accepted=e.target.checked;setError('');const {error:consentError}=await supabase.from('profiles').update({location_terms_accepted:accepted}).eq('id',session.user.id);if(consentError){setError('No pudimos guardar tu consentimiento de ubicación: '+consentError.message);return}setLocationTermsAccepted(accepted);setProfile(current=>({...current,location_terms_accepted:accepted}));setMessage(accepted?'Consentimiento de ubicación guardado. La actualización automática está activada.':'Consentimiento retirado. ZUNO dejará de actualizar tu ubicación.')}}/></label><p className="detail-private-note">Al aceptar, autorizás a ZUNO a calcular y mostrar a otros usuarios la distancia en metros entre las ubicaciones compartidas por ambos. La distancia se calcula con los datos de ubicación del dispositivo y puede variar; no muestra tu dirección ni coordenadas. Podés retirar el consentimiento cuando quieras.</p><label className="privacy-toggle"><span>Aparecer en el mapa</span><input type="checkbox" checked={mapVisible} disabled={mapBusy || !locationTermsAccepted} onChange={e=>setMyMapVisibility(e.target.checked)}/></label>{[['show_online','Mostrar cuando estoy conectado'],['show_distance','Mostrar distancia en perfiles'],['show_age','Permitir mostrar mi edad'],['show_location','Mostrar ciudad o región']].map(([key,label])=><label className="privacy-toggle" key={key}><span>{label}</span><input type="checkbox" checked={Boolean(privacy[key])} onChange={e=>setPrivacy(cur=>({...cur,[key]:e.target.checked}))}/></label>)}</div><p className="detail-private-note">Para mostrar la distancia, ambos usuarios deben aceptar estos términos, activar “Mostrar distancia en perfiles” y compartir una ubicación reciente. La opción “Aparecer en el mapa” es independiente. Si desactivás ambas opciones, ZUNO deja de usar tu ubicación para estas funciones.</p></div>
+            <div className="profile-section"><h3><ShieldCheck size={17}/> Privacidad</h3><div className="privacy-options"><p className="detail-private-note">Aceptaste los términos y condiciones al registrarte. Desde Explorar podés activar o desactivar la visibilidad de tu ubicación y distancia cuando quieras.</p><label className="privacy-toggle"><span>Aparecer en el mapa</span><input type="checkbox" checked={mapVisible} disabled={mapBusy || !locationTermsAccepted} onChange={e=>setMyMapVisibility(e.target.checked)}/></label>{[['show_online','Mostrar cuando estoy conectado'],['show_distance','Mostrar distancia en perfiles'],['show_age','Permitir mostrar mi edad'],['show_location','Mostrar ciudad o región']].map(([key,label])=><label className="privacy-toggle" key={key}><span>{label}</span><input type="checkbox" checked={Boolean(privacy[key])} onChange={e=>setPrivacy(cur=>({...cur,[key]:e.target.checked}))}/></label>)}</div><p className="detail-private-note">Para mostrar la distancia, ambos usuarios deben aceptar estos términos, activar “Mostrar distancia en perfiles” y compartir una ubicación reciente. La opción “Aparecer en el mapa” es independiente. Si desactivás ambas opciones, ZUNO deja de usar tu ubicación para estas funciones.</p></div>
             <div className="profile-section"><h3><Ban size={17}/> Cuentas bloqueadas</h3>{blockedUsers.length ? <div className="blocked-users-list">{blockedUsers.map(item=><div className="blocked-user-row" key={item.id}><span><strong>{item.person?.display_name || 'Usuario ZUNO'}</strong><small>{item.person?.username ? '@'+item.person.username : 'Cuenta bloqueada'}</small></span><button type="button" className="logout-btn" disabled={blockBusy===item.blocked_id} onClick={()=>unblockUser(item.blocked_id)}>Desbloquear</button></div>)}</div> : <p className="detail-private-note">Todavía no bloqueaste ninguna cuenta.</p>}</div>
             {error && <div className="notice error">{error}</div>}{message && <div className="notice success">{message}</div>}
             <button className="submit-btn" type="submit" disabled={busy}>{busy ? 'Guardando…' : profile?.display_name ? 'Guardar cambios' : 'Guardar perfil'} <span>→</span></button>
