@@ -8,6 +8,7 @@ create table if not exists public.profiles (
   bio text not null default '',
   avatar_url text,
   birth_date date,
+  zuno_verified boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint username_length check (username is null or char_length(username) between 3 and 24)
