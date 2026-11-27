@@ -573,7 +573,14 @@ export default function App() {
       window.setTimeout(() => map.invalidateSize(), 100)
     }
     loadMapData()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove()
+        leafletMapRef.current = null
+        mapMarkersRef.current = []
+      }
+    }
   }, [view, session?.user?.id, mapVisible])
 
   useEffect(() => () => {
