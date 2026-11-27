@@ -1162,7 +1162,7 @@ export default function App() {
     ])
     if (photoError) setPrivateAlbumMessage('No pudimos cargar el álbum: '+photoError.message)
     else {
-      const signed = await Promise.all((photoRows||[]).map(async p=>{const {data}=await supabase.storage.from('zuno-private-albums').createSignedUrl(p.storage_path,300);return {...p,url:data?.signedUrl||''}}))
+      const signed = await Promise.all((photoRows||[]).map(async p=>{const {data}=await supabase.storage.from('zuno-private-albums').createSignedUrl(p.storage_path,60);return {...p,url:data?.signedUrl||''}}))
       setPrivateAlbumPhotos(signed)
     }
     if (requestError) setPrivateAlbumMessage('No pudimos cargar las solicitudes: '+requestError.message)
@@ -1188,7 +1188,7 @@ export default function App() {
       if(upError){setPrivateAlbumMessage(upError.message);continue}
       const {data:row,error:rowError}=await supabase.from('private_album_photos').insert({owner_id:session.user.id,storage_path:path,sort_order:privateAlbumPhotos.length}).select('id,owner_id,storage_path,sort_order').single()
       if(rowError){await supabase.storage.from('zuno-private-albums').remove([path]);setPrivateAlbumMessage(rowError.message);continue}
-      const {data:signed}=await supabase.storage.from('zuno-private-albums').createSignedUrl(path,300)
+      const {data:signed}=await supabase.storage.from('zuno-private-albums').createSignedUrl(path,60)
       setPrivateAlbumPhotos(current=>[...current,{...row,url:signed?.signedUrl||''}])
     }
     setPrivateAlbumBusy(false)
