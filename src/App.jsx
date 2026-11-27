@@ -156,6 +156,7 @@ export default function App() {
   const localCallStreamRef = useRef(null)
   const callIdRef = useRef(null)
   const pendingIceRef = useRef([])
+  const localIceQueueRef = useRef([])
   const remoteVideoRef = useRef(null)
   const localVideoRef = useRef(null)
   const remoteAudioRef = useRef(null)
@@ -168,6 +169,7 @@ export default function App() {
     setRemoteCallStream(null)
     callIdRef.current = null
     pendingIceRef.current = []
+    localIceQueueRef.current = []
     setCallMuted(false)
     setCallCameraOff(false)
   }
@@ -185,7 +187,7 @@ export default function App() {
     peerConnectionRef.current = peer
     callIdRef.current = callId
     stream.getTracks().forEach(track => peer.addTrack(track, stream))
-    peer.onicecandidate = event => { if (event.candidate) sendCallIce(callId, event.candidate) }
+    peer.onicecandidate = event => { if (event.candidate) { const activeId = callIdRef.current; if (activeId) sendCallIce(activeId, event.candidate); else localIceQueueRef.current.push(event.candidate) } }
     peer.ontrack = event => setRemoteCallStream(event.streams[0] || new MediaStream([event.track]))
     peer.onconnectionstatechange = () => {
       if (peer.connectionState === 'failed') setCallError('No se pudo establecer la conexión. Probá nuevamente con otra red.')
@@ -211,6 +213,7 @@ export default function App() {
       }).select('*').single()
       if (createError) throw createError
       callIdRef.current = created.id
+      for (const candidate of localIceQueueRef.current.splice(0)) await sendCallIce(created.id, candidate)
       setCallSession(created)
       setCallError('')
     } catch (callStartError) {
@@ -279,7 +282,18 @@ export default function App() {
     loadIncoming()
     const channel = supabase.channel('zuno-call-inbox-' + session.user.id)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'call_sessions', filter: 'callee_id=eq.' + session.user.id }, payload => {
-        if (payload.new.status === 'ringing') setIncomingCall(payload.new)
+        if (payload.new.status === 'ringing') {
+          setIncomingCall(payload.new)
+          ;(async () => {
+            const { data: conversation } = await supabase.from('conversations').select('*').eq('id', payload.new.conversation_id).maybeSingle()
+            const { data: person } = await supabase.from('profiles').select('id,display_name,username,avatar_url').eq('id', payload.new.caller_id).maybeSingle()
+            if (conversation && person) {
+              setActiveConversation({ ...conversation, person, ephemeral_duration_minutes: 0 })
+              setChatMessages([])
+              setView('chat')
+            }
+          })()
+        }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'call_sessions', filter: 'callee_id=eq.' + session.user.id }, payload => {
         if (payload.new.status !== 'ringing') setIncomingCall(current => current?.id === payload.new.id ? null : current)
@@ -307,7 +321,17 @@ export default function App() {
         if (peerConnectionRef.current?.remoteDescription) {
           try { await peerConnectionRef.current.addIceCandidate(candidate) } catch (iceError) { console.warn('ICE:', iceError.message) }
         } else pendingIceRef.current.push(candidate)
-      }).subscribe()
+      }).subscribe(async status => {
+        if (status === 'SUBSCRIBED') {
+          const { data: existingSignals } = await supabase.from('call_signals').select('sender_id,payload').eq('call_id', callSession.id).eq('signal_type','ice')
+          for (const item of existingSignals || []) {
+            if (item.sender_id === session.user.id) continue
+            const candidate = new RTCIceCandidate(item.payload)
+            if (peerConnectionRef.current?.remoteDescription) { try { await peerConnectionRef.current.addIceCandidate(candidate) } catch {} }
+            else pendingIceRef.current.push(candidate)
+          }
+        }
+      })
     return () => { supabase.removeChannel(channel) }
   }, [callSession?.id, session?.user?.id])
 
