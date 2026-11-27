@@ -27,7 +27,9 @@ drop policy if exists "Members can view messages in their conversations" on publ
 create policy "Members can view messages in their conversations" on public.messages for select to authenticated using (exists (select 1 from public.conversations c where c.id = conversation_id and auth.uid() in (c.member_one, c.member_two)));
 drop policy if exists "Members can send messages in their conversations" on public.messages;
 create policy "Members can send messages in their conversations" on public.messages for insert to authenticated with check (sender_id = auth.uid() and exists (select 1 from public.conversations c where c.id = conversation_id and auth.uid() in (c.member_one, c.member_two)));
-grant select, insert on public.conversations to authenticated;
+drop policy if exists "Members can keep conversations current" on public.conversations;
+create policy "Members can keep conversations current" on public.conversations for update to authenticated using (auth.uid() = member_one or auth.uid() = member_two) with check (auth.uid() = member_one or auth.uid() = member_two);
+grant select, insert, update on public.conversations to authenticated;
 grant select, insert on public.messages to authenticated;
 drop policy if exists "Members can remove accepted connections" on public.connection_requests;
 create policy "Members can remove accepted connections" on public.connection_requests for delete to authenticated using (status = 'accepted' and (auth.uid() = sender_id or auth.uid() = receiver_id));
