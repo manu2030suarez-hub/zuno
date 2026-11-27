@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
-import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash } from 'lucide-react'
+import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, StopCircle } from 'lucide-react'
 
 function ChatAudioPlayer({ src, error }) {
   const audioRef = useRef(null)
@@ -62,6 +62,10 @@ export default function App() {
   const [chatGallery, setChatGallery] = useState([])
   const [showChatGallery, setShowChatGallery] = useState(false)
   const [chatDragOver, setChatDragOver] = useState(false)
+  const [showLocationMenu, setShowLocationMenu] = useState(false)
+  const [liveLocations, setLiveLocations] = useState([])
+  const [liveSharing, setLiveSharing] = useState(null)
+  const locationWatchRef = useRef(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [peopleLoading, setPeopleLoading] = useState(false)
   const [peopleRefresh, setPeopleRefresh] = useState(0)
@@ -288,6 +292,9 @@ export default function App() {
     setChatBusy(false)
     if (messagesError) { setPeopleError('No pudimos cargar los mensajes. ' + messagesError.message); return }
     const displayMessages = await resolveChatMedia(messages || [])
+    const { data: activeLocations } = await supabase.from('live_locations').select('id,conversation_id,sender_id,latitude,longitude,expires_at,ended_at,updated_at').eq('conversation_id', conversation.id).is('ended_at', null).gt('expires_at', new Date().toISOString())
+    setLiveLocations(activeLocations || [])
+    setLiveSharing((activeLocations || []).find(item => item.sender_id === session.user.id) || null)
     const { data: priorImages } = await supabase.from('messages').select('id,media_path,created_at').eq('sender_id', session.user.id).eq('message_type', 'image').not('media_path', 'is', null).order('created_at', { ascending: false }).limit(30)
     const gallery = await Promise.all((priorImages || []).map(async item => { const { data: signed } = await supabase.storage.from('zuno-chat-media').createSignedUrl(item.media_path, 3600); return { ...item, url: signed?.signedUrl || '' } }))
     setChatGallery(gallery.filter(item => item.url))
@@ -305,6 +312,89 @@ export default function App() {
     setMessageReceipts(receiptMap)
     setActiveConversation({ ...conversation, person }); setChatMessages(displayMessages); setChatDraft(''); setShowChatGallery(false); await markConversationRead(conversation.id); setView('chat')
   }
+
+  function getBrowserPosition() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) { reject(new Error('Este navegador no permite obtener la ubicación.')); return }
+      navigator.geolocation.getCurrentPosition(
+        position => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+        error => reject(new Error(error.code === 1 ? 'Tenés que permitir el acceso a la ubicación.' : error.code === 2 ? 'No pudimos determinar tu ubicación.' : 'Se agotó el tiempo para obtener tu ubicación.')),
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
+      )
+    })
+  }
+
+  async function sendCurrentLocation() {
+    if (!activeConversation || chatMediaBusy) return
+    setChatMediaBusy(true); setPeopleError(''); setShowLocationMenu(false)
+    try {
+      const coords = await getBrowserPosition()
+      const { data, error: locationError } = await supabase.from('messages').insert({
+        conversation_id: activeConversation.id,
+        sender_id: session.user.id,
+        body: null,
+        message_type: 'location',
+        latitude: coords.latitude,
+        longitude: coords.longitude
+      }).select('id,conversation_id,sender_id,body,created_at,message_type,media_path,latitude,longitude,location_expires_at').single()
+      if (locationError) throw locationError
+      setChatMessages(current => [...current, data])
+    } catch (error) { setPeopleError('No pudimos enviar tu ubicación. ' + error.message) }
+    setChatMediaBusy(false)
+  }
+
+  async function startLiveLocation(minutes) {
+    if (!activeConversation || liveSharing || chatMediaBusy) return
+    setChatMediaBusy(true); setPeopleError(''); setShowLocationMenu(false)
+    try {
+      const coords = await getBrowserPosition()
+      const expiresAt = new Date(Date.now() + minutes * 60 * 1000).toISOString()
+      const { data, error: startError } = await supabase.from('live_locations').insert({
+        conversation_id: activeConversation.id,
+        sender_id: session.user.id,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        expires_at: expiresAt
+      }).select('id,conversation_id,sender_id,latitude,longitude,expires_at,ended_at,updated_at').single()
+      if (startError) throw startError
+      setLiveSharing(data)
+      setLiveLocations(current => [...current.filter(item => item.id !== data.id), data])
+      if (!navigator.geolocation?.watchPosition) throw new Error('Tu navegador no permite actualizar la ubicación en tiempo real.')
+      locationWatchRef.current = navigator.geolocation.watchPosition(async position => {
+        const updatedAt = new Date().toISOString()
+        const next = { latitude: position.coords.latitude, longitude: position.coords.longitude, updated_at: updatedAt }
+        const { data: updated, error: updateError } = await supabase.from('live_locations').update(next).eq('id', data.id).select('id,conversation_id,sender_id,latitude,longitude,expires_at,ended_at,updated_at').maybeSingle()
+        if (!updateError && updated) {
+          setLiveSharing(updated)
+          setLiveLocations(current => current.map(item => item.id === updated.id ? updated : item))
+        }
+      }, geoError => setPeopleError(geoError.code === 1 ? 'Se revocó el permiso de ubicación. Detené y volvé a iniciar el envío si querés compartirla.' : 'No pudimos actualizar tu ubicación.'), { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 })
+    } catch (error) { setPeopleError('No pudimos iniciar la ubicación en tiempo real. ' + error.message) }
+    setChatMediaBusy(false)
+  }
+
+  async function stopLiveLocation(locationId = liveSharing?.id) {
+    if (!locationId) return
+    if (locationWatchRef.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(locationWatchRef.current)
+    locationWatchRef.current = null
+    const endedAt = new Date().toISOString()
+    const { data, error: stopError } = await supabase.from('live_locations').update({ ended_at: endedAt, updated_at: endedAt }).eq('id', locationId).select('id,conversation_id,sender_id,latitude,longitude,expires_at,ended_at,updated_at').maybeSingle()
+    if (stopError) { setPeopleError('No pudimos detener la ubicación. ' + stopError.message); return }
+    setLiveSharing(null)
+    if (data) setLiveLocations(current => current.map(item => item.id === data.id ? data : item))
+  }
+
+  useEffect(() => {
+    if (!liveSharing?.id) return
+    const remaining = new Date(liveSharing.expires_at).getTime() - Date.now()
+    if (remaining <= 0) { stopLiveLocation(liveSharing.id); return }
+    const timer = window.setTimeout(() => stopLiveLocation(liveSharing.id), remaining)
+    return () => window.clearTimeout(timer)
+  }, [liveSharing?.id, liveSharing?.expires_at])
+
+  useEffect(() => () => {
+    if (locationWatchRef.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(locationWatchRef.current)
+  }, [])
 
   async function sendChatMessage(event) {
     event.preventDefault()
@@ -536,6 +626,12 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'message_receipts' }, payload => {
         const receipt = payload.new
         if (receipt?.user_id && receipt.user_id !== session.user.id) setMessageReceipts(current => ({ ...current, [receipt.message_id]: receipt }))
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_locations', filter: 'conversation_id=eq.' + activeConversation.id }, payload => {
+        const location = payload.new
+        if (!location?.id) return
+        setLiveLocations(current => current.some(item => item.id === location.id) ? current.map(item => item.id === location.id ? location : item) : [...current, location])
+        if (location.sender_id === session.user.id) setLiveSharing(location.ended_at ? null : location)
       }).subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [activeConversation?.id, view])
@@ -761,12 +857,14 @@ export default function App() {
     <main className="app-shell">
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('chats')}><MessageCircle size={15}/> Todos los chats</button><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
       <section className="direct-chat"><div className="direct-chat-header"><button className="logout-btn" onClick={()=>setView('home')}>← Volver</button><div><strong>{activeConversation.person?.display_name || 'Chat ZUNO'}</strong><small>{activeConversation.person?.username ? '@'+activeConversation.person.username : 'Conversación privada'}</small></div></div>
-        <div className={`direct-chat-messages ${chatDragOver ? 'is-drag-over' : ''}`} onDragOver={event=>{event.preventDefault();setChatDragOver(true)}} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget))setChatDragOver(false)}} onDrop={handleChatDrop}>{chatMessages.map(message=><div key={message.id} className={message.sender_id===session.user.id?'chat-bubble own':'chat-bubble'}>{message.message_type==='image' ? <div className="chat-image-protected" onContextMenu={event=>event.preventDefault()}><img src={message.media_url || ''} alt="Imagen privada del chat" draggable="false"/><span className="chat-image-watermark">@{profile?.username || profile?.display_name || 'ZUNO'}</span></div> : message.message_type==='audio' ? <ChatAudioPlayer src={message.media_url} error={message.media_error}/> : <p>{message.body}</p>}<time>{new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}{message.sender_id===session.user.id && <span className={'message-ticks '+(messageReceipts[message.id]?.read_at?'is-read':messageReceipts[message.id]?.delivered_at?'is-delivered':'')}>{messageReceipts[message.id]?.read_at?'✓✓':messageReceipts[message.id]?.delivered_at?'✓✓':'✓'}</span>}</time></div>)}{chatDragOver && <div className="chat-drop-hint">Soltá las imágenes acá para prepararlas</div>}</div>
+        <div className={`direct-chat-messages ${chatDragOver ? 'is-drag-over' : ''}`} onDragOver={event=>{event.preventDefault();setChatDragOver(true)}} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget))setChatDragOver(false)}} onDrop={handleChatDrop}>{chatMessages.map(message=><div key={message.id} className={message.sender_id===session.user.id?'chat-bubble own':'chat-bubble'}>{message.message_type==='image' ? <div className="chat-image-protected" onContextMenu={event=>event.preventDefault()}><img src={message.media_url || ''} alt="Imagen privada del chat" draggable="false"/><span className="chat-image-watermark">@{profile?.username || profile?.display_name || 'ZUNO'}</span></div> : message.message_type==='audio' ? <ChatAudioPlayer src={message.media_url} error={message.media_error}/> : message.message_type==='location' ? <div className="chat-location-message"><MapPin size={20}/><strong>Ubicación compartida</strong><a href={`https://www.openstreetmap.org/?mlat=${message.latitude}&mlon=${message.longitude}#map=16/${message.latitude}/${message.longitude}`} target="_blank" rel="noreferrer">Abrir mapa</a></div> : <p>{message.body}</p>}<time>{new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}{message.sender_id===session.user.id && <span className={'message-ticks '+(messageReceipts[message.id]?.read_at?'is-read':messageReceipts[message.id]?.delivered_at?'is-delivered':'')}>{messageReceipts[message.id]?.read_at?'✓✓':messageReceipts[message.id]?.delivered_at?'✓✓':'✓'}</span>}</time></div>)}{chatDragOver && <div className="chat-drop-hint">Soltá las imágenes acá para prepararlas</div>}</div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         {chatDraftImages.length > 0 && <div className="chat-image-editor"><div className="chat-editor-heading"><strong>Prepará tus fotos ({chatDraftImages.length}/5)</strong><span>Se enviarán solo cuando pulses Enviar fotos</span></div><div className="chat-editor-grid">{chatDraftImages.map(item=><div className="chat-editor-card" key={item.id}><div className="chat-editor-preview" onPointerDown={event=>startCropDrag(event,item)} title={item.zoom>1?"Arrastrá para elegir el recorte":"Acercá la imagen para poder moverla"}><img src={item.url} alt="Vista previa" draggable="false" style={{transform:`translate(${(item.offsetX||0)*((item.zoom-1)/(2*item.zoom))*100}%, ${(item.offsetY||0)*((item.zoom-1)/(2*item.zoom))*100}%) rotate(${item.rotation}deg) scale(${item.zoom})`}}/></div><div className="chat-editor-controls"><button type="button" onClick={()=>updateDraftImage(item.id,{rotation:(item.rotation+270)%360})}>↶ Girar</button><button type="button" onClick={()=>updateDraftImage(item.id,{rotation:(item.rotation+90)%360})}>↷</button><label>Recorte <input type="range" min="1" max="2.5" step="0.05" value={item.zoom} onChange={event=>updateDraftImage(item.id,{zoom:Number(event.target.value),offsetX:0,offsetY:0})}/></label><button type="button" className="chat-editor-remove" onClick={()=>removeDraftImage(item.id)}>Quitar</button></div></div>)}</div><button type="button" className="chat-send-images" onClick={sendPreparedImages} disabled={chatMediaBusy}>{chatMediaBusy?'Enviando…':`Enviar ${chatDraftImages.length} foto(s)`}</button></div>}
         {showChatGallery && chatGallery.length > 0 && <div className="chat-gallery-strip"><strong>Fotos que ya enviaste</strong><div>{chatGallery.map(item=><button type="button" key={item.id} onClick={()=>addGalleryImage(item)} disabled={chatDraftImages.length>=5} title="Volver a usar esta foto"><img src={item.url} alt="Foto anterior"/><span>+</span></button>)}</div></div>}
         {audioDraft && <div className="chat-audio-draft"><strong>Escuchá tu audio antes de enviarlo</strong><audio controls preload="metadata" src={audioDraft.url}/><div><button type="button" onClick={discardAudioDraft} disabled={chatMediaBusy}>Eliminar</button><button type="button" onClick={sendChatAudio} disabled={chatMediaBusy}>{chatMediaBusy?'Enviando…':'Enviar audio'}</button></div></div>}
-        <form className="chat-compose" onSubmit={sendChatMessage}><label className="chat-image-upload" title="Subir fotos"><ImagePlus size={19}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={event=>{addChatImages(event.target.files);event.target.value=''}} disabled={chatDraftImages.length>=5}/></label><button type="button" className={`chat-gallery-toggle ${showChatGallery?'active':''}`} title="Reutilizar fotos anteriores" aria-label="Reutilizar fotos anteriores" disabled={!chatGallery.length} onClick={()=>setShowChatGallery(value=>!value)}><Images size={19}/></button><input value={chatDraft} onChange={event=>setChatDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="button" className={`chat-mic-button ${isRecording?'recording':''}`} title={isRecording?'Soltá para terminar':'Mantené presionado para grabar'} aria-label="Mantener presionado para grabar audio" disabled={!!audioDraft||chatMediaBusy} onPointerDown={startChatRecording} onPointerUp={stopChatRecording} onPointerCancel={stopChatRecording} onContextMenu={event=>event.preventDefault()}><Mic size={19}/></button><button type="submit" disabled={chatBusy||!chatDraft.trim()}><Send size={18}/></button></form>
+        <div className="chat-live-location-list">{liveLocations.filter(item => !item.ended_at && new Date(item.expires_at).getTime() > Date.now()).map(item=><div className="chat-live-location" key={item.id}><MapPin size={17}/><span>{item.sender_id === session.user.id ? 'Estás compartiendo tu ubicación' : 'Esta persona comparte su ubicación'}<small>Hasta {new Date(item.expires_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</small></span><a href={`https://www.openstreetmap.org/?mlat=${item.latitude}&mlon=${item.longitude}#map=16/${item.latitude}/${item.longitude}`} target="_blank" rel="noreferrer">Ver mapa</a>{item.sender_id === session.user.id && <button type="button" onClick={()=>stopLiveLocation(item.id)}><StopCircle size={16}/> Detener</button>}</div>)}</div>}
+        {showLocationMenu && <div className="chat-location-menu"><strong>Compartir ubicación</strong><button type="button" onClick={sendCurrentLocation} disabled={chatMediaBusy}><MapPin size={17}/> Enviar ubicación actual</button><button type="button" onClick={()=>startLiveLocation(30)} disabled={chatMediaBusy || !!liveSharing}><Navigation size={17}/> En tiempo real · 30 minutos</button><button type="button" onClick={()=>startLiveLocation(60)} disabled={chatMediaBusy || !!liveSharing}><Navigation size={17}/> En tiempo real · 1 hora</button><small>Podés detener la ubicación en cualquier momento.</small></div>}
+        <form className="chat-compose" onSubmit={sendChatMessage}><label className="chat-image-upload" title="Subir fotos"><ImagePlus size={19}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={event=>{addChatImages(event.target.files);event.target.value=''}} disabled={chatDraftImages.length>=5}/></label><button type="button" className={`chat-gallery-toggle ${showChatGallery?'active':''}`} title="Reutilizar fotos anteriores" aria-label="Reutilizar fotos anteriores" disabled={!chatGallery.length} onClick={()=>setShowChatGallery(value=>!value)}><Images size={19}/></button><input value={chatDraft} onChange={event=>setChatDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="button" className="chat-gallery-toggle" title="Compartir ubicación" aria-label="Compartir ubicación" onClick={()=>setShowLocationMenu(value=>!value)}><MapPin size={19}/></button><button type="button" className={`chat-mic-button ${isRecording?'recording':''}`} title={isRecording?'Soltá para terminar':'Mantené presionado para grabar'} aria-label="Mantener presionado para grabar audio" disabled={!!audioDraft||chatMediaBusy} onPointerDown={startChatRecording} onPointerUp={stopChatRecording} onPointerCancel={stopChatRecording} onContextMenu={event=>event.preventDefault()}><Mic size={19}/></button><button type="submit" disabled={chatBusy||!chatDraft.trim()}><Send size={18}/></button></form>
         {isRecording && <div className="chat-recording-hint">Grabando… soltá el micrófono para terminar.</div>}
       </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
