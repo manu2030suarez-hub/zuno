@@ -50,6 +50,7 @@ export default function App() {
   const [notifications, setNotifications] = useState([])
   const [stories, setStories] = useState([])
   const [storyViewer, setStoryViewer] = useState(null)
+  const [storyViewers, setStoryViewers] = useState([])
   const [storyBusy, setStoryBusy] = useState(false)
   const [storyMessage, setStoryMessage] = useState('')
   const [notificationActors, setNotificationActors] = useState({})
@@ -269,9 +270,19 @@ export default function App() {
 
   async function openStory(story) {
     setStoryViewer(story)
+    setStoryViewers([])
     if (story.user_id !== session?.user?.id) {
       const { error: viewError } = await supabase.from('story_views').insert({ story_id: story.id, viewer_id: session.user.id, viewed_at: new Date().toISOString() })
-      if (viewError) console.warn('No se pudo registrar la visualización:', viewError.message)
+      if (viewError && viewError.code !== '23505') console.warn('No se pudo registrar la visualización:', viewError.message)
+    } else {
+      const { data: views, error: viewsError } = await supabase.from('story_views').select('viewer_id,viewed_at').eq('story_id', story.id).order('viewed_at', { ascending: false })
+      if (viewsError) setStoryMessage('No se pudieron cargar las visualizaciones: ' + viewsError.message)
+      else {
+        const ids = [...new Set((views || []).map(row => row.viewer_id))]
+        const { data: viewers } = ids.length ? await supabase.from('profiles').select('id,display_name,username,avatar_url').in('id', ids) : { data: [] }
+        const byId = Object.fromEntries((viewers || []).map(person => [person.id, person]))
+        setStoryViewers((views || []).map(row => ({ ...row, person: byId[row.viewer_id] || null })))
+      }
     }
   }
 
@@ -1542,6 +1553,7 @@ export default function App() {
           <div className="story-viewer-top"><span>{storyViewer.owner?.display_name || storyViewer.owner?.username || 'Tu historia'}</span><button type="button" onClick={() => setStoryViewer(null)} aria-label="Cerrar historia"><X/></button></div>
           {storyViewer.media_type === 'video' ? <video src={storyViewer.url} controls autoPlay playsInline/> : <img src={storyViewer.url} alt="Historia"/>}
           {storyViewer.caption && <p>{storyViewer.caption}</p>}
+          {storyViewer.user_id === session.user.id && <div className="story-viewers"><strong><Eye size={15}/> {storyViewers.length} visualizaciones</strong>{storyViewers.map(item => <span key={item.viewer_id}><img src={item.person?.avatar_url || ''} alt=""/>{item.person?.display_name || item.person?.username || 'Usuario'}</span>)}{!storyViewers.length && <small>Todavía nadie vio esta historia.</small>}</div>}
           {storyViewer.user_id === session.user.id && <button type="button" className="story-delete" disabled={storyBusy} onClick={() => deleteStory(storyViewer)}><Trash2 size={16}/> Eliminar historia</button>}
         </section></div>}
         {peopleError && <div className="notice error">{peopleError}</div>}
