@@ -769,11 +769,11 @@ export default function App() {
       const { data: members } = ids.length ? await supabase.from('profiles').select('id,display_name,username,avatar_url').in('id', ids) : { data: [] }
       const conversationIds = (rows || []).map(row => row.id)
       const { data: latestMessages } = conversationIds.length ? await supabase.from('messages').select('id,conversation_id,sender_id,body,created_at,message_type,location_expires_at').in('conversation_id', conversationIds).order('created_at', { ascending: false }).limit(500) : { data: [] }
-      const latestByConversation = {}
-      for (const msg of latestMessages || []) if (!latestByConversation[msg.conversation_id]) latestByConversation[msg.conversation_id] = msg
-      const latestIds = Object.values(latestByConversation).map(msg => msg.id)
-      const { data: hiddenLatest } = latestIds.length ? await supabase.from('message_hidden_for').select('message_id').eq('user_id', session.user.id).in('message_id', latestIds) : { data: [] }
+      const allLatestIds = (latestMessages || []).map(msg => msg.id)
+      const { data: hiddenLatest } = allLatestIds.length ? await supabase.from('message_hidden_for').select('message_id').eq('user_id', session.user.id).in('message_id', allLatestIds) : { data: [] }
       const hiddenLatestIds = new Set((hiddenLatest || []).map(item => item.message_id))
+      const latestByConversation = {}
+      for (const msg of latestMessages || []) if (!hiddenLatestIds.has(msg.id) && !latestByConversation[msg.conversation_id]) latestByConversation[msg.conversation_id] = msg
       const ownLatestIds = Object.values(latestByConversation).filter(msg => msg.sender_id === session.user.id && !hiddenLatestIds.has(msg.id)).map(msg => msg.id)
       const { data: latestReceipts } = ownLatestIds.length ? await supabase.from('message_receipts').select('message_id,delivered_at,read_at').in('message_id', ownLatestIds).neq('user_id', session.user.id) : { data: [] }
       const latestReceiptById = Object.fromEntries((latestReceipts || []).map(item => [item.message_id, item]))
