@@ -31,13 +31,25 @@ as $$
   candidate_locations as (
     select
       l.user_id,
-      (round((
-        6371 * 2 * asin(sqrt(least(1, greatest(0,
-          power(sin(radians(l.latitude - m.latitude) / 2), 2) +
-          cos(radians(m.latitude)) * cos(radians(l.latitude)) *
-          power(sin(radians(l.longitude - m.longitude) / 2), 2)
-        )))
-      ) / 5.0) * 5)::integer as distance_bucket
+      (
+        round(
+          (
+            6371 * 2 * asin(
+              sqrt(
+                least(
+                  1.0,
+                  greatest(
+                    0.0,
+                    power(sin(radians(l.latitude - m.latitude) / 2), 2)
+                    + cos(radians(m.latitude)) * cos(radians(l.latitude))
+                    * power(sin(radians(l.longitude - m.longitude) / 2), 2)
+                  )
+                )
+              )
+            )
+          ) / 5.0
+        ) * 5
+      )::integer as distance_bucket
     from public.user_map_locations l
     cross join my_location m
     where l.user_id <> auth.uid()
