@@ -904,3 +904,27 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .discovery-filter-grid label small{display:block;margin-top:6px;color:#a99bb8;font-size:10px;line-height:1.45}
 .home-shortcuts .home-shortcut-filter{margin-left:0}
 @media(max-width:760px){.home-shortcuts .home-shortcut-filter{margin-left:0}}
+
+
+/* ZUNO activity notification center */
+.notifications-page{width:min(920px,calc(100% - 36px));margin:38px auto 110px}
+.notifications-list{display:grid;gap:12px;margin-top:24px}
+.notification-card{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;padding:15px 48px 15px 14px;border:1px solid #30213d;border-radius:18px;background:linear-gradient(120deg,#17101f,#100d17);box-shadow:0 8px 28px #0003}
+.notification-card.unread{border-color:#8b35a9;background:linear-gradient(120deg,#211128,#130f1b);box-shadow:0 0 0 1px #9b35e622,0 8px 28px #0003}
+.notification-main{display:flex;align-items:center;gap:13px;min-width:0;padding:0;border:0;background:none;color:inherit;text-align:left;cursor:pointer}
+.notification-symbol{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:14px;background:#372044;color:#e8a9ff}
+.notification-symbol.message{background:#1d2b42;color:#9ecbff}
+.notification-symbol.connection_request{background:#302044;color:#d7a7ff}
+.notification-symbol.favorite{background:#421d39;color:#ff9bd6}
+.notification-copy{display:grid;gap:4px;min-width:0}
+.notification-copy strong{color:#fff;font-size:14px}
+.notification-copy>span{color:#c7b9d0;font-size:12px;overflow-wrap:anywhere}
+.notification-copy time{color:#887b91;font-size:10px}
+.notification-unread-dot{position:absolute;left:7px;top:22px;width:6px;height:6px;border-radius:50%;background:#f04ba8;box-shadow:0 0 9px #f04ba8}
+.notification-actions{grid-column:1/-1;display:flex;gap:8px;padding-left:55px}
+.notification-delete{position:absolute;right:12px;top:12px;display:grid;place-items:center;width:30px;height:30px;border:1px solid #382943;border-radius:9px;background:#1c1424;color:#a99ab3;cursor:pointer}
+.notification-delete:hover{color:#ff9bd6;border-color:#9c3f83}
+.notifications-page .empty-state{margin-top:26px;padding:42px 20px;text-align:center;border:1px dashed #493052;border-radius:20px;background:#130f19;color:#b9a9c4}
+.notifications-page .empty-state h3{margin:12px 0 6px;color:#fff}
+.notifications-page .empty-state p{margin:0;font-size:13px}
+@media(max-width:760px){.notifications-page{width:calc(100% - 24px);margin:22px auto 105px}.notification-card{padding:13px 42px 13px 12px}.notification-actions{padding-left:0}.notification-copy strong{font-size:13px}.notification-copy>span{font-size:11px}}
