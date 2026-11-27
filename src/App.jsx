@@ -215,7 +215,22 @@ export default function App() {
         {peopleLoading ? <div className="empty-state">Buscando perfiles…</div> : people.length === 0 ? (
           <div className="empty-state"><div className="empty-icon"><Users size={26}/></div><h2>La comunidad está empezando</h2><p>Tu perfil ya está listo. Cuando otras personas se registren en ZUNO y completen sus perfiles, aparecerán acá.</p><button className="submit-btn home-refresh" onClick={()=>setPeopleRefresh(value=>value+1)}>Volver a buscar <span>→</span></button></div>
         ) : (
-          <div className="people-grid">{people.map(person => <article className="person-card" key={person.id}>
+          <div className="people-grid">
+          <article className="person-card own-person-card" key={session.user.id}>
+            <div className="person-card-gallery">
+              {photos.length ? photos.slice(0,3).map(photo => <img key={photo.id} src={photo.url} alt="Tu foto de perfil"/>) : <div className="person-avatar">{profile?.avatar_url ? <img src={profile.avatar_url} alt=""/> : <span>{(profile?.display_name || displayName || '?').slice(0,1).toUpperCase()}</span>}</div>}
+            </div>
+            <div className="person-info">
+              <h3>{profile?.display_name || displayName || 'Tu perfil'} <span className="verified-dot" title="Este sos vos">★</span></h3>
+              {profile?.username && <p className="person-username">@{profile.username}</p>}
+              {profile?.show_location && [profile?.city, profile?.region].filter(Boolean).length > 0 && <p className="person-location"><Compass size={13}/>{[profile.city, profile.region].filter(Boolean).join(', ')}</p>}
+              {profile?.bio && <p className="person-bio">{profile.bio}</p>}
+              {profile?.interests?.length > 0 && <div className="person-tags">{profile.interests.slice(0,5).map(tag=><span key={tag}>{tag}</span>)}</div>}
+              {profile?.looking_for?.length > 0 && <p className="person-looking"><strong>Busca:</strong> {profile.looking_for.join(' · ')}</p>}
+              <p className="person-username">Este es tu perfil</p>
+            </div>
+          </article>
+          {people.map(person => <article className="person-card" key={person.id}>
             <div className="person-card-gallery">
               {person.photos?.length ? person.photos.slice(0,3).map(photo => <img key={photo.id} src={photo.url} alt={`Foto de ${person.display_name || 'usuario'}`}/>) : <div className="person-avatar">{person.avatar_url ? <img src={person.avatar_url} alt=""/> : <span>{(person.display_name || person.username || '?').slice(0,1).toUpperCase()}</span>}</div>}
             </div>
