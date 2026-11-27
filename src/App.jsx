@@ -1446,7 +1446,7 @@ export default function App() {
             <div className="person-info">
               <div className="person-title-row"><h3>{person.display_name || 'Usuario ZUNO'} {person.zuno_verified && <span className="verified-dot" title="Cuenta verificada">✓</span>}</h3><button type="button" className={`favorite-btn ${favoriteIds.includes(person.id) ? 'is-favorite' : ''}`} aria-label={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} title={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} disabled={favoriteBusy === person.id} onClick={event=>{event.stopPropagation();toggleFavorite(person.id)}}><Heart size={18} fill={favoriteIds.includes(person.id) ? 'currentColor' : 'none'}/></button></div>
               {person.username && <p className="person-username">@{person.username}</p>}
-              {person.show_online && person.last_seen_at && Date.now()-new Date(person.last_seen_at).getTime()<900000 && <p className="person-online-label"><span/> En línea recientemente</p>}
+              {person.show_online && person.onlineRecently && <p className="person-online-label"><span/> En línea recientemente</p>}
               {person.approximateDistanceKm!==null && person.approximateDistanceKm!==undefined && <p className="person-distance-label">Aprox. {person.approximateDistanceKm} km</p>}
               {person.visibleCity && <p className="person-location"><Compass size={13}/>{person.visibleCity}</p>}
               {person.bio && <p className="person-bio">{person.bio}</p>}
