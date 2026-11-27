@@ -930,3 +930,25 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .notifications-page .empty-state h3{margin:12px 0 6px;color:#fff}
 .notifications-page .empty-state p{margin:0;font-size:13px}
 @media(max-width:760px){.notifications-page{width:calc(100% - 24px);margin:22px auto 105px}.notification-card{padding:13px 42px 13px 12px}.notification-actions{padding-left:0}.notification-copy strong{font-size:13px}.notification-copy>span{font-size:11px}}
+
+
+/* Historias ZUNO de 24 horas */
+.zuno-stories{margin:0 0 24px;padding:17px 18px;border:1px solid #9d63c34d;border-radius:21px;background:linear-gradient(130deg,#21112fdd,#100c1beF);box-shadow:0 12px 35px #0004}
+.stories-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}.stories-heading strong{font-size:15px;color:#fff}.stories-heading>span{font-size:11px;color:#bba8ca}
+.stories-rail{display:flex;align-items:flex-start;gap:16px;overflow-x:auto;padding:2px 2px 7px;scrollbar-width:thin;scrollbar-color:#743b9a transparent}
+.story-create,.story-person{display:flex;flex:0 0 70px;flex-direction:column;align-items:center;gap:7px;min-width:0;padding:0;border:0;background:none;color:#e9d8f3;font:600 10px 'DM Sans',sans-serif;text-align:center;cursor:pointer}
+.story-create input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.story-create-avatar,.story-ring{display:grid;place-items:center;width:62px;height:62px;padding:3px;border-radius:50%;background:linear-gradient(135deg,#f52b9e,#8b42ff,#4f9cff);box-shadow:0 0 18px #a42eea45}
+.story-create-avatar{background:linear-gradient(145deg,#251638,#120e1e);border:1px dashed #e65acb;color:#f28cdd}
+.story-ring img{width:100%;height:100%;border-radius:50%;object-fit:cover;background:#21132d;border:2px solid #130d1e}
+.story-person>span:last-child,.story-create>span:last-of-type{width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.story-person.own-story .story-ring{background:linear-gradient(135deg,#7d54a8,#42314f)}
+.story-feedback{margin:10px 0 0;color:#d7b5f0;font-size:11px}
+.story-viewer-backdrop{position:fixed;inset:0;z-index:1500;display:grid;place-items:center;padding:16px;background:#05030bea;backdrop-filter:blur(12px)}
+.story-viewer{position:relative;display:flex;flex-direction:column;align-items:center;width:min(440px,100%);height:min(82dvh,780px);padding:12px;border:1px solid #b84ce4;border-radius:22px;background:#100b18;box-shadow:0 0 55px #a32be955;overflow:hidden}
+.story-viewer-top{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:2px 2px 10px;color:#fff;font-weight:750;font-size:13px}
+.story-viewer-top button{display:grid;place-items:center;width:34px;height:34px;border:1px solid #ffffff22;border-radius:50%;background:#ffffff0c;color:#fff}
+.story-viewer>img,.story-viewer>video{display:block;width:100%;height:100%;min-height:0;object-fit:contain;border-radius:12px;background:#050408}
+.story-viewer>p{width:100%;margin:8px 0 0;color:#fff;font-size:13px;text-align:center}
+.story-delete{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;flex:0 0 auto;margin-top:9px;padding:10px;border:1px solid #a33d68;border-radius:12px;background:#4b142d;color:#ffd9e8;font-weight:750}
+@media(max-width:760px){.zuno-stories{margin-bottom:17px;padding:14px}.stories-rail{gap:13px}.story-viewer{height:86dvh;padding:9px}}
