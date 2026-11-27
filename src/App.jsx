@@ -431,6 +431,42 @@ export default function App() {
   }, [session, activeConversation?.id, view])
 
   useEffect(() => {
+    if (!session?.user) return
+    let active = true
+    async function markPendingMessagesDelivered() {
+      const userId = session.user.id
+      const { data: rows, error: conversationsError } = await supabase.from('conversations').select('id').or(`member_one.eq.${userId},member_two.eq.${userId}`)
+      if (conversationsError || !active) return
+      const conversationIds = (rows || []).map(row => row.id)
+      if (!conversationIds.length) return
+      const { data: incoming, error: messagesError } = await supabase.from('messages').select('id,conversation_id').in('conversation_id', conversationIds).neq('sender_id', userId).order('created_at', { ascending: true }).limit(500)
+      if (messagesError || !active || !incoming?.length) return
+      const { data: existing } = await supabase.from('message_receipts').select('message_id').eq('user_id', userId).in('message_id', incoming.map(item => item.id))
+      if (!active) return
+      const deliveredIds = new Set((existing || []).map(item => item.message_id))
+      const missing = incoming.filter(item => !deliveredIds.has(item.id))
+      if (missing.length) {
+        const now = new Date().toISOString()
+        await supabase.from('message_receipts').upsert(missing.map(item => ({ message_id: item.id, user_id: userId, delivered_at: now })), { onConflict: 'message_id,user_id' })
+      }
+    }
+    markPendingMessagesDelivered()
+    return () => { active = false }
+  }, [session])
+
+  useEffect(() => {
+    if (!session?.user) return
+    const channel = supabase.channel('zuno-global-message-receipts-' + session.user.id)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_receipts' }, payload => {
+        const receipt = payload.new
+        if (receipt?.message_id && receipt.user_id !== session.user.id) {
+          setMessageReceipts(current => ({ ...current, [receipt.message_id]: receipt }))
+        }
+      }).subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [session])
+
+  useEffect(() => {
     if (!session?.user || view !== 'chats') return
     let active = true
     async function fetchChats() {
@@ -568,7 +604,7 @@ export default function App() {
         {peopleError && <div className="notice error">{peopleError}</div>}
         {chatDraftImages.length > 0 && <div className="chat-image-editor"><div className="chat-editor-heading"><strong>Prepará tus fotos ({chatDraftImages.length}/5)</strong><span>Se enviarán solo cuando pulses Enviar fotos</span></div><div className="chat-editor-grid">{chatDraftImages.map(item=><div className="chat-editor-card" key={item.id}><div className="chat-editor-preview"><img src={item.url} alt="Vista previa" style={{transform:`rotate(${item.rotation}deg) scale(${item.zoom})`}}/></div><div className="chat-editor-controls"><button type="button" onClick={()=>updateDraftImage(item.id,{rotation:(item.rotation+270)%360})}>↶ Girar</button><button type="button" onClick={()=>updateDraftImage(item.id,{rotation:(item.rotation+90)%360})}>↷</button><label>Recorte <input type="range" min="1" max="2.5" step="0.05" value={item.zoom} onChange={event=>updateDraftImage(item.id,{zoom:Number(event.target.value)})}/></label><button type="button" className="chat-editor-remove" onClick={()=>removeDraftImage(item.id)}>Quitar</button></div></div>)}</div><button type="button" className="chat-send-images" onClick={sendPreparedImages} disabled={chatMediaBusy}>{chatMediaBusy?'Enviando…':`Enviar ${chatDraftImages.length} foto(s)`}</button></div>}
         {showChatGallery && chatGallery.length > 0 && <div className="chat-gallery-strip"><strong>Fotos que ya enviaste</strong><div>{chatGallery.map(item=><button type="button" key={item.id} onClick={()=>addGalleryImage(item)} disabled={chatDraftImages.length>=5} title="Volver a usar esta foto"><img src={item.url} alt="Foto anterior"/><span>+</span></button>)}</div></div>}
-        <form className="chat-compose" onSubmit={sendChatMessage}><label className="chat-image-upload" title="Subir fotos"><ImagePlus size={19}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={event=>{addChatImages(event.target.files);event.target.value=''}} disabled={chatDraftImages.length>=5}/></label>{chatGallery.length > 0 && <button type="button" className={`chat-gallery-toggle ${showChatGallery?'active':''}`} title="Reutilizar fotos anteriores" aria-label="Reutilizar fotos anteriores" onClick={()=>setShowChatGallery(value=>!value)}><Images size={19}/></button>}<input value={chatDraft} onChange={event=>setChatDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="submit" disabled={chatBusy||!chatDraft.trim()}><Send size={18}/></button></form>
+        <form className="chat-compose" onSubmit={sendChatMessage}><label className="chat-image-upload" title="Subir fotos"><ImagePlus size={19}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={event=>{addChatImages(event.target.files);event.target.value=''}} disabled={chatDraftImages.length>=5}/></label><button type="button" className={`chat-gallery-toggle ${showChatGallery?'active':''}`} title="Reutilizar fotos anteriores" aria-label="Reutilizar fotos anteriores" disabled={!chatGallery.length} onClick={()=>setShowChatGallery(value=>!value)}><Images size={19}/></button><input value={chatDraft} onChange={event=>setChatDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="submit" disabled={chatBusy||!chatDraft.trim()}><Send size={18}/></button></form>
       </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
   )
