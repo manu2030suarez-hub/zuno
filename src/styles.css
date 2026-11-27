@@ -886,3 +886,13 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 @keyframes discovery-backdrop-in{from{opacity:0}to{opacity:1}}
 @keyframes discovery-modal-in{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
 @media(max-width:760px){.discovery-modal-backdrop{padding:12px}.discovery-filter-modal{max-height:90dvh;padding:19px;border-radius:21px}.discovery-modal-heading h2{font-size:20px}.discovery-filter-modal .discovery-filter-grid{grid-template-columns:1fr;gap:12px}.discovery-filter-modal .discovery-search-field{grid-column:auto}.discovery-modal-actions{align-items:stretch;flex-direction:column-reverse}.discovery-modal-actions button{width:100%;justify-content:center}.account-actions{gap:6px}.discovery-filter-trigger{padding:8px 12px;font-size:12px}}
+
+
+/* Descubrir: navegación compacta sin encabezado promocional */
+.home-content:has(.home-shortcuts){padding-top:26px}
+.home-shortcuts .home-shortcut-refresh{margin-left:5px;border-color:#e34dbb88;background:linear-gradient(110deg,#f02b9a,#743bff);color:#fff;box-shadow:0 5px 22px #9b35e64d}
+.home-shortcuts .home-shortcut-refresh:hover{filter:brightness(1.12);transform:translateY(-1px)}
+.home-shortcuts .home-shortcut-refresh:disabled{opacity:.65;cursor:wait}
+.refresh-spinning{animation:zuno-refresh-spin .9s linear infinite}
+@keyframes zuno-refresh-spin{to{transform:rotate(360deg)}}
+@media(max-width:760px){.home-content:has(.home-shortcuts){padding-top:20px}.home-shortcuts{flex-wrap:wrap;overflow:visible}.home-shortcuts .home-shortcut-refresh{margin-left:0}}
