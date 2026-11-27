@@ -89,7 +89,8 @@ as $function$
     cl.distance_bucket,
     (p.show_online = true and p.last_seen_at >= now() - interval '15 minutes') as online_recently,
     case
-      when p.show_online is not true or p.last_seen_at is null then null
+      when p.show_online is not true then null
+      when p.last_seen_at is null then 'offline'
       when p.last_seen_at >= now() - interval '2 minutes' then 'active'
       when p.last_seen_at >= now() - interval '15 minutes' then 'recent'
       else 'offline'
