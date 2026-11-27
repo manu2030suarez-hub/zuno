@@ -240,7 +240,7 @@ export default function App() {
       }).eq('id', incomingCall.id)
       if (updateError) throw updateError
       if (incomingCall._conversation && incomingCall._caller) setActiveConversation({ ...incomingCall._conversation, person: incomingCall._caller, ephemeral_duration_minutes: 0 })
-      setCallSession({ ...incomingCall, _person: incomingCall._caller, status: 'accepted', answer: peer.localDescription.toJSON() })
+      setCallSession({ ...incomingCall, _person: incomingCall._caller, status: 'accepted', answered_at: new Date().toISOString(), answer: peer.localDescription.toJSON() })
       setIncomingCall(null)
     } catch (acceptError) {
       closeCallMedia()
@@ -292,7 +292,12 @@ export default function App() {
     let active = true
     const loadIncoming = async () => {
       const { data } = await supabase.from('call_sessions').select('*').eq('callee_id', session.user.id).eq('status','ringing').order('created_at',{ascending:false}).limit(1).maybeSingle()
-      if (active && data) setIncomingCall(data)
+      if (!active || !data) return
+      const [{ data: conversation }, { data: person }] = await Promise.all([
+        supabase.from('conversations').select('*').eq('id', data.conversation_id).maybeSingle(),
+        supabase.from('profiles').select('id,display_name,username,avatar_url').eq('id', data.caller_id).maybeSingle()
+      ])
+      if (active) setIncomingCall({ ...data, _conversation: conversation, _caller: person })
     }
     loadIncoming()
     const channel = supabase.channel('zuno-call-inbox-' + session.user.id)
