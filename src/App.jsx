@@ -532,11 +532,11 @@ export default function App() {
         if (!enableError && active) setMapVisible(true)
         else if (enableError) console.warn('No se pudo activar la preferencia de visibilidad:', enableError.message)
       } else setMapVisible(Boolean(data.map_visible))
-      if (active && (!data || data.map_visible)) refreshMyMapLocation()
+      if (active && (!data || data.map_visible) && locationTermsAccepted) refreshMyMapLocation()
     }
     initializeMapVisibility()
     return () => { active = false }
-  }, [session?.user?.id, Boolean(profile)])
+  }, [session?.user?.id, Boolean(profile), locationTermsAccepted])
 
   useEffect(() => {
     if (!session?.user || view !== 'home') return
@@ -1310,6 +1310,7 @@ export default function App() {
 
   async function setMyMapVisibility(visible) {
     if (mapBusy) return
+    if (visible && !locationTermsAccepted) { setMapStatus('Primero aceptá los términos de ubicación en Perfil → Privacidad.'); return }
     setMapBusy(true)
     setMapStatus('')
     const { error: visibilityError } = await supabase.rpc('set_my_map_visibility', { p_visible: visible })
