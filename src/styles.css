@@ -1317,3 +1317,14 @@ button{touch-action:manipulation}
 .profile-name-fire{flex:0 0 44px;width:44px;height:44px;display:grid;place-items:center;border:1px solid #ffd44a88;border-radius:50%;background:#17100bcc;color:#ffca28;box-shadow:0 0 18px #ff9d1838;cursor:pointer;backdrop-filter:blur(8px)}
 .profile-name-fire:active{transform:scale(.92)}
 .profile-name-fire:disabled{opacity:.45;cursor:wait}
+
+
+/* Mensaje directo desde el encabezado del perfil */
+.profile-quick-message{display:flex;align-items:center;gap:8px;width:min(100%,390px);margin-top:12px;padding:5px 6px 5px 14px;border:1px solid #ffffff30;border-radius:999px;background:#111827c9;backdrop-filter:blur(12px)}
+.profile-quick-message input{flex:1;min-width:0;border:0!important;outline:0!important;background:transparent!important;color:#fff!important;font:inherit;padding:9px 2px!important;box-shadow:none!important}
+.profile-quick-message input::placeholder{color:#ffffffa0}
+.profile-quick-message button{flex:0 0 38px;width:38px;height:38px;border:0;border-radius:50%;display:grid;place-items:center;background:var(--accent,#f04b78);color:#fff;cursor:pointer}
+.profile-quick-message button:disabled{opacity:.45;cursor:not-allowed}
+.profile-stage-caption{max-width:100%}
+.profile-stage-top-actions button[aria-label="Abrir chat"]{background:#ffffff20}
+@media(max-width:480px){.profile-quick-message{width:100%;max-width:100%;margin-top:10px}.profile-stage-name-row{gap:8px}}
