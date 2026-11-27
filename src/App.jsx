@@ -560,16 +560,6 @@ export default function App() {
         const first = nearby[0]
         map.setView([Number(first.approximate_latitude), Number(first.approximate_longitude)], 10)
       }
-      mapMarkersRef.current.forEach(marker => marker.remove())
-      mapMarkersRef.current = (nearby || []).map(person => {
-        const safeName = String(person.display_name || 'Usuario ZUNO').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
-        const marker = L.circleMarker(
-          [Number(person.approximate_latitude), Number(person.approximate_longitude)],
-          { radius: 9, color: '#ffffff', weight: 2, fillColor: '#7657e8', fillOpacity: 0.95 }
-        ).bindPopup('<strong>' + safeName + '</strong><br>Distancia aproximada: ' + (person.approximate_distance_km ?? '—') + ' km')
-        marker.addTo(map)
-        return marker
-      })
       window.setTimeout(() => map.invalidateSize(), 100)
     }
     loadMapData()
@@ -582,6 +572,21 @@ export default function App() {
       }
     }
   }, [view, session?.user?.id, mapVisible])
+
+  useEffect(() => {
+    const map = leafletMapRef.current
+    if (view !== 'map' || !map) return
+    mapMarkersRef.current.forEach(marker => marker.remove())
+    mapMarkersRef.current = mapUsers.map(person => {
+      const safeName = String(person.display_name || 'Usuario ZUNO').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+      const marker = L.circleMarker(
+        [Number(person.approximate_latitude), Number(person.approximate_longitude)],
+        { radius: 9, color: '#ffffff', weight: 2, fillColor: '#7657e8', fillOpacity: 0.95 }
+      ).bindPopup('<strong>' + safeName + '</strong><br>Distancia aproximada: ' + (person.approximate_distance_km ?? '—') + ' km')
+      marker.addTo(map)
+      return marker
+    })
+  }, [mapUsers, view])
 
   useEffect(() => () => {
     if (leafletMapRef.current) {
