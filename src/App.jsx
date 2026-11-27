@@ -697,7 +697,7 @@ export default function App() {
         resolveChatMedia([payload.new]).then(([displayMessage]) => setChatMessages(current => current.some(message => message.id === payload.new.id) ? current : [...current, displayMessage]))
         if (payload.new.sender_id !== session.user.id) recordMessageReceipt(payload.new.id, true)
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + activeConversation.id }, payload => {
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, payload => {
         const deletedId = payload.old?.id
         if (deletedId) { setChatMessages(current => current.filter(item => item.id !== deletedId)); setMessageReceipts(current => { const next = { ...current }; delete next[deletedId]; return next }) }
       })
