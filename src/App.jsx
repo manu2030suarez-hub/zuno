@@ -216,6 +216,7 @@ export default function App() {
     const loadDiscoveryProfiles = async () => {
       let discoveryIds = null
       let distanceByUser = {}
+      let onlineRecentlyByUser = {}
       const hasServerFilters = Boolean(discoveryAgeMin || discoveryAgeMax || discoveryDistanceKm || discoveryOnlineRecently)
       if (hasServerFilters) {
         if (discoveryDistanceKm) {
@@ -240,9 +241,10 @@ export default function App() {
         if (filterError) {setPeopleError('No pudimos aplicar los filtros avanzados. '+filterError.message);setPeople([]);setPeopleLoading(false);return}
         discoveryIds=(matches||[]).map(row=>row.user_id)
         distanceByUser=(matches||[]).reduce((acc,row)=>{acc[row.user_id]=row.approximate_distance_km;return acc},{})
+        onlineRecentlyByUser=(matches||[]).reduce((acc,row)=>{acc[row.user_id]=row.online_recently===true;return acc},{})
         if (!discoveryIds.length) {setPeople([]);setPeopleLoading(false);return}
       }
-      let profileQuery=supabase.from('profiles').select('id, display_name, username, bio, avatar_url, zuno_verified, city, region, interests, looking_for, show_location, show_online, last_seen_at, created_at').neq('id', session.user.id).order('created_at', { ascending: false }).limit(100)
+      let profileQuery=supabase.from('profiles').select('id, display_name, username, bio, avatar_url, zuno_verified, city, region, interests, looking_for, show_location, show_online, created_at').neq('id', session.user.id).order('created_at', { ascending: false }).limit(100)
       if (discoveryIds) profileQuery=profileQuery.in('id',discoveryIds)
       const { data, error: listError } = await profileQuery
       if (!active) return
@@ -272,6 +274,7 @@ export default function App() {
         setPeople(profiles.map(person => ({
           ...person,
           approximateDistanceKm:distanceByUser[person.id] ?? null,
+          onlineRecently:onlineRecentlyByUser[person.id]===true,
           photos: photosByUser[person.id] || [],
           visibleCity: person.show_location ? [person.city, person.region].filter(Boolean).join(', ') : ''
         })))
