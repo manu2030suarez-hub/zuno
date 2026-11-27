@@ -118,6 +118,10 @@ export default function App() {
   const [liveSharing, setLiveSharing] = useState(null)
   const locationWatchRef = useRef(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
+  const [profilePhotoIndex, setProfilePhotoIndex] = useState(0)
+  const [profilePhotoFullscreen, setProfilePhotoFullscreen] = useState(false)
+  const [showProfileAlbum, setShowProfileAlbum] = useState(false)
+  const profileTouchStartX = useRef(null)
   const [mapVisible, setMapVisible] = useState(true)
   const [mapBusy, setMapBusy] = useState(false)
   const [mapUsers, setMapUsers] = useState([])
@@ -1980,6 +1984,7 @@ export default function App() {
   }
   async function openMemberProfile(person,isOwn=false) {
     const selected={...person,isOwn}
+    setProfilePhotoIndex(0);setProfilePhotoFullscreen(false);setShowProfileAlbum(false)
     setPrivateAlbumRequestStatus('')
     setPrivateAlbumMessage('')
     if(!isOwn && session?.user){
@@ -1994,12 +1999,28 @@ export default function App() {
     setSelectedProfile(selected);setView('detail')
   }
   async function requestPrivateAlbumAccess(ownerId) {
+    if(!session?.user || !ownerId || privateAlbumBusy) return
     setPrivateAlbumBusy(true);setPrivateAlbumMessage('')
     const result=privateAlbumRequestStatus==='rejected'
-      ? await supabase.from('private_album_access_requests').update({status:'pending',updated_at:new Date().toISOString()}).eq('requester_id',session.user.id).eq('owner_id',ownerId).eq('status','rejected')
-      : await supabase.from('private_album_access_requests').insert({requester_id:session.user.id,owner_id:ownerId,status:'pending'})
-    if(result.error)setPrivateAlbumMessage(result.error.code==='23505'?'Ya enviaste una solicitud a esta persona.':result.error.message)
-    else {setPrivateAlbumRequestStatus('pending');setPrivateAlbumMessage('Solicitud enviada. El dueño del álbum decidirá si te da acceso.')}
+      ? await supabase.from('private_album_access_requests').update({status:'pending',updated_at:new Date().toISOString()}).eq('requester_id',session.user.id).eq('owner_id',ownerId).eq('status','rejected').select('id').single()
+      : await supabase.from('private_album_access_requests').insert({requester_id:session.user.id,owner_id:ownerId,status:'pending'}).select('id').single()
+    if(result.error) {
+      setPrivateAlbumMessage(result.error.code==='23505'?'Ya enviaste una solicitud a esta persona.':result.error.message)
+    } else {
+      setPrivateAlbumRequestStatus('pending')
+      const ids=[session.user.id,ownerId].sort()
+      const {data:conversation,error:conversationError}=await supabase.from('conversations').upsert({member_one:ids[0],member_two:ids[1]},{onConflict:'member_one,member_two'}).select('id').single()
+      if(!conversationError && conversation?.id) {
+        const requesterName=profile?.display_name || profile?.username || 'Un usuario'
+        const {error:messageError}=await supabase.from('messages').insert({
+          conversation_id:conversation.id,
+          sender_id:session.user.id,
+          body:'🔒 '+requesterName+' te pidió acceso a tu álbum privado. Podés responder desde Notificaciones.'
+        })
+        if(messageError) console.warn('La solicitud se guardó, pero no se pudo enviar el mensaje al chat:',messageError.message)
+      }
+      setPrivateAlbumMessage('Solicitud enviada. La otra persona recibirá una notificación y un mensaje en el chat.')
+    }
     setPrivateAlbumBusy(false)
   }
   const interestOptions=['Música','Cine','Deportes','Viajes','Gastronomía','Videojuegos','Arte','Naturaleza','Fitness','Lectura','Series','Tecnología']
@@ -2065,26 +2086,56 @@ export default function App() {
     </main>
   )
 
-  if (session?.user && view === 'detail' && selectedProfile) return (
-    <main className="app-shell">{callOverlay}
-      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>{setSelectedProfile(null);setView('home')}}><Compass size={15}/> Volver a descubrir</button></div></header>
-      <section className="member-detail">
-        <div className="detail-heading"><div className="eyebrow"><span/> PERFIL ZUNO</div><h1>{selectedProfile.display_name || 'Usuario ZUNO'}</h1>{selectedProfile.username && <p className="detail-username">@{selectedProfile.username}</p>}</div>
-        <div className="detail-gallery">{(selectedProfile.photos || []).length ? selectedProfile.photos.map(photo=><img key={photo.id || photo.url} src={photo.url} alt={`Foto de ${selectedProfile.display_name || 'usuario'}`}/>) : <div className="detail-no-photo"><UserRound size={42}/><span>Sin fotos por ahora</span></div>}</div>
-        <div className="detail-content">
-          {selectedProfile.visibleCity && <p className="person-location"><Compass size={15}/>{selectedProfile.visibleCity}</p>}
-          {selectedProfile.bio && <section className="detail-section"><h2>Sobre mí</h2><p>{selectedProfile.bio}</p></section>}
-          {selectedProfile.interests?.length > 0 && <section className="detail-section"><h2>Intereses y gustos</h2><div className="person-tags">{selectedProfile.interests.map(tag=><span key={tag}>{tag}</span>)}</div></section>}
-          {selectedProfile.looking_for?.length > 0 && <section className="detail-section"><h2>¿Qué busca?</h2><div className="person-tags">{selectedProfile.looking_for.map(item=><span key={item}>{item}</span>)}</div></section>}
-          {!selectedProfile.bio && !selectedProfile.interests?.length && !selectedProfile.looking_for?.length && !selectedProfile.visibleCity && <p className="detail-private-note">Esta persona todavía no agregó información pública a su perfil.</p>}
-          {selectedProfile.isOwn ? <><section className="detail-section"><h2>Tu álbum privado</h2><p>Estas fotos solo las ven las personas a quienes les apruebes el acceso.</p><div className="detail-gallery">{(privateAlbumPhotos||[]).map(photo=><img key={photo.id} src={photo.url} alt="Foto de tu álbum privado"/>)}</div><p className="detail-private-note">{privateAlbumPhotos.length} de 20 fotos</p></section><p className="detail-private-note">Este es tu perfil. Podés modificar la información y la privacidad cuando quieras.</p></> : <><section className="detail-section private-album-detail"><h2>Álbum privado</h2>{selectedProfile.privateAlbumPhotos?.length ? <div className="detail-gallery">{selectedProfile.privateAlbumPhotos.map(photo=><img key={photo.id} src={photo.url} alt="Foto del álbum privado"/>)}</div> : <p>Este usuario tiene un álbum privado. Solicitá acceso para ver sus fotos.</p>}{privateAlbumRequestStatus==='approved' ? <p className="detail-private-note">Tenés acceso a este álbum.</p> : privateAlbumRequestStatus==='pending' ? <><p className="detail-private-note">Tu solicitud está pendiente de aprobación.</p><button type="button" className="favorite-detail-btn private-album-request-btn" disabled={privateAlbumBusy} onClick={()=>cancelPrivateAlbumRequest(selectedProfile.id)}>Cancelar solicitud</button></> : <>{privateAlbumRequestStatus==='rejected' && <p className="detail-private-note">Tu solicitud anterior fue rechazada. Podés volver a solicitar acceso.</p>}<button type="button" className="favorite-detail-btn private-album-request-btn" disabled={privateAlbumBusy} onClick={()=>requestPrivateAlbumAccess(selectedProfile.id)}>{privateAlbumBusy?'Enviando solicitud…':'🔒 Solicitar acceso al álbum privado'}</button></>}{privateAlbumMessage&&<p className="detail-private-note">{privateAlbumMessage}</p>}</section><button type="button" className={`favorite-detail-btn ${favoriteIds.includes(selectedProfile.id) ? 'is-favorite' : ''}`} disabled={favoriteBusy === selectedProfile.id} onClick={()=>toggleFavorite(selectedProfile.id)}><Heart size={17} fill={favoriteIds.includes(selectedProfile.id) ? 'currentColor' : 'none'}/>{favoriteIds.includes(selectedProfile.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}</button><div className="profile-safety-actions"><button type="button" className="logout-btn" disabled={blockBusy===selectedProfile.id} onClick={()=>blockUser(selectedProfile)}><Ban size={15}/> {blockBusy===selectedProfile.id ? 'Bloqueando…' : 'Bloquear usuario'}</button><button type="button" className="logout-btn" onClick={()=>{setReportTarget(selectedProfile);setReportReason('harassment');setReportDetails('')}}><Flag size={15}/> Denunciar perfil</button></div><p className="detail-private-note">Solo mostramos la información que esta persona decidió compartir.</p></>}
-        </div>
-      </section>
-      {reportTarget && <div className="security-modal-backdrop" role="presentation"><form className="security-modal" onSubmit={submitUserReport}><div className="security-modal-heading"><h2>Denunciar perfil</h2><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)} aria-label="Cerrar"><X size={17}/></button></div><p>Tu denuncia sobre {reportTarget.display_name || 'este usuario'} será privada y revisada por el equipo de ZUNO.</p><label>Motivo<select value={reportReason} onChange={event=>setReportReason(event.target.value)}><option value="fake_profile">Perfil falso o suplantación</option><option value="harassment">Acoso o amenazas</option><option value="inappropriate_content">Contenido inapropiado</option><option value="spam">Spam</option><option value="underage">Posible menor de edad</option><option value="scam">Estafa o fraude</option><option value="other">Otro motivo</option></select></label><label>Detalles (opcional)<textarea rows="4" maxLength="2000" value={reportDetails} onChange={event=>setReportDetails(event.target.value)} placeholder="Contanos qué pasó…"/></label><div className="security-modal-actions"><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)}>Cancelar</button><button type="submit" className="submit-btn" disabled={reportBusy}>{reportBusy ? 'Enviando…' : 'Enviar denuncia'}</button></div></form></div>}
-      <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
-    </main>
-  )
-
+  if (session?.user && view === 'detail' && selectedProfile) {
+    const publicPhotos=selectedProfile.photos || []
+    const currentPhoto=publicPhotos[profilePhotoIndex]
+    const albumPhotos=selectedProfile.isOwn ? privateAlbumPhotos : (selectedProfile.privateAlbumPhotos || [])
+    return (
+      <main className="app-shell profile-detail-shell">{callOverlay}
+        <section className="member-detail profile-detail-screen">
+          <div className="profile-photo-stage"
+            onTouchStart={event=>{profileTouchStartX.current=event.touches?.[0]?.clientX ?? null}}
+            onTouchEnd={event=>{const startX=profileTouchStartX.current;const endX=event.changedTouches?.[0]?.clientX;profileTouchStartX.current=null;if(startX!==null&&endX!==undefined&&Math.abs(endX-startX)>45&&publicPhotos.length>1)setProfilePhotoIndex(index=>Math.max(0,Math.min(publicPhotos.length-1,index+(endX<startX?1:-1))))}}>
+            {currentPhoto?.url ? <img className="profile-stage-image" src={currentPhoto.url} alt={`Foto de ${selectedProfile.display_name || 'usuario'}`} onClick={()=>setProfilePhotoFullscreen(true)}/> : <div className="profile-stage-empty"><UserRound size={66}/><span>Sin fotos por ahora</span></div>}
+            <div className="profile-stage-top">
+              <button type="button" className="profile-stage-back" onClick={()=>{setSelectedProfile(null);setView('home')}} aria-label="Volver a descubrir"><X size={23}/></button>
+              <div className="profile-stage-top-actions">
+                {!selectedProfile.isOwn && <button type="button" onClick={()=>toggleFavorite(selectedProfile.id)} aria-label="Favorito"><Heart size={22} fill={favoriteIds.includes(selectedProfile.id)?'currentColor':'none'}/></button>}
+              </div>
+            </div>
+            {publicPhotos.length>1 && <div className="profile-photo-segments" aria-label="Fotos del perfil">{publicPhotos.map((photo,index)=><button key={photo.id||photo.url||index} type="button" className={index===profilePhotoIndex?'active':''} onClick={()=>setProfilePhotoIndex(index)} aria-label={`Ver foto ${index+1}`}/>)}</div>}
+            <button type="button" className="profile-album-shortcut" onClick={()=>setShowProfileAlbum(true)} aria-label="Abrir álbum privado"><Images size={20}/><span>Álbum</span></button>
+            <div className="profile-stage-caption">
+              <div className="profile-stage-name">{selectedProfile.display_name || 'Usuario ZUNO'}{selectedProfile.age ? <span> {selectedProfile.age}</span> : null}</div>
+              {selectedProfile.username && <div className="profile-stage-username">@{selectedProfile.username}</div>}
+              {selectedProfile.visibleCity && <div className="profile-stage-city"><Compass size={14}/>{selectedProfile.visibleCity}</div>}
+            </div>
+          </div>
+          <div className="detail-content profile-detail-content">
+            {selectedProfile.bio && <section className="detail-section"><h2>Sobre mí</h2><p>{selectedProfile.bio}</p></section>}
+            {selectedProfile.interests?.length>0 && <section className="detail-section"><h2>Intereses y gustos</h2><div className="person-tags">{selectedProfile.interests.map(tag=><span key={tag}>{tag}</span>)}</div></section>}
+            {selectedProfile.looking_for?.length>0 && <section className="detail-section"><h2>¿Qué busca?</h2><div className="person-tags">{selectedProfile.looking_for.map(item=><span key={item}>{item}</span>)}</div></section>}
+            {!selectedProfile.bio&&!selectedProfile.interests?.length&&!selectedProfile.looking_for?.length&&!selectedProfile.visibleCity&&<p className="detail-private-note">Esta persona todavía no agregó información pública a su perfil.</p>}
+            {!selectedProfile.isOwn && <>
+              <button type="button" className="favorite-detail-btn" onClick={()=>openChat(selectedProfile)}><MessageCircle size={17}/> Enviar mensaje</button>
+              <div className="profile-safety-actions"><button type="button" className="logout-btn" disabled={blockBusy===selectedProfile.id} onClick={()=>blockUser(selectedProfile)}><Ban size={15}/> {blockBusy===selectedProfile.id?'Bloqueando…':'Bloquear usuario'}</button><button type="button" className="logout-btn" onClick={()=>{setReportTarget(selectedProfile);setReportReason('harassment');setReportDetails('')}}><Flag size={15}/> Denunciar perfil</button></div>
+            </>}
+            {selectedProfile.isOwn && <p className="detail-private-note">Este es tu perfil. Podés administrar tu álbum privado desde el botón Álbum.</p>}
+          </div>
+        </section>
+        {profilePhotoFullscreen && currentPhoto?.url && <div className="profile-photo-fullscreen" role="dialog" aria-modal="true" onClick={()=>setProfilePhotoFullscreen(false)}><button type="button" aria-label="Cerrar foto" onClick={()=>setProfilePhotoFullscreen(false)}><X size={27}/></button><img src={currentPhoto.url} alt="Foto ampliada" onClick={event=>event.stopPropagation()}/></div>}
+        {showProfileAlbum && <div className="profile-album-backdrop" role="presentation" onClick={()=>setShowProfileAlbum(false)}><section className="profile-album-panel" role="dialog" aria-modal="true" aria-label="Álbum privado" onClick={event=>event.stopPropagation()}>
+          <div className="profile-album-heading"><div><Images size={20}/><strong>{selectedProfile.isOwn?'Tu álbum privado':'Álbum privado'}</strong></div><button type="button" onClick={()=>setShowProfileAlbum(false)} aria-label="Cerrar álbum"><X size={22}/></button></div>
+          {albumPhotos.length>0 ? <div className="profile-album-grid">{albumPhotos.map(photo=><img key={photo.id||photo.url} src={photo.url} alt="Foto del álbum privado"/>)}</div> : selectedProfile.isOwn ? <p className="detail-private-note">Todavía no agregaste fotos a tu álbum privado.</p> : privateAlbumRequestStatus==='approved' ? <p className="detail-private-note">No hay fotos disponibles en este álbum.</p> : <div className="profile-album-locked"><Images size={38}/><strong>Este álbum es privado</strong><p>Pedile permiso a {selectedProfile.display_name || 'esta persona'} para ver sus fotos.</p>
+            {privateAlbumRequestStatus==='pending' ? <><span className="detail-private-note">Tu solicitud está pendiente de aprobación.</span><button type="button" className="favorite-detail-btn" disabled={privateAlbumBusy} onClick={()=>cancelPrivateAlbumRequest(selectedProfile.id)}>Cancelar solicitud</button></> : <><button type="button" className="favorite-detail-btn private-album-request-btn" disabled={privateAlbumBusy} onClick={()=>requestPrivateAlbumAccess(selectedProfile.id)}>{privateAlbumBusy?'Enviando…':'＋ Pedir álbum'}</button>{privateAlbumRequestStatus==='rejected'&&<span className="detail-private-note">Podés volver a solicitar acceso.</span>}</>}
+            {privateAlbumMessage&&<p className="detail-private-note">{privateAlbumMessage}</p>}
+          </div>}
+        </section></div>}
+        {reportTarget && <div className="security-modal-backdrop" role="presentation"><form className="security-modal" onSubmit={submitUserReport}><div className="security-modal-heading"><h2>Denunciar perfil</h2><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)} aria-label="Cerrar"><X size={17}/></button></div><p>Tu denuncia sobre {reportTarget.display_name || 'este usuario'} será privada y revisada por el equipo de ZUNO.</p><label>Motivo<select value={reportReason} onChange={event=>setReportReason(event.target.value)}><option value="fake_profile">Perfil falso o suplantación</option><option value="harassment">Acoso o amenazas</option><option value="inappropriate_content">Contenido inapropiado</option><option value="spam">Spam</option><option value="underage">Posible menor de edad</option><option value="scam">Estafa o fraude</option><option value="other">Otro motivo</option></select></label><label>Detalles (opcional)<textarea rows="4" maxLength="2000" value={reportDetails} onChange={event=>setReportDetails(event.target.value)} placeholder="Contanos qué pasó…"/></label><div className="security-modal-actions"><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)}>Cancelar</button><button type="submit" className="submit-btn" disabled={reportBusy}>{reportBusy?'Enviando…':'Enviar denuncia'}</button></div></form></div>}
+        <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+      </main>
+    )
+  }
 
   if (session?.user && view === 'chat' && activeConversation) return (
     <main className="app-shell chat-fullscreen">{callOverlay}
