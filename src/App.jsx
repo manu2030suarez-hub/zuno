@@ -62,8 +62,8 @@ export default function App() {
     event.preventDefault()
     setBusy(true); setError(''); setMessage('')
     const { data, error: saveError } = await supabase.from('profiles').update({
-      display_name: displayName.trim(), username: username.trim().toLowerCase() || null, bio: bio.trim()
-    }).eq('id', session.user.id).select('display_name, username, bio, avatar_url, zuno_verified').single()
+      display_name: displayName.trim(), username: username.trim().toLowerCase() || null, bio: bio.trim(), id: session.user.id
+    }, { onConflict: 'id' }).select('display_name, username, bio, avatar_url, zuno_verified').maybeSingle()
     setBusy(false)
     if (saveError) setError(saveError.code === '23505' ? 'Ese nombre de usuario ya está ocupado. Probá con otro.' : saveError.message)
     else { setProfile(data); setMessage('¡Perfil guardado correctamente!') }
@@ -79,7 +79,7 @@ export default function App() {
         <div className="auth-card profile-card"><div className="card-icon"><UserRound size={21}/></div><h2>Completá tu perfil</h2><p className="card-sub">Estos datos ayudan a presentar quién sos.</p>
           <form onSubmit={saveProfile}>
             <label htmlFor="displayName">Nombre para mostrar</label><input id="displayName" value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="Cómo querés que te llamen" required maxLength={40}/>
-            <label htmlFor="username">Nombre de usuario</label><input id="username" value={username} onChange={e=>setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g,''))} placeholder="ej. manu_uy" minLength={3} maxLength={24}/><p className="field-hint">3 a 24 caracteres. Letras, números y guion bajo.</p>
+            <label htmlFor="username">Nombre de usuario</label><input id="username" value={username} onChange={e=>setUsername(e.target.value.replace(/[^a-zA-Z0-9_.]/g,''))} placeholder="ej. manu_uy" minLength={3} maxLength={24}/><p className="field-hint">3 a 24 caracteres. Letras, números, puntos y guion bajo.</p>
             <label htmlFor="bio">Sobre vos</label><textarea id="bio" value={bio} onChange={e=>setBio(e.target.value)} placeholder="Contá algo sobre vos…" maxLength={300} rows={4}/><div className="char-count">{bio.length}/300</div>
             {error && <div className="notice error">{error}</div>}{message && <div className="notice success">{message}</div>}
             <button className="submit-btn" type="submit" disabled={busy}>{busy ? 'Guardando…' : 'Guardar perfil'} <span>→</span></button>
