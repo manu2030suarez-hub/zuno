@@ -2010,6 +2010,7 @@ export default function App() {
       setPrivateAlbumRequestStatus('pending')
       const ids=[session.user.id,ownerId].sort()
       const {data:conversation,error:conversationError}=await supabase.from('conversations').upsert({member_one:ids[0],member_two:ids[1]},{onConflict:'member_one,member_two'}).select('id').single()
+      let chatMessageSent=false
       if(!conversationError && conversation?.id) {
         const requesterName=profile?.display_name || profile?.username || 'Un usuario'
         const {error:messageError}=await supabase.from('messages').insert({
@@ -2017,9 +2018,10 @@ export default function App() {
           sender_id:session.user.id,
           body:'🔒 '+requesterName+' te pidió acceso a tu álbum privado. Podés responder desde Notificaciones.'
         })
+        chatMessageSent=!messageError
         if(messageError) console.warn('La solicitud se guardó, pero no se pudo enviar el mensaje al chat:',messageError.message)
       }
-      setPrivateAlbumMessage('Solicitud enviada. La otra persona recibirá una notificación y un mensaje en el chat.')
+      setPrivateAlbumMessage(chatMessageSent?'Solicitud enviada. La otra persona recibirá una notificación y un mensaje en el chat.':'Solicitud enviada y notificación generada. No pudimos enviar el mensaje al chat; la persona podrá responder desde Notificaciones.')
     }
     setPrivateAlbumBusy(false)
   }
