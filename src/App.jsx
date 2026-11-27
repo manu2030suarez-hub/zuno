@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
-import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, StopCircle, Ban, Flag, SlidersHorizontal, Bell } from 'lucide-react'
+import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, StopCircle, Ban, Flag, SlidersHorizontal, Bell, Phone, PhoneOff, Video, MicOff, VideoOff } from 'lucide-react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -144,6 +144,186 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [callSession, setCallSession] = useState(null)
+  const [incomingCall, setIncomingCall] = useState(null)
+  const [callBusy, setCallBusy] = useState(false)
+  const [callError, setCallError] = useState('')
+  const [localCallStream, setLocalCallStream] = useState(null)
+  const [remoteCallStream, setRemoteCallStream] = useState(null)
+  const [callMuted, setCallMuted] = useState(false)
+  const [callCameraOff, setCallCameraOff] = useState(false)
+  const peerConnectionRef = useRef(null)
+  const localCallStreamRef = useRef(null)
+  const callIdRef = useRef(null)
+  const pendingIceRef = useRef([])
+  const remoteVideoRef = useRef(null)
+  const localVideoRef = useRef(null)
+  const remoteAudioRef = useRef(null)
+
+
+  function closeCallMedia() {
+    if (peerConnectionRef.current) { peerConnectionRef.current.onicecandidate = null; peerConnectionRef.current.close(); peerConnectionRef.current = null }
+    if (localCallStreamRef.current) { localCallStreamRef.current.getTracks().forEach(track => track.stop()); localCallStreamRef.current = null }
+    setLocalCallStream(null)
+    setRemoteCallStream(null)
+    callIdRef.current = null
+    pendingIceRef.current = []
+    setCallMuted(false)
+    setCallCameraOff(false)
+  }
+
+  async function sendCallIce(callId, candidate) {
+    if (!candidate) return
+    const { error: signalError } = await supabase.from('call_signals').insert({
+      call_id: callId, sender_id: session.user.id, signal_type: 'ice', payload: candidate.toJSON()
+    })
+    if (signalError) console.warn('No se pudo enviar una señal de conexión:', signalError.message)
+  }
+
+  async function createCallPeer(callId, stream) {
+    const peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] })
+    peerConnectionRef.current = peer
+    callIdRef.current = callId
+    stream.getTracks().forEach(track => peer.addTrack(track, stream))
+    peer.onicecandidate = event => { if (event.candidate) sendCallIce(callId, event.candidate) }
+    peer.ontrack = event => setRemoteCallStream(event.streams[0] || new MediaStream([event.track]))
+    peer.onconnectionstatechange = () => {
+      if (peer.connectionState === 'failed') setCallError('No se pudo establecer la conexión. Probá nuevamente con otra red.')
+      if (peer.connectionState === 'connected') setCallError('')
+    }
+    return peer
+  }
+
+  async function startCall(callType) {
+    if (!activeConversation || callBusy || callSession) return
+    setCallBusy(true); setCallError('')
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('Tu navegador no permite acceder al micrófono o la cámara. Abrí ZUNO mediante HTTPS.')
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callType === 'video' ? { facingMode: 'user' } : false })
+      localCallStreamRef.current = stream; setLocalCallStream(stream)
+      const peer = await createCallPeer(null, stream)
+      const offer = await peer.createOffer()
+      await peer.setLocalDescription(offer)
+      const { data: created, error: createError } = await supabase.from('call_sessions').insert({
+        conversation_id: activeConversation.id, caller_id: session.user.id,
+        callee_id: activeConversation.person.id, call_type: callType,
+        status: 'ringing', offer: peer.localDescription.toJSON()
+      }).select('*').single()
+      if (createError) throw createError
+      callIdRef.current = created.id
+      setCallSession(created)
+      setCallError('')
+    } catch (callStartError) {
+      closeCallMedia()
+      setCallError(callStartError?.message || 'No se pudo iniciar la llamada.')
+    } finally { setCallBusy(false) }
+  }
+
+  async function acceptCall() {
+    if (!incomingCall || callBusy) return
+    setCallBusy(true); setCallError('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: incomingCall.call_type === 'video' ? { facingMode: 'user' } : false })
+      localCallStreamRef.current = stream; setLocalCallStream(stream)
+      const peer = await createCallPeer(incomingCall.id, stream)
+      await peer.setRemoteDescription(new RTCSessionDescription(incomingCall.offer))
+      const { data: signals } = await supabase.from('call_signals').select('payload').eq('call_id', incomingCall.id).eq('signal_type','ice')
+      for (const signal of signals || []) { try { await peer.addIceCandidate(new RTCIceCandidate(signal.payload)) } catch {} }
+      const answer = await peer.createAnswer()
+      await peer.setLocalDescription(answer)
+      const { error: updateError } = await supabase.from('call_sessions').update({
+        status: 'accepted', answer: peer.localDescription.toJSON(),
+        answered_at: new Date().toISOString(), updated_at: new Date().toISOString()
+      }).eq('id', incomingCall.id)
+      if (updateError) throw updateError
+      setCallSession({ ...incomingCall, status: 'accepted', answer: peer.localDescription.toJSON() })
+      setIncomingCall(null)
+    } catch (acceptError) {
+      closeCallMedia()
+      setCallError(acceptError?.message || 'No se pudo aceptar la llamada.')
+    } finally { setCallBusy(false) }
+  }
+
+  async function declineCall() {
+    if (!incomingCall) return
+    await supabase.from('call_sessions').update({ status: 'rejected', ended_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', incomingCall.id)
+    setIncomingCall(null)
+  }
+
+  async function finishCall() {
+    const current = callSession
+    if (current) await supabase.from('call_sessions').update({ status: 'ended', ended_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', current.id)
+    setCallSession(null)
+    closeCallMedia()
+  }
+
+  function toggleCallMute() {
+    const next = !callMuted
+    localCallStreamRef.current?.getAudioTracks().forEach(track => { track.enabled = !next })
+    setCallMuted(next)
+  }
+
+  function toggleCallCamera() {
+    const next = !callCameraOff
+    localCallStreamRef.current?.getVideoTracks().forEach(track => { track.enabled = !next })
+    setCallCameraOff(next)
+  }
+
+  useEffect(() => {
+    if (!session?.user) { setIncomingCall(null); return }
+    let active = true
+    const loadIncoming = async () => {
+      const { data } = await supabase.from('call_sessions').select('*').eq('callee_id', session.user.id).eq('status','ringing').order('created_at',{ascending:false}).limit(1).maybeSingle()
+      if (active && data) setIncomingCall(data)
+    }
+    loadIncoming()
+    const channel = supabase.channel('zuno-call-inbox-' + session.user.id)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'call_sessions', filter: 'callee_id=eq.' + session.user.id }, payload => {
+        if (payload.new.status === 'ringing') setIncomingCall(payload.new)
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'call_sessions', filter: 'callee_id=eq.' + session.user.id }, payload => {
+        if (payload.new.status !== 'ringing') setIncomingCall(current => current?.id === payload.new.id ? null : current)
+      }).subscribe()
+    return () => { active = false; supabase.removeChannel(channel) }
+  }, [session?.user?.id])
+
+  useEffect(() => {
+    if (!callSession?.id) return
+    const channel = supabase.channel('zuno-call-' + callSession.id)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'call_sessions', filter: 'id=eq.' + callSession.id }, async payload => {
+        const updated = payload.new
+        if (updated.status === 'rejected' || updated.status === 'missed' || updated.status === 'ended') {
+          setCallError(updated.status === 'rejected' ? 'La otra persona rechazó la llamada.' : updated.status === 'missed' ? 'La llamada no fue respondida.' : 'La llamada finalizó.')
+          setCallSession(null); closeCallMedia(); return
+        }
+        if (updated.caller_id === session.user.id && updated.answer && peerConnectionRef.current && !peerConnectionRef.current.currentRemoteDescription) {
+          try { await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(updated.answer)); setCallSession(updated) }
+          catch (answerError) { setCallError(answerError.message) }
+        }
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'call_signals', filter: 'call_id=eq.' + callSession.id }, async payload => {
+        if (payload.new.sender_id === session.user.id || payload.new.signal_type !== 'ice') return
+        const candidate = new RTCIceCandidate(payload.new.payload)
+        if (peerConnectionRef.current?.remoteDescription) {
+          try { await peerConnectionRef.current.addIceCandidate(candidate) } catch (iceError) { console.warn('ICE:', iceError.message) }
+        } else pendingIceRef.current.push(candidate)
+      }).subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [callSession?.id, session?.user?.id])
+
+  useEffect(() => {
+    const peer = peerConnectionRef.current
+    if (!peer || !callSession?.answer || callSession.callee_id === session?.user?.id || peer.currentRemoteDescription) return
+    peer.setRemoteDescription(new RTCSessionDescription(callSession.answer)).then(async () => {
+      for (const candidate of pendingIceRef.current.splice(0)) { try { await peer.addIceCandidate(candidate) } catch {} }
+    }).catch(answerError => setCallError(answerError.message))
+  }, [callSession?.answer, callSession?.id, session?.user?.id])
+
+  useEffect(() => {
+    if (localVideoRef.current && localCallStream) localVideoRef.current.srcObject = localCallStream
+    if (remoteVideoRef.current && remoteCallStream) remoteVideoRef.current.srcObject = remoteCallStream
+    if (remoteAudioRef.current && remoteCallStream) remoteAudioRef.current.srcObject = remoteCallStream
+  }, [localCallStream, remoteCallStream, callSession?.call_type])
 
   useEffect(() => {
     if (!isSupabaseConfigured) return
@@ -1535,7 +1715,15 @@ export default function App() {
   if (session?.user && view === 'chat' && activeConversation) return (
     <main className="app-shell">
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
-      <section className="direct-chat"><div className="direct-chat-header"><button className="logout-btn" onClick={()=>setView('home')}>← Volver</button><div><strong>{activeConversation.person?.display_name || 'Chat ZUNO'}</strong><small>{activeConversation.person?.username ? '@'+activeConversation.person.username : 'Conversación privada'}</small></div><div className="ephemeral-settings"><button type="button" className={'logout-btn '+(activeConversation.ephemeral_duration_minutes?'ephemeral-active':'')} onClick={()=>setShowEphemeralMenu(value=>!value)}><span>◷</span> {activeConversation.ephemeral_duration_minutes ? 'Mensajes efímeros' : 'Mensajes normales'}</button>{showEphemeralMenu && <div className="ephemeral-menu"><strong>Desaparición de mensajes</strong><p>Los mensajes nuevos se eliminarán para ambos al cumplirse el plazo.</p>{[{value:0,label:'Desactivado'},{value:10,label:'Después de 10 minutos'},{value:60,label:'Después de 1 hora'},{value:1440,label:'Después de 24 horas'},{value:10080,label:'Después de 7 días'}].map(option=><button key={option.value} type="button" disabled={ephemeralBusy} className={activeConversation.ephemeral_duration_minutes===option.value?'selected':''} onClick={()=>changeEphemeralDuration(option.value)}>{option.label}{activeConversation.ephemeral_duration_minutes===option.value?' ✓':''}</button>)}</div>}</div></div>
+      <section className="direct-chat"><div className="direct-chat-header"><button className="logout-btn" onClick={()=>setView('home')}>← Volver</button><div><strong>{activeConversation.person?.display_name || 'Chat ZUNO'}</strong><small>{activeConversation.person?.username ? '@'+activeConversation.person.username : 'Conversación privada'}</small></div><div className="chat-call-actions"><button type="button" className="chat-call-button" title="Llamada de voz" aria-label="Llamada de voz" disabled={callBusy || !!callSession} onClick={()=>startCall('audio')}><Phone size={18}/></button><button type="button" className="chat-call-button" title="Videollamada" aria-label="Videollamada" disabled={callBusy || !!callSession} onClick={()=>startCall('video')}><Video size={19}/></button></div><div className="ephemeral-settings"><button type="button" className={'logout-btn '+(activeConversation.ephemeral_duration_minutes?'ephemeral-active':'')} onClick={()=>setShowEphemeralMenu(value=>!value)}><span>◷</span> {activeConversation.ephemeral_duration_minutes ? 'Mensajes efímeros' : 'Mensajes normales'}</button>{showEphemeralMenu && <div className="ephemeral-menu"><strong>Desaparición de mensajes</strong><p>Los mensajes nuevos se eliminarán para ambos al cumplirse el plazo.</p>{[{value:0,label:'Desactivado'},{value:10,label:'Después de 10 minutos'},{value:60,label:'Después de 1 hora'},{value:1440,label:'Después de 24 horas'},{value:10080,label:'Después de 7 días'}].map(option=><button key={option.value} type="button" disabled={ephemeralBusy} className={activeConversation.ephemeral_duration_minutes===option.value?'selected':''} onClick={()=>changeEphemeralDuration(option.value)}>{option.label}{activeConversation.ephemeral_duration_minutes===option.value?' ✓':''}</button>)}</div>}</div></div>
+
+        {callError && <div className="call-feedback" role="status">{callError}<button type="button" onClick={()=>setCallError('')} aria-label="Cerrar aviso"><X size={15}/></button></div>}
+        {incomingCall && !callSession && <div className="call-incoming-backdrop"><section className="call-incoming-card"><div className="call-avatar"><UserRound size={32}/></div><small>LLAMADA ENTRANTE</small><h2>{incomingCall.caller_id === activeConversation?.person?.id ? activeConversation.person?.display_name : 'Un usuario de ZUNO'}</h2><p>{incomingCall.call_type === 'video' ? 'Videollamada' : 'Llamada de voz'}</p><div><button type="button" className="call-decline" onClick={declineCall} disabled={callBusy}><PhoneOff size={20}/> Rechazar</button><button type="button" className="call-accept" onClick={acceptCall} disabled={callBusy}><Phone size={20}/> {callBusy?'Conectando…':'Aceptar'}</button></div></section></div>}
+        {callSession && <div className="call-active-backdrop"><section className={'call-active-card '+(callSession.call_type==='video'?'is-video':'is-audio')}>
+          {callSession.call_type === 'video' ? <><video ref={remoteVideoRef} autoPlay playsInline className="call-remote-video"/><video ref={localVideoRef} autoPlay muted playsInline className="call-local-video"/></> : <><div className="call-audio-avatar"><UserRound size={54}/></div><audio ref={remoteAudioRef} autoPlay playsInline/></>}
+          <div className="call-active-info"><strong>{activeConversation.person?.display_name || 'Llamada ZUNO'}</strong><span>{callSession.status==='ringing'?'Llamando…':remoteCallStream?'Conectados':'Conectando…'}</span>{callError && <small>{callError}</small>}</div>
+          <div className="call-controls"><button type="button" className={callMuted?'is-off':''} onClick={toggleCallMute} aria-label={callMuted?'Activar micrófono':'Silenciar micrófono'}>{callMuted?<MicOff size={20}/>:<Mic size={20}/>}</button>{callSession.call_type==='video' && <button type="button" className={callCameraOff?'is-off':''} onClick={toggleCallCamera} aria-label={callCameraOff?'Activar cámara':'Apagar cámara'}>{callCameraOff?<VideoOff size={20}/>:<Video size={20}/>}</button>}<button type="button" className="call-hangup" onClick={finishCall} aria-label="Finalizar llamada"><PhoneOff size={21}/></button></div>
+        </section></div>}
         <div ref={chatMessagesContainerRef} className={`direct-chat-messages ${chatDragOver ? 'is-drag-over' : ''}`} onTouchStart={handleChatSwipeStart} onTouchEnd={handleChatSwipeEnd} onDragOver={event=>{event.preventDefault();setChatDragOver(true)}} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget))setChatDragOver(false)}} onDrop={handleChatDrop}>{chatMessages.map(message=><div key={message.id} className={message.sender_id===session.user.id?'chat-bubble own':'chat-bubble'} onTouchStart={()=>{if(longPressTimerRef.current)window.clearTimeout(longPressTimerRef.current);longPressTimerRef.current=window.setTimeout(()=>setActiveMessageMenu(message.id),550)}} onTouchEnd={()=>{if(longPressTimerRef.current)window.clearTimeout(longPressTimerRef.current)}} onTouchMove={()=>{if(longPressTimerRef.current)window.clearTimeout(longPressTimerRef.current)}} onTouchCancel={()=>{if(longPressTimerRef.current)window.clearTimeout(longPressTimerRef.current)}} onContextMenu={event=>event.preventDefault()}>{message.message_type==='image' ? <div className="chat-image-protected" onContextMenu={event=>event.preventDefault()}><img src={message.media_url || ''} alt="Imagen privada del chat" draggable="false"/><span className="chat-image-watermark">@{profile?.username || profile?.display_name || 'ZUNO'}</span></div> : message.message_type==='audio' ? <ChatAudioPlayer src={message.media_url} error={message.media_error}/> : message.message_type==='location' ? <div className="chat-location-message"><MapPin size={20}/><strong>Ubicación compartida</strong><a href={`https://www.openstreetmap.org/?mlat=${message.latitude}&mlon=${message.longitude}#map=16/${message.latitude}/${message.longitude}`} target="_blank" rel="noreferrer">Abrir mapa</a></div> : <p>{message.body}</p>}<time>{new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}{message.sender_id===session.user.id && <span className={'message-ticks '+(messageReceipts[message.id]?.read_at?'is-read':messageReceipts[message.id]?.delivered_at?'is-delivered':'')}>{messageReceipts[message.id]?.read_at?'✓✓':messageReceipts[message.id]?.delivered_at?'✓✓':'✓'}</span>}{message.expires_at && <small className="message-expiry-label"> · Se elimina {new Date(message.expires_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</small>}</time><div className="chat-message-actions"><button type="button" className="chat-message-menu-trigger" aria-label="Opciones del mensaje" onClick={()=>setActiveMessageMenu(current=>current===message.id?null:message.id)}>⋯</button>{activeMessageMenu===message.id && <div className="chat-message-menu"><button type="button" onClick={()=>hideMessageForMe(message)}>Eliminar para mí</button>{message.sender_id===session.user.id && <button type="button" onClick={()=>deleteMessageForEveryone(message)}>Eliminar para todos</button>}</div>}</div></div>)}{otherUserTyping && <div className="chat-typing-indicator"><span/><span/><span/> Está escribiendo…</div>}{chatDragOver && <div className="chat-drop-hint">Soltá las imágenes acá para prepararlas</div>}</div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         {deleteConfirmMessage && <div className="zuno-modal-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setDeleteConfirmMessage(null)}}><section className="zuno-modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title"><h2 id="delete-modal-title">¿Eliminar para todos?</h2><p>Este mensaje desaparecerá del chat de ambas personas. Esta acción no se puede deshacer.</p><div><button type="button" className="logout-btn" disabled={chatMediaBusy} onClick={()=>setDeleteConfirmMessage(null)}>Cancelar</button><button type="button" className="zuno-modal-danger" disabled={chatMediaBusy} onClick={confirmDeleteMessageForEveryone}>{chatMediaBusy?'Eliminando…':'Eliminar para todos'}</button></div></section></div>}
