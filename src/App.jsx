@@ -14,6 +14,7 @@ export default function App() {
   const [connectionRows, setConnectionRows] = useState([])
   const [connectionBusy, setConnectionBusy] = useState('')
   const [conversations, setConversations] = useState([])
+  const [unreadCounts, setUnreadCounts] = useState({})
   const [activeConversation, setActiveConversation] = useState(null)
   const [chatMessages, setChatMessages] = useState([])
   const [chatDraft, setChatDraft] = useState('')
@@ -192,6 +193,32 @@ export default function App() {
     setConnectionRows(current => current.map(row => row.id === requestId ? data : row))
   }
 
+  async function markConversationRead(conversationId) {
+    if (!session?.user || !conversationId) return
+    const readAt = new Date().toISOString()
+    const { error: readError } = await supabase.from('conversation_reads').upsert({ conversation_id: conversationId, user_id: session.user.id, last_read_at: readAt }, { onConflict: 'conversation_id,user_id' })
+    if (!readError) setUnreadCounts(current => ({ ...current, [conversationId]: 0 }))
+  }
+
+  function playMessageSound() {
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext
+      if (!AudioContextClass) return
+      const context = new AudioContextClass()
+      const oscillator = context.createOscillator()
+      const gain = context.createGain()
+      oscillator.type = 'sine'
+      oscillator.frequency.setValueAtTime(880, context.currentTime)
+      oscillator.frequency.setValueAtTime(660, context.currentTime + 0.12)
+      gain.gain.setValueAtTime(0.0001, context.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.12, context.currentTime + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.28)
+      oscillator.connect(gain); gain.connect(context.destination)
+      oscillator.start(); oscillator.stop(context.currentTime + 0.3)
+      oscillator.onended = () => context.close()
+    } catch (error) { /* El navegador puede bloquear audio automático. */ }
+  }
+
   async function openChat(person) {
     if (!session?.user || !person?.id) return
     const ids = [session.user.id, person.id].sort()
@@ -201,7 +228,7 @@ export default function App() {
     const { data: messages, error: messagesError } = await supabase.from('messages').select('id,conversation_id,sender_id,body,created_at').eq('conversation_id', conversation.id).order('created_at')
     setChatBusy(false)
     if (messagesError) { setPeopleError('No pudimos cargar los mensajes. ' + messagesError.message); return }
-    setActiveConversation({ ...conversation, person }); setChatMessages(messages || []); setChatDraft(''); setView('chat')
+    setActiveConversation({ ...conversation, person }); setChatMessages(messages || []); setChatDraft(''); await markConversationRead(conversation.id); setView('chat')
   }
 
   async function sendChatMessage(event) {
@@ -232,6 +259,45 @@ export default function App() {
     if (deleteError) { setPeopleError('No pudimos eliminar la conexión. ' + deleteError.message); return }
     setConnectionRows(current => current.filter(row => row.id !== requestId))
   }
+
+  useEffect(() => {
+    if (!session?.user) { setUnreadCounts({}); return }
+    let active = true
+    async function loadUnreadCounts() {
+      const { data: rows, error: rowsError } = await supabase.from('conversations').select('id').or(`member_one.eq.${session.user.id},member_two.eq.${session.user.id}`)
+      if (rowsError || !active) return
+      const ids = (rows || []).map(row => row.id)
+      if (!ids.length) { setUnreadCounts({}); return }
+      const { data: reads } = await supabase.from('conversation_reads').select('conversation_id,last_read_at').eq('user_id', session.user.id).in('conversation_id', ids)
+      const readMap = Object.fromEntries((reads || []).map(row => [row.conversation_id, row.last_read_at]))
+      const counts = {}
+      await Promise.all(ids.map(async id => {
+        if (activeConversation?.id === id && view === 'chat') { counts[id] = 0; return }
+        let query = supabase.from('messages').select('id', { count: 'exact', head: true }).eq('conversation_id', id).neq('sender_id', session.user.id)
+        if (readMap[id]) query = query.gt('created_at', readMap[id])
+        const { count } = await query
+        counts[id] = count || 0
+      }))
+      if (active) setUnreadCounts(counts)
+    }
+    loadUnreadCounts()
+    return () => { active = false }
+  }, [session, activeConversation?.id, view])
+
+  useEffect(() => {
+    if (!session?.user) return
+    const channel = supabase.channel('zuno-global-message-notifications-' + session.user.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+      const incoming = payload.new
+      if (incoming.sender_id === session.user.id) return
+      if (activeConversation?.id === incoming.conversation_id && view === 'chat') {
+        markConversationRead(incoming.conversation_id)
+        return
+      }
+      setUnreadCounts(current => ({ ...current, [incoming.conversation_id]: (current[incoming.conversation_id] || 0) + 1 }))
+      playMessageSound()
+    }).subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [session, activeConversation?.id, view])
 
   useEffect(() => {
     if (!session?.user || view !== 'chats') return
@@ -378,12 +444,12 @@ export default function App() {
     <main className="app-shell"><header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
       <section className="chat-page"><div className="home-heading"><div><div className="eyebrow"><span/> MENSAJES PRIVADOS</div><h1>Tus <span>chats.</span></h1><p>Podés hablar con cualquier persona, sin conexión previa.</p></div><button className="refresh-btn" onClick={()=>setView('home')}>Descubrir personas</button></div>
         {peopleError && <div className="notice error">{peopleError}</div>}
-        <div className="chat-list">{conversations.length ? conversations.map(item=><button className="chat-list-item" key={item.id} onClick={()=>openChat({...item.person,id:item.member_one===session.user.id?item.member_two:item.member_one})}><span className="chat-list-avatar">{item.person?.avatar_url?<img src={item.person.avatar_url} alt=""/>:(item.person?.display_name||'Z').slice(0,1)}</span><span className="chat-list-name"><strong>{item.person?.display_name||'Miembro de ZUNO'}</strong><small>{item.person?.username?'@'+item.person.username:'Abrir conversación'}</small></span><MessageCircle size={18}/></button>) : <div className="connections-empty">Todavía no tenés conversaciones. Iniciá un chat desde cualquier perfil.</div>}</div>
+        <div className="chat-list">{conversations.length ? conversations.map(item=><button className="chat-list-item" key={item.id} onClick={()=>openChat({...item.person,id:item.member_one===session.user.id?item.member_two:item.member_one})}><span className="chat-list-avatar">{item.person?.avatar_url?<img src={item.person.avatar_url} alt=""/>:(item.person?.display_name||'Z').slice(0,1)}</span><span className="chat-list-name"><strong>{item.person?.display_name||'Miembro de ZUNO'}</strong><small>{item.person?.username?'@'+item.person.username:'Abrir conversación'}</small></span>{(unreadCounts[item.id]||0)>0 && <span className="chat-unread-count">{unreadCounts[item.id]}</span>}<MessageCircle size={18}/></button>) : <div className="connections-empty">Todavía no tenés conversaciones. Iniciá un chat desde cualquier perfil.</div>}</div>
       </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer></main>
   )
   if (session?.user && ['home', 'favorites', 'connections'].includes(view)) return (
     <main className="app-shell">
-      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span><button className="logout-btn" onClick={()=>setView('chats')}><MessageCircle size={15}/> Chats</button><button className="logout-btn" onClick={()=>setView('connections')}><Users size={15}/> Conexiones ({connectionRows.filter(row=>row.status==='accepted').length})</button><button className="logout-btn" onClick={()=>setView('favorites')}><Heart size={15}/> Favoritos ({favoriteIds.length})</button><button className="logout-btn" onClick={()=>setView('profile')}><Pencil size={15}/> Editar perfil</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
+      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span><button className="logout-btn chats-nav-btn" onClick={()=>setView('chats')}><MessageCircle size={15}/> Chats {Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)>0 && <span className="nav-unread-count">+{Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}</span>}</button><button className="logout-btn" onClick={()=>setView('connections')}><Users size={15}/> Conexiones ({connectionRows.filter(row=>row.status==='accepted').length})</button><button className="logout-btn" onClick={()=>setView('favorites')}><Heart size={15}/> Favoritos ({favoriteIds.length})</button><button className="logout-btn" onClick={()=>setView('profile')}><Pencil size={15}/> Editar perfil</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
       <section className="home-content">
         <div className="home-heading"><div><div className="eyebrow"><span/> {view === 'favorites' ? 'TUS PERSONAS GUARDADAS' : view === 'connections' ? 'TUS CONEXIONES' : 'DESCUBRÍ ZUNO'}</div><h1>{view === 'favorites' ? <>Tus <span>favoritos.</span></> : view === 'connections' ? <>Tus <span>conexiones.</span></> : <>Hola, <span>{profile?.display_name || displayName || 'bienvenido'}.</span></>}</h1><p>{view === 'favorites' ? 'Perfiles que guardaste para volver a encontrarlos.' : view === 'connections' ? 'Solicitudes recibidas, enviadas y conexiones aceptadas.' : 'Estas son algunas de las personas de la comunidad. ¡Tu próxima conexión puede empezar acá!'}</p></div><div className="home-actions">{view !== 'home' && <button className="refresh-btn" onClick={()=>setView('home')}><Compass size={16}/> Descubrir</button>}<button className="refresh-btn" onClick={()=>setPeopleRefresh(value=>value+1)}><RefreshCw size={16}/> Actualizar</button></div></div>
         {peopleError && <div className="notice error">{peopleError}</div>}
