@@ -804,7 +804,7 @@ export default function App() {
     const loadNotifications = async () => {
       const { data, error: notificationError } = await supabase.from('notifications')
         .select('id,recipient_id,actor_id,notification_type,entity_id,title,body,created_at,read_at,metadata')
-        .eq('recipient_id', session.user.id).order('created_at', { ascending: false }).limit(100)
+        .eq('recipient_id', session.user.id).in('notification_type',['favorite','album_access_request']).order('created_at', { ascending: false }).limit(100)
       if (!active) return
       if (notificationError) { setPeopleError('No pudimos cargar las notificaciones. ' + notificationError.message); return }
       setNotifications(data || [])
@@ -819,17 +819,15 @@ export default function App() {
     const channel = supabase.channel('zuno-notifications-' + session.user.id)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: 'recipient_id=eq.' + session.user.id }, async payload => {
         const item = payload.new
+        if (!['favorite','album_access_request'].includes(item.notification_type)) return
         const peerId = activeConversation?.person?.id
-        if (item.notification_type === 'message' && view === 'chat' && peerId === item.actor_id) {
-          await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', item.id).eq('recipient_id', session.user.id)
-          return
-        }
+        if (item.notification_type === 'message' && view === 'chat' && peerId === item.actor_id) return
         setNotifications(current => current.some(existing => existing.id === item.id) ? current : [item, ...current].slice(0, 100))
         if (item.actor_id) {
           const { data: actor } = await supabase.from('profiles').select('id,display_name,username,avatar_url').eq('id', item.actor_id).maybeSingle()
           if (actor) setNotificationActors(current => ({ ...current, [actor.id]: actor }))
         }
-        if (item.notification_type === 'message') playMessageSound()
+        
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: 'recipient_id=eq.' + session.user.id }, payload => {
         setNotifications(current => current.map(item => item.id === payload.new.id ? payload.new : item))
@@ -2153,7 +2151,7 @@ export default function App() {
           </div>}
         </section></div>}
         {reportTarget && <div className="security-modal-backdrop" role="presentation"><form className="security-modal" onSubmit={submitUserReport}><div className="security-modal-heading"><h2>Denunciar perfil</h2><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)} aria-label="Cerrar"><X size={17}/></button></div><p>Tu denuncia sobre {reportTarget.display_name || 'este usuario'} será privada y revisada por el equipo de ZUNO.</p><label>Motivo<select value={reportReason} onChange={event=>setReportReason(event.target.value)}><option value="fake_profile">Perfil falso o suplantación</option><option value="harassment">Acoso o amenazas</option><option value="inappropriate_content">Contenido inapropiado</option><option value="spam">Spam</option><option value="underage">Posible menor de edad</option><option value="scam">Estafa o fraude</option><option value="other">Otro motivo</option></select></label><label>Detalles (opcional)<textarea rows="4" maxLength="2000" value={reportDetails} onChange={event=>setReportDetails(event.target.value)} placeholder="Contanos qué pasó…"/></label><div className="security-modal-actions"><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)}>Cancelar</button><button type="submit" className="submit-btn" disabled={reportBusy}>{reportBusy?'Enviando…':'Enviar denuncia'}</button></div></form></div>}
-        <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+        <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>['favorite','album_access_request'].includes(item.notification_type)&&!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
       </main>
     )
   }
@@ -2203,7 +2201,7 @@ export default function App() {
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
       <section className="notifications-page">
         <div className="home-heading"><div><div className="eyebrow"><span/> TU ACTIVIDAD</div><h1>Tu <span>actividad.</span></h1><p>Notificaciones de taps y solicitudes de álbum privado.</p></div>
-          <button type="button" className="refresh-btn" disabled={!notifications.some(item=>!item.read_at)} onClick={async()=>{const unread=notifications.filter(item=>!item.read_at);if(!unread.length)return;const now=new Date().toISOString();const {error}=await supabase.from('notifications').update({read_at:now}).eq('recipient_id',session.user.id).is('read_at',null);if(!error)setNotifications(current=>current.map(item=>({...item,read_at:item.read_at||now})))}}>Marcar todas leídas</button>
+          <button type="button" className="refresh-btn" disabled={!notifications.some(item=>!item.read_at)} onClick={async()=>{const unread=notifications.filter(item=>['favorite','album_access_request'].includes(item.notification_type)&&!item.read_at);if(!unread.length)return;const now=new Date().toISOString();const {error}=await supabase.from('notifications').update({read_at:now}).eq('recipient_id',session.user.id).in('notification_type',['favorite','album_access_request']).is('read_at',null);if(!error)setNotifications(current=>current.map(item=>({...item,read_at:item.read_at||now})))}}>Marcar todas leídas</button>
         </div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         <div className="notifications-list">
