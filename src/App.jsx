@@ -569,9 +569,35 @@ export default function App() {
   async function archiveStory(story) {
     if (story.user_id !== session?.user?.id || storyBusy) return
     setStoryBusy(true)
-    const { error: archiveError } = await supabase.from('stories').update({ archived_at: new Date().toISOString() }).eq('id', story.id).eq('user_id', session.user.id)
-    if (!archiveError) { setStories(current => current.filter(item => item.id !== story.id)); setArchivedStories(current => [{ ...story, archived_at: new Date().toISOString() }, ...current]); setStoryViewer(null); setShowStoryMenu(false) }
-    else setStoryMessage('No se pudo archivar la historia: ' + archiveError.message)
+    const archivedAt = new Date().toISOString()
+    const { error: archiveError } = await supabase.from('stories').update({ archived_at: archivedAt }).eq('id', story.id).eq('user_id', session.user.id)
+    if (!archiveError) {
+      const archived = { ...story, archived_at: archivedAt }
+      setStories(current => current.filter(item => item.id !== story.id))
+      setArchivedStories(current => [archived, ...current.filter(item => item.id !== story.id)])
+      setStoryViewer(null)
+      setShowStoryMenu(false)
+      setShowStoryArchive(true)
+      setStoryMessage('Historia guardada en tu archivo.')
+    } else setStoryMessage('No se pudo archivar la historia: ' + archiveError.message)
+    setStoryBusy(false)
+  }
+
+  async function unarchiveStory(story) {
+    if (story.user_id !== session?.user?.id || storyBusy) return
+    if (!story.expires_at || new Date(story.expires_at).getTime() <= Date.now()) {
+      setStoryMessage('Esta historia ya cumplió sus 24 horas y no se puede volver a publicar.')
+      return
+    }
+    setStoryBusy(true)
+    const { error: restoreError } = await supabase.from('stories').update({ archived_at: null }).eq('id', story.id).eq('user_id', session.user.id).gt('expires_at', new Date().toISOString())
+    if (!restoreError) {
+      setArchivedStories(current => current.filter(item => item.id !== story.id))
+      setStories(current => [story, ...current.filter(item => item.id !== story.id)].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)))
+      setStoryViewer(null)
+      setShowStoryArchive(false)
+      setStoryMessage('¡Historia restaurada! Ya aparece nuevamente en tu historia.')
+    } else setStoryMessage('No se pudo desarchivar la historia: ' + restoreError.message)
     setStoryBusy(false)
   }
 
@@ -1928,13 +1954,14 @@ export default function App() {
         </section>}
         {storyViewer && <div className="story-viewer-backdrop" role="presentation" onClick={() => setStoryViewer(null)}><section className="story-viewer" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}>
           <div className="story-progress-track" aria-hidden="true"><span key={storyViewer.id} style={{ animationDuration: storyViewer.media_type === 'video' ? '30s' : '7s', animationPlayState: storyPaused ? 'paused' : 'running' }}/></div><div className="story-viewer-top"><span>{storyViewer.owner?.display_name || storyViewer.owner?.username || 'Tu historia'}</span><div className="story-viewer-top-actions">{storyViewer.user_id === session.user.id && !storyViewer.archived_at && <button type="button" onClick={() => setShowStoryMenu(value => !value)} aria-label="Opciones de historia"><MoreVertical/></button>}<button type="button" onClick={() => setStoryViewer(null)} aria-label="Cerrar historia"><X/></button></div>{showStoryMenu && <div className="story-options-menu"><button type="button" disabled={storyBusy} onClick={() => archiveStory(storyViewer)}><Archive size={16}/> Archivar historia</button></div>}</div>
-          {storyViewer.media_type === 'video' ? <video src={storyViewer.url} controls autoPlay playsInline onEnded={() => setStoryViewer(null)}/> : <img src={storyViewer.url} alt="Historia" onPointerDown={() => { if (!storyPaused) { storyPauseStartedRef.current = Date.now(); setStoryPaused(true) } }} onPointerUp={() => { if (storyPauseStartedRef.current) { setStoryRemainingMs(value => Math.max(0, value - (Date.now() - storyPauseStartedRef.current))); storyPauseStartedRef.current = null } setStoryPaused(false) }} onPointerLeave={() => { if (storyPauseStartedRef.current) { setStoryRemainingMs(value => Math.max(0, value - (Date.now() - storyPauseStartedRef.current))); storyPauseStartedRef.current = null } setStoryPaused(false) }} onContextMenu={event => event.preventDefault()}/> }
+          {storyViewer.media_type === 'video' ? <video src={storyViewer.url} controls autoPlay playsInline onEnded={() => setStoryViewer(null)}/> : <img src={storyViewer.url} alt="Historia" draggable="false" onDragStart={event => event.preventDefault()} onPointerDown={event => { event.preventDefault(); event.stopPropagation(); if (!storyPaused) { storyPauseStartedRef.current = Date.now(); setStoryPaused(true) } }} onPointerUp={event => { event.preventDefault(); event.stopPropagation(); if (storyPauseStartedRef.current) { setStoryRemainingMs(value => Math.max(0, value - (Date.now() - storyPauseStartedRef.current))); storyPauseStartedRef.current = null } setStoryPaused(false) }} onPointerCancel={() => { if (storyPauseStartedRef.current) { setStoryRemainingMs(value => Math.max(0, value - (Date.now() - storyPauseStartedRef.current))); storyPauseStartedRef.current = null } setStoryPaused(false) }} onPointerLeave={() => { if (storyPauseStartedRef.current) { setStoryRemainingMs(value => Math.max(0, value - (Date.now() - storyPauseStartedRef.current))); storyPauseStartedRef.current = null } setStoryPaused(false) }} onContextMenu={event => event.preventDefault()}/> }
           {storyViewer.caption && <p>{storyViewer.caption}</p>}
           {storyViewer.user_id === session.user.id && <button type="button" className="story-viewers-trigger" onClick={() => setShowStoryViewers(true)}><Eye size={17}/><strong>Visto por {storyViewers.length}</strong><span>Ver lista</span></button>}
           {showStoryViewers && storyViewer.user_id === session.user.id && <div className="story-viewers-sheet-backdrop" onClick={() => setShowStoryViewers(false)}><section className="story-viewers-sheet" role="dialog" aria-modal="true" aria-label="Personas que vieron tu historia" onClick={event => event.stopPropagation()}><div className="story-viewers-sheet-heading"><div><strong>Visualizaciones</strong><small>{storyViewers.length} {storyViewers.length === 1 ? 'persona vio' : 'personas vieron'} tu historia</small></div><button type="button" onClick={() => setShowStoryViewers(false)} aria-label="Cerrar"><X size={19}/></button></div>{storyViewers.length ? <div className="story-viewers-list">{storyViewers.map(item => <div className="story-viewer-person" key={item.viewer_id}><img src={item.person?.avatar_url || ''} alt=""/><div><strong>{item.person?.display_name || item.person?.username || 'Usuario'}</strong><small>@{item.person?.username || 'usuario'}</small></div><time>{new Date(item.viewed_at).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'})}</time></div>)}</div> : <div className="story-viewers-empty"><Eye size={25}/><strong>Todavía nadie vio tu historia</strong><small>Cuando alguien la vea, aparecerá acá.</small></div>}</section></div>}
+          {storyViewer.user_id === session.user.id && storyViewer.archived_at && <button type="button" className="story-restore" disabled={storyBusy || !storyViewer.expires_at || new Date(storyViewer.expires_at).getTime() <= Date.now()} onClick={() => unarchiveStory(storyViewer)}><RefreshCw size={16}/> {storyViewer.expires_at && new Date(storyViewer.expires_at).getTime() > Date.now() ? 'Desarchivar y volver a publicar' : 'Venció · no se puede restaurar'}</button>}
           {storyViewer.user_id === session.user.id && <button type="button" className="story-delete" disabled={storyBusy} onClick={() => deleteStory(storyViewer)}><Trash2 size={16}/> Eliminar historia</button>}
         </section></div>}
-        {showStoryArchive && <div className="story-viewer-backdrop" onClick={() => setShowStoryArchive(false)}><section className="story-archive-panel" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}><div className="story-viewers-sheet-heading"><div><strong>Historias archivadas</strong><small>Solo vos podés verlas</small></div><button type="button" onClick={() => setShowStoryArchive(false)} aria-label="Cerrar archivo"><X size={19}/></button></div><div className="story-archive-grid">{archivedStories.length ? archivedStories.map(item => <button type="button" key={item.id} onClick={() => { setShowStoryArchive(false); openStory(item) }}>{item.media_type === 'video' ? <video src={item.url} muted playsInline/> : <img src={item.url} alt="Historia archivada"/>}<span>{new Date(item.archived_at).toLocaleDateString('es-UY')}</span></button>) : <p>Todavía no archivaste historias.</p>}</div></section></div>}
+        {showStoryArchive && <div className="story-viewer-backdrop" onClick={() => setShowStoryArchive(false)}><section className="story-archive-panel" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}><div className="story-viewers-sheet-heading"><div><strong>Historias archivadas</strong><small>Solo vos podés verlas</small></div><button type="button" onClick={() => setShowStoryArchive(false)} aria-label="Cerrar archivo"><X size={19}/></button></div><div className="story-archive-grid">{archivedStories.length ? archivedStories.map(item => <button type="button" key={item.id} onClick={() => { setShowStoryArchive(false); openStory(item) }}>{item.media_type === 'video' ? <video src={item.url} muted playsInline/> : <img src={item.url} alt="Historia archivada"/>}<span>{new Date(item.archived_at).toLocaleDateString('es-UY')}{item.expires_at && new Date(item.expires_at).getTime() > Date.now() ? ' · Disponible para restaurar' : ' · Vencida'}</span></button>) : <p>Todavía no archivaste historias.</p>}</div></section></div>}
         {view === 'home' && <nav className="home-shortcuts" aria-label="Secciones de descubrir">
           <button type="button" className="selected" onClick={()=>setView('home')}><Compass size={15}/> Cerca de vos</button>
           <button type="button" onClick={()=>setView('favorites')}><Heart size={15}/> Favoritos <span>{favoriteIds.length}</span></button>
