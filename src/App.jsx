@@ -1897,8 +1897,8 @@ export default function App() {
               if (last?.user_id === story.user_id) last.items.push(story)
               else groups.push({ user_id: story.user_id, owner: story.owner, items: [story] })
               return groups
-            }, []).map(group => <button type="button" className="story-person" key={group.user_id} onClick={() => openStory(group.items[0])}><span className="story-ring"><img src={group.owner?.avatar_url || ''} alt=""/></span><span>{group.owner?.display_name || group.owner?.username || 'Usuario'}</span></button>)}
-            {stories.filter(story => story.user_id === session.user.id).map(story => <button type="button" className="story-person own-story" key={story.id} onClick={() => openStory(story)}><span className="story-ring"><img src={story.url} alt="Miniatura de tu historia"/></span><span>Tu historia</span></button>)}
+            }, []).map(group => <button type="button" className="story-person" key={group.user_id} onClick={() => openStory(group.items[0])}><span className="story-ring">{group.items[0].media_type === 'video' ? <video src={group.items[0].url} muted playsInline preload="metadata"/> : <img src={group.items[0].url} alt="Historia de {group.owner?.display_name || group.owner?.username || 'usuario'}"/>}</span><span>{group.owner?.display_name || group.owner?.username || 'Usuario'}</span></button>)}
+            {stories.filter(story => story.user_id === session.user.id).map(story => <button type="button" className="story-person own-story" key={story.id} onClick={() => openStory(story)}><span className="story-ring">{story.media_type === 'video' ? <video src={story.url} muted playsInline preload="metadata"/> : <img src={story.url} alt="Miniatura de tu historia"/>}</span><span>Tu historia</span></button>)}
           </div>
           {storyMessage && <p className="story-feedback">{storyMessage}</p>}
         </section>}
