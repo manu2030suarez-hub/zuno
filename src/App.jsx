@@ -9,6 +9,7 @@ export default function App() {
   const [profileLoading, setProfileLoading] = useState(true)
   const [profileLoadError, setProfileLoadError] = useState('')
   const [people, setPeople] = useState([])
+  const [selectedProfile, setSelectedProfile] = useState(null)
   const [peopleLoading, setPeopleLoading] = useState(false)
   const [peopleRefresh, setPeopleRefresh] = useState(0)
   const [peopleError, setPeopleError] = useState('')
@@ -206,6 +207,24 @@ export default function App() {
     <main className="app-shell"><header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></header><section className="loading-state"><div className="card-icon"><ShieldCheck size={21}/></div><h2>No pudimos cargar tu perfil</h2><p>{profileLoadError}</p><p>Por seguridad, no te vamos a pedir que crees otro perfil mientras no podamos comprobar si ya existe.</p><button className="submit-btn" onClick={()=>window.location.reload()}>Volver a intentar <span>→</span></button></section></main>
   )
 
+  if (session?.user && view === 'detail' && selectedProfile) return (
+    <main className="app-shell">
+      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>{setSelectedProfile(null);setView('home')}}><Compass size={15}/> Volver a descubrir</button>{selectedProfile.isOwn && <button className="logout-btn" onClick={()=>{setSelectedProfile(null);setView('profile')}}><Pencil size={15}/> Editar perfil</button>}</div></header>
+      <section className="member-detail">
+        <div className="detail-heading"><div className="eyebrow"><span/> PERFIL ZUNO</div><h1>{selectedProfile.display_name || 'Usuario ZUNO'}</h1>{selectedProfile.username && <p className="detail-username">@{selectedProfile.username}</p>}</div>
+        <div className="detail-gallery">{(selectedProfile.photos || []).length ? selectedProfile.photos.map(photo=><img key={photo.id || photo.url} src={photo.url} alt={`Foto de ${selectedProfile.display_name || 'usuario'}`}/>) : <div className="detail-no-photo"><UserRound size={42}/><span>Sin fotos por ahora</span></div>}</div>
+        <div className="detail-content">
+          {selectedProfile.visibleCity && <p className="person-location"><Compass size={15}/>{selectedProfile.visibleCity}</p>}
+          {selectedProfile.bio && <section className="detail-section"><h2>Sobre mí</h2><p>{selectedProfile.bio}</p></section>}
+          {selectedProfile.interests?.length > 0 && <section className="detail-section"><h2>Intereses y gustos</h2><div className="person-tags">{selectedProfile.interests.map(tag=><span key={tag}>{tag}</span>)}</div></section>}
+          {selectedProfile.looking_for?.length > 0 && <section className="detail-section"><h2>¿Qué busca?</h2><div className="person-tags">{selectedProfile.looking_for.map(item=><span key={item}>{item}</span>)}</div></section>}
+          {!selectedProfile.bio && !selectedProfile.interests?.length && !selectedProfile.looking_for?.length && !selectedProfile.visibleCity && <p className="detail-private-note">Esta persona todavía no agregó información pública a su perfil.</p>}
+          {selectedProfile.isOwn ? <p className="detail-private-note">Este es tu perfil. Podés modificar la información y la privacidad cuando quieras.</p> : <p className="detail-private-note">Solo mostramos la información que esta persona decidió compartir.</p>}
+        </div>
+      </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+    </main>
+  )
+
   if (session?.user && view === 'home') return (
     <main className="app-shell">
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span><button className="logout-btn" onClick={()=>setView('profile')}><Pencil size={15}/> Editar perfil</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
@@ -215,7 +234,7 @@ export default function App() {
         {peopleLoading ? <div className="empty-state">Buscando perfiles…</div> : (
           <>
           <div className="people-grid">
-          <article className="person-card own-person-card" key={session.user.id}>
+          <article className="person-card own-person-card person-card-clickable" key={session.user.id} role="button" tabIndex={0} onClick={()=>{setSelectedProfile({...profile,photos,visibleCity:profile?.show_location?[profile?.city,profile?.region].filter(Boolean).join(', '):'',isOwn:true});setView('detail')}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelectedProfile({...profile,photos,visibleCity:profile?.show_location?[profile?.city,profile?.region].filter(Boolean).join(', '):'',isOwn:true});setView('detail')}}}>
             <div className="person-card-gallery">
               {photos.length ? photos.slice(0,3).map(photo => <img key={photo.id} src={photo.url} alt="Tu foto de perfil"/>) : <div className="person-avatar">{profile?.avatar_url ? <img src={profile.avatar_url} alt=""/> : <span>{(profile?.display_name || displayName || '?').slice(0,1).toUpperCase()}</span>}</div>}
             </div>
@@ -229,7 +248,7 @@ export default function App() {
               <p className="person-username">Este es tu perfil</p>
             </div>
           </article>
-          {people.map(person => <article className="person-card" key={person.id}>
+          {people.map(person => <article className="person-card person-card-clickable" key={person.id} role="button" tabIndex={0} onClick={()=>{setSelectedProfile({...person,isOwn:false});setView('detail')}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelectedProfile({...person,isOwn:false});setView('detail')}}}>
             <div className="person-card-gallery">
               {person.photos?.length ? person.photos.slice(0,3).map(photo => <img key={photo.id} src={photo.url} alt={`Foto de ${person.display_name || 'usuario'}`}/>) : <div className="person-avatar">{person.avatar_url ? <img src={person.avatar_url} alt=""/> : <span>{(person.display_name || person.username || '?').slice(0,1).toUpperCase()}</span>}</div>}
             </div>
