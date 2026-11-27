@@ -82,7 +82,7 @@ export default function App() {
   const [liveSharing, setLiveSharing] = useState(null)
   const locationWatchRef = useRef(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
-  const [mapVisible, setMapVisible] = useState(false)
+  const [mapVisible, setMapVisible] = useState(true)
   const [mapBusy, setMapBusy] = useState(false)
   const [mapUsers, setMapUsers] = useState([])
   const [mapCenter, setMapCenter] = useState(null)
@@ -180,7 +180,7 @@ export default function App() {
           setAgeMin(String(data.preferred_age_min || 18))
           setAgeMax(String(data.preferred_age_max || 99))
           setDistanceKm(String(data.preferred_distance_km || 50))
-          setPrivacy({show_online:data.show_online ?? true,show_distance:data.show_distance ?? false,show_age:data.show_age ?? true,show_location:data.show_location ?? true})
+          setPrivacy({show_online:data.show_online ?? true,show_distance:data.show_distance ?? true,show_age:data.show_age ?? true,show_location:data.show_location ?? true})
           const [privateResult, photoResult] = await Promise.all([supabase.from('private_profiles').select('birth_date').eq('user_id', session.user.id).maybeSingle(),supabase.from('profile_photos').select('id,storage_path,sort_order').eq('user_id', session.user.id).order('sort_order')])
           if (!privateResult.error) setBirthDate(privateResult.data?.birth_date || '')
           if (!photoResult.error) { const signed = await Promise.all((photoResult.data || []).map(async p => { const {data:s} = await supabase.storage.from('zuno-profile-photos').createSignedUrl(p.storage_path,3600); return {...p,url:s?.signedUrl || ''} })); setPhotos(signed) }
@@ -199,6 +199,26 @@ export default function App() {
     if (!session?.user) { setPrivateAlbumPhotos([]); setPrivateAlbumRequests([]); return }
     if (view === 'profile') loadPrivateAlbumOwnerData()
   }, [session, view])
+
+  // La preferencia de aparecer en el mapa viene activada por defecto para cuentas nuevas.
+  // Si ya existe una fila, respetamos la decisión previa del usuario.
+  useEffect(() => {
+    if (!session?.user || !profile) return
+    let active = true
+    const initializeMapVisibility = async () => {
+      const { data, error: visibilityReadError } = await supabase.from('user_map_locations')
+        .select('map_visible').eq('user_id', session.user.id).maybeSingle()
+      if (!active) return
+      if (visibilityReadError) { console.warn('No se pudo leer la visibilidad del mapa:', visibilityReadError.message); return }
+      if (!data) {
+        const { error: enableError } = await supabase.rpc('set_my_map_visibility', { p_visible: true })
+        if (!enableError && active) setMapVisible(true)
+        else if (enableError) console.warn('No se pudo activar la preferencia de visibilidad:', enableError.message)
+      } else setMapVisible(Boolean(data.map_visible))
+    }
+    initializeMapVisibility()
+    return () => { active = false }
+  }, [session?.user?.id, Boolean(profile)])
 
   useEffect(() => {
     if (!session?.user) { setNotifications([]); setNotificationActors({}); return }
@@ -1601,7 +1621,7 @@ export default function App() {
             <div className="profile-section"><h3>Datos personales</h3><label htmlFor="birthDate">Fecha de nacimiento (privada)</label><input id="birthDate" type="date" value={birthDate} max={new Date().toISOString().slice(0,10)} onChange={e=>setBirthDate(e.target.value)}/><p className="field-hint">Tu fecha completa no se muestra públicamente. ZUNO es solo para mayores de 18 años.</p><label htmlFor="city">Ciudad o localidad aproximada</label><input id="city" value={city} onChange={e=>setCity(e.target.value)} placeholder="Ej. Montevideo"/><label htmlFor="region">Departamento / región</label><input id="region" value={region} onChange={e=>setRegion(e.target.value)} placeholder="Ej. Montevideo"/></div>
             <div className="profile-section"><h3>Intereses y gustos</h3><div className="choice-chips">{interestOptions.map(item=><button type="button" key={item} className={interests.includes(item)?'selected':''} onClick={()=>setInterests(cur=>cur.includes(item)?cur.filter(x=>x!==item):[...cur,item])}>{item}</button>)}</div></div>
             <div className="profile-section"><h3>¿Qué estás buscando?</h3><div className="choice-chips">{lookingOptions.map(item=><button type="button" key={item} className={lookingFor.includes(item)?'selected':''} onClick={()=>setLookingFor(cur=>cur.includes(item)?cur.filter(x=>x!==item):[...cur,item])}>{item}</button>)}</div><label htmlFor="ageMin">Edad mínima</label><input id="ageMin" type="number" min="18" max="99" value={ageMin} onChange={e=>setAgeMin(e.target.value)}/><label htmlFor="ageMax">Edad máxima</label><input id="ageMax" type="number" min="18" max="99" value={ageMax} onChange={e=>setAgeMax(e.target.value)}/><label htmlFor="distanceKm">Distancia máxima aproximada (km)</label><input id="distanceKm" type="number" min="1" max="500" value={distanceKm} onChange={e=>setDistanceKm(e.target.value)}/></div>
-            <div className="profile-section"><h3><ShieldCheck size={17}/> Privacidad</h3><div className="privacy-options">{[['show_online','Mostrar cuando estoy conectado'],['show_distance','Mostrar distancia aproximada'],['show_age','Permitir mostrar mi edad'],['show_location','Mostrar ciudad o región']].map(([key,label])=><label className="privacy-toggle" key={key}><span>{label}</span><input type="checkbox" checked={Boolean(privacy[key])} onChange={e=>setPrivacy(cur=>({...cur,[key]:e.target.checked}))}/></label>)}</div></div>
+            <div className="profile-section"><h3><ShieldCheck size={17}/> Privacidad</h3><div className="privacy-options"><label className="privacy-toggle"><span>Aparecer en el mapa y mostrar mi distancia aproximada</span><input type="checkbox" checked={mapVisible} disabled={mapBusy} onChange={e=>setMyMapVisibility(e.target.checked)}/></label>{[['show_online','Mostrar cuando estoy conectado'],['show_distance','Mostrar distancia aproximada en perfiles'],['show_age','Permitir mostrar mi edad'],['show_location','Mostrar ciudad o región']].map(([key,label])=><label className="privacy-toggle" key={key}><span>{label}</span><input type="checkbox" checked={Boolean(privacy[key])} onChange={e=>setPrivacy(cur=>({...cur,[key]:e.target.checked}))}/></label>)}</div><p className="detail-private-note">La visibilidad se activa por defecto. Para calcular distancias, ZUNO necesita que actualices tu ubicación y autorices el permiso del dispositivo. Si la desactivás, se eliminan las coordenadas guardadas.</p></div>
             <div className="profile-section"><h3><Ban size={17}/> Cuentas bloqueadas</h3>{blockedUsers.length ? <div className="blocked-users-list">{blockedUsers.map(item=><div className="blocked-user-row" key={item.id}><span><strong>{item.person?.display_name || 'Usuario ZUNO'}</strong><small>{item.person?.username ? '@'+item.person.username : 'Cuenta bloqueada'}</small></span><button type="button" className="logout-btn" disabled={blockBusy===item.blocked_id} onClick={()=>unblockUser(item.blocked_id)}>Desbloquear</button></div>)}</div> : <p className="detail-private-note">Todavía no bloqueaste ninguna cuenta.</p>}</div>
             {error && <div className="notice error">{error}</div>}{message && <div className="notice success">{message}</div>}
             <button className="submit-btn" type="submit" disabled={busy}>{busy ? 'Guardando…' : profile?.display_name ? 'Guardar cambios' : 'Guardar perfil'} <span>→</span></button>
