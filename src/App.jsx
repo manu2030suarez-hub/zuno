@@ -7,6 +7,7 @@ export default function App() {
   const [profile, setProfile] = useState(null)
   const [view, setView] = useState('profile')
   const [profileLoading, setProfileLoading] = useState(true)
+  const [profileLoadError, setProfileLoadError] = useState('')
   const [people, setPeople] = useState([])
   const [peopleLoading, setPeopleLoading] = useState(false)
   const [peopleRefresh, setPeopleRefresh] = useState(0)
@@ -33,17 +34,19 @@ export default function App() {
   useEffect(() => {
     if (!session?.user) { setProfile(null); setProfileLoading(false); setView('profile'); return }
     setProfileLoading(true)
+    setProfileLoadError('')
     let active = true
     supabase.from('profiles').select('display_name, username, bio, avatar_url, zuno_verified').eq('id', session.user.id).maybeSingle()
       .then(({ data, error: profileError }) => {
         if (!active) return
-        if (profileError) { setError('No pudimos cargar tu perfil. ' + profileError.message); setProfileLoading(false); return }
+        if (profileError) { setProfileLoadError(profileError.message); setProfileLoading(false); return }
         if (data) {
           setProfile(data)
           setDisplayName(data.display_name || '')
           setUsername(data.username || '')
           setBio(data.bio || '')
-          setView(data.display_name ? 'home' : 'profile')
+          // A saved profile must never send the user through first-time setup again.
+          setView('home')
         } else {
           setProfile({})
           setView('profile')
@@ -129,6 +132,10 @@ export default function App() {
 
   if (session?.user && profileLoading) return (
     <main className="app-shell"><header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header><section className="loading-state"><div className="card-icon"><Heart size={21}/></div><h2>Preparando tu espacio…</h2><p>Estamos cargando tu perfil.</p></section></main>
+  )
+
+  if (session?.user && profileLoadError) return (
+    <main className="app-shell"><header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></header><section className="loading-state"><div className="card-icon"><ShieldCheck size={21}/></div><h2>No pudimos cargar tu perfil</h2><p>{profileLoadError}</p><p>Por seguridad, no te vamos a pedir que crees otro perfil mientras no podamos comprobar si ya existe.</p><button className="submit-btn" onClick={()=>window.location.reload()}>Volver a intentar <span>→</span></button></section></main>
   )
 
   if (session?.user && view === 'home') return (
