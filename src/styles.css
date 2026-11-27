@@ -71,3 +71,19 @@
 @media(max-width:520px){.verification-screen{min-height:calc(100dvh - 80px);padding:35px 12px}.verification-screen h2{font-size:21px}.verification-resend{flex-direction:column}}
 
 .profile-section{border-top:1px solid #ffffff16;margin-top:25px;padding-top:20px}.profile-section h3{display:flex;align-items:center;gap:9px;color:#f3eaf5;font:700 15px Manrope;margin:0 0 12px}.profile-section h3 svg{color:#e58abd}.photo-gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.photo-thumb,.photo-add{position:relative;aspect-ratio:1;border:1px solid #ffffff20;border-radius:12px;overflow:hidden;background:#100f14}.photo-thumb img{width:100%;height:100%;object-fit:cover}.photo-thumb button{position:absolute;right:6px;top:6px;border:0;border-radius:8px;background:#160f19dd;color:#fff;padding:7px;cursor:pointer}.photo-add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;border-style:dashed;color:#d9a0cd;font-size:11px;cursor:pointer}.photo-add input{position:absolute;inset:0;opacity:0;cursor:pointer;height:100%}.choice-chips{display:flex;flex-wrap:wrap;gap:8px;margin:13px 0}.choice-chips button{border:1px solid #ffffff20;background:#100f14;color:#c9c0ce;border-radius:999px;padding:8px 12px;font:500 11px 'DM Sans';cursor:pointer}.choice-chips button.selected{border-color:#d76aaf;background:#d76aaf25;color:#ffd5ed}.privacy-options{display:grid;gap:3px}.privacy-toggle{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:11px 0;border-bottom:1px solid #ffffff10;color:#cfc6d4;font-size:12px}.privacy-toggle input{width:18px;height:18px;accent-color:#d75ca6}.profile-card input[type=date],.profile-card input[type=number]{color-scheme:dark}
+
+
+/* Discovery cards with member galleries and profile details */
+.person-card{display:flex;flex-direction:column;gap:15px;min-height:unset;padding:16px}
+.person-card-gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;width:100%;height:180px}
+.person-card-gallery>img{width:100%;height:100%;min-width:0;object-fit:cover;border-radius:11px;background:#100f14}
+.person-card-gallery>.person-avatar{width:100%;height:100%;border-radius:11px;flex:auto}
+.person-info{width:100%}
+.person-location{display:flex;align-items:center;gap:6px;color:#a99cad;font-size:11px;margin:0 0 9px}
+.person-location svg{color:#d477bd;flex:0 0 auto}
+.person-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.person-tags span{border:1px solid #d76aaf35;background:#d76aaf13;color:#e9b5d7;border-radius:999px;padding:5px 9px;font-size:10px}
+.person-looking{font-size:11px;line-height:1.55;color:#aaa2b2;margin:10px 0 0}
+.person-looking strong{color:#e4c4dc}
+@media(max-width:900px){.person-card-gallery{height:170px}}
+@media(max-width:600px){.person-card{padding:14px}.person-card-gallery{height:190px}}
