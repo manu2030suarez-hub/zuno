@@ -1338,3 +1338,8 @@ button{touch-action:manipulation}
 .story-progress-track span.completed{background:#fff;transform:none;animation:none}
 .story-progress-track span.current{background:#ffffff55}
 .story-progress-track span.current::after{content:"";position:absolute;inset:0;background:#fff;transform:scaleX(0);transform-origin:left;animation:story-progress linear forwards;animation-duration:inherit;animation-play-state:inherit}
+
+.story-progress-track span{animation:none!important}
+.story-progress-track span.current::after{animation-duration:inherit;animation-play-state:inherit}
+.profile-reply-chat>strong{display:block;font-size:11px;letter-spacing:.02em;opacity:.72;margin-bottom:5px}
+.profile-reply-chat>p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
