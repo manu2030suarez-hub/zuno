@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
-import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Trash2, UserPlus, Check, X } from 'lucide-react'
+import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Trash2, UserPlus, Check, X, Trash } from 'lucide-react'
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -13,6 +13,11 @@ export default function App() {
   const [favoriteBusy, setFavoriteBusy] = useState('')
   const [connectionRows, setConnectionRows] = useState([])
   const [connectionBusy, setConnectionBusy] = useState('')
+  const [conversations, setConversations] = useState([])
+  const [activeConversation, setActiveConversation] = useState(null)
+  const [chatMessages, setChatMessages] = useState([])
+  const [chatDraft, setChatDraft] = useState('')
+  const [chatBusy, setChatBusy] = useState(false)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [peopleLoading, setPeopleLoading] = useState(false)
   const [peopleRefresh, setPeopleRefresh] = useState(0)
@@ -303,7 +308,7 @@ export default function App() {
 
   if (session?.user && ['home', 'favorites', 'connections'].includes(view)) return (
     <main className="app-shell">
-      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span><button className="logout-btn" onClick={()=>setView('connections')}><Users size={15}/> Conexiones ({connectionRows.filter(row=>row.status==='accepted').length})</button><button className="logout-btn" onClick={()=>setView('favorites')}><Heart size={15}/> Favoritos ({favoriteIds.length})</button><button className="logout-btn" onClick={()=>setView('profile')}><Pencil size={15}/> Editar perfil</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
+      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span><button className="logout-btn" onClick={()=>setView('chats')}><MessageCircle size={15}/> Chats</button><button className="logout-btn" onClick={()=>setView('connections')}><Users size={15}/> Conexiones ({connectionRows.filter(row=>row.status==='accepted').length})</button><button className="logout-btn" onClick={()=>setView('favorites')}><Heart size={15}/> Favoritos ({favoriteIds.length})</button><button className="logout-btn" onClick={()=>setView('profile')}><Pencil size={15}/> Editar perfil</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
       <section className="home-content">
         <div className="home-heading"><div><div className="eyebrow"><span/> {view === 'favorites' ? 'TUS PERSONAS GUARDADAS' : view === 'connections' ? 'TUS CONEXIONES' : 'DESCUBRÍ ZUNO'}</div><h1>{view === 'favorites' ? <>Tus <span>favoritos.</span></> : view === 'connections' ? <>Tus <span>conexiones.</span></> : <>Hola, <span>{profile?.display_name || displayName || 'bienvenido'}.</span></>}</h1><p>{view === 'favorites' ? 'Perfiles que guardaste para volver a encontrarlos.' : view === 'connections' ? 'Solicitudes recibidas, enviadas y conexiones aceptadas.' : 'Estas son algunas de las personas de la comunidad. ¡Tu próxima conexión puede empezar acá!'}</p></div><div className="home-actions">{view !== 'home' && <button className="refresh-btn" onClick={()=>setView('home')}><Compass size={16}/> Descubrir</button>}<button className="refresh-btn" onClick={()=>setPeopleRefresh(value=>value+1)}><RefreshCw size={16}/> Actualizar</button></div></div>
         {peopleError && <div className="notice error">{peopleError}</div>}
@@ -312,7 +317,7 @@ export default function App() {
           <div className="people-grid">
           {view === 'home' && <article className="person-card own-person-card person-card-clickable" key={session.user.id} role="button" tabIndex={0} onClick={()=>{setSelectedProfile({...profile,photos,visibleCity:profile?.show_location?[profile?.city,profile?.region].filter(Boolean).join(', '):'',isOwn:true});setView('detail')}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelectedProfile({...profile,photos,visibleCity:profile?.show_location?[profile?.city,profile?.region].filter(Boolean).join(', '):'',isOwn:true});setView('detail')}}}>
             <div className="person-card-gallery">
-              {photos.length ? photos.slice(0,3).map(photo => <img key={photo.id} src={photo.url} alt="Tu foto de perfil"/>) : <div className="person-avatar">{profile?.avatar_url ? <img src={profile.avatar_url} alt=""/> : <span>{(profile?.display_name || displayName || '?').slice(0,1).toUpperCase()}</span>}</div>}
+              {photos.length ? <img src={photos[0].url} alt="Tu foto de perfil"/> : <div className="person-avatar">{profile?.avatar_url ? <img src={profile.avatar_url} alt=""/> : <span>{(profile?.display_name || displayName || '?').slice(0,1).toUpperCase()}</span>}</div>}
             </div>
             <div className="person-info">
               <h3>{profile?.display_name || displayName || 'Tu perfil'} <span className="verified-dot" title="Este sos vos">★</span></h3>
@@ -326,7 +331,7 @@ export default function App() {
           </article>}
           {(view === 'favorites' ? people.filter(person => favoriteIds.includes(person.id)) : people).map(person => <article className="person-card person-card-clickable" key={person.id} role="button" tabIndex={0} onClick={()=>{setSelectedProfile({...person,isOwn:false});setView('detail')}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelectedProfile({...person,isOwn:false});setView('detail')}}}>
             <div className="person-card-gallery">
-              {person.photos?.length ? person.photos.slice(0,3).map(photo => <img key={photo.id} src={photo.url} alt={`Foto de ${person.display_name || 'usuario'}`}/>) : <div className="person-avatar">{person.avatar_url ? <img src={person.avatar_url} alt=""/> : <span>{(person.display_name || person.username || '?').slice(0,1).toUpperCase()}</span>}</div>}
+              {person.photos?.length ? <img src={person.photos[0].url} alt={`Foto de ${person.display_name || 'usuario'}`}/> : <div className="person-avatar">{person.avatar_url ? <img src={person.avatar_url} alt=""/> : <span>{(person.display_name || person.username || '?').slice(0,1).toUpperCase()}</span>}</div>}
             </div>
             <div className="person-info">
               <div className="person-title-row"><h3>{person.display_name || 'Usuario ZUNO'} {person.zuno_verified && <span className="verified-dot" title="Cuenta verificada">✓</span>}</h3><button type="button" className={`favorite-btn ${favoriteIds.includes(person.id) ? 'is-favorite' : ''}`} aria-label={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} title={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} disabled={favoriteBusy === person.id} onClick={event=>{event.stopPropagation();toggleFavorite(person.id)}}><Heart size={18} fill={favoriteIds.includes(person.id) ? 'currentColor' : 'none'}/></button></div>
@@ -335,7 +340,7 @@ export default function App() {
               {person.bio && <p className="person-bio">{person.bio}</p>}
               {person.interests?.length > 0 && <div className="person-tags">{person.interests.slice(0,5).map(tag=><span key={tag}>{tag}</span>)}</div>}
               {person.looking_for?.length > 0 && <p className="person-looking"><strong>Busca:</strong> {person.looking_for.join(' · ')}</p>}
-              <ConnectionAction personId={person.id} currentUserId={session.user.id} rows={connectionRows} busy={connectionBusy} onSend={sendConnectionRequest} onRespond={respondToConnection}/>
+              <div className="person-card-actions"><button type="button" className="chat-start-btn" onClick={event=>{event.stopPropagation();openChat(person)}}><MessageCircle size={15}/> Chatear</button><ConnectionAction personId={person.id} currentUserId={session.user.id} rows={connectionRows} busy={connectionBusy} onSend={sendConnectionRequest} onRespond={respondToConnection}/></div>
             </div>
           </article>)}</div>
           {view === 'connections' && !peopleLoading && <section className="connections-panel">
