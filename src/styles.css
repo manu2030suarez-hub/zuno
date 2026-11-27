@@ -1295,3 +1295,17 @@ button{touch-action:manipulation}
  .profile-contact-bar{width:100%;padding-left:18px;padding-right:18px}
  .profile-detail-content .detail-section{padding:22px 0}
 }
+
+
+/* Compact five-action profile toolbar */
+.profile-top-five-actions{display:flex;align-items:center;justify-content:flex-end;gap:5px;max-width:calc(100% - 54px)}
+.profile-top-five-actions button{width:37px!important;height:37px!important;min-width:37px;padding:0;border:1px solid #ffffff45!important;border-radius:50%!important;background:#08080aaa!important;color:#fff!important;display:grid;place-items:center;backdrop-filter:blur(9px)}
+.profile-top-five-actions button:active{transform:scale(.94)}
+.profile-top-five-actions button:disabled{opacity:.45}
+.later-btn{border:1px solid #ffffff25;border-radius:20px;padding:9px 15px;background:#ffffff10;color:#eee;font-size:13px;font-weight:650;cursor:pointer}
+.later-btn:disabled{opacity:.5}
+.notification-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+@media(max-width:390px){
+ .profile-top-five-actions{gap:3px}
+ .profile-top-five-actions button{width:33px!important;height:33px!important;min-width:33px;padding:0}
+}
