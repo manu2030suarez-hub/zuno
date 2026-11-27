@@ -17,6 +17,7 @@ export default function App() {
   const [unreadCounts, setUnreadCounts] = useState({})
   const [activeConversation, setActiveConversation] = useState(null)
   const [chatMessages, setChatMessages] = useState([])
+  const [messageReceipts, setMessageReceipts] = useState({})
   const [chatDraft, setChatDraft] = useState('')
   const [chatBusy, setChatBusy] = useState(false)
   const [selectedProfile, setSelectedProfile] = useState(null)
@@ -200,6 +201,14 @@ export default function App() {
     if (!readError) setUnreadCounts(current => ({ ...current, [conversationId]: 0 }))
   }
 
+  async function recordMessageReceipt(messageId, read = false) {
+    if (!session?.user || !messageId) return
+    const now = new Date().toISOString()
+    const values = { message_id: messageId, user_id: session.user.id, delivered_at: now, ...(read ? { read_at: now } : {}) }
+    const { data, error: receiptError } = await supabase.from('message_receipts').upsert(values, { onConflict: 'message_id,user_id' }).select('message_id,user_id,delivered_at,read_at').single()
+    if (!receiptError && data) setMessageReceipts(current => ({ ...current, [messageId]: data }))
+  }
+
   function playMessageSound() {
     try {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext
@@ -228,6 +237,18 @@ export default function App() {
     const { data: messages, error: messagesError } = await supabase.from('messages').select('id,conversation_id,sender_id,body,created_at').eq('conversation_id', conversation.id).order('created_at')
     setChatBusy(false)
     if (messagesError) { setPeopleError('No pudimos cargar los mensajes. ' + messagesError.message); return }
+    const incomingMessages = (messages || []).filter(item => item.sender_id !== session.user.id)
+    if (incomingMessages.length) {
+      const now = new Date().toISOString()
+      await supabase.from('message_receipts').upsert(incomingMessages.map(item => ({ message_id: item.id, user_id: session.user.id, delivered_at: now, read_at: now })), { onConflict: 'message_id,user_id' })
+    }
+    const sentIds = (messages || []).filter(item => item.sender_id === session.user.id).map(item => item.id)
+    let receiptMap = {}
+    if (sentIds.length) {
+      const { data: receipts } = await supabase.from('message_receipts').select('message_id,user_id,delivered_at,read_at').in('message_id', sentIds).neq('user_id', session.user.id)
+      receiptMap = Object.fromEntries((receipts || []).map(item => [item.message_id, item]))
+    }
+    setMessageReceipts(receiptMap)
     setActiveConversation({ ...conversation, person }); setChatMessages(messages || []); setChatDraft(''); await markConversationRead(conversation.id); setView('chat')
   }
 
@@ -244,9 +265,15 @@ export default function App() {
 
   useEffect(() => {
     if (!activeConversation?.id || view !== 'chat') return
-    const channel = supabase.channel('zuno-chat-' + activeConversation.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + activeConversation.id }, payload => {
-      setChatMessages(current => current.some(message => message.id === payload.new.id) ? current : [...current, payload.new])
-    }).subscribe()
+    const channel = supabase.channel('zuno-chat-' + activeConversation.id)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + activeConversation.id }, payload => {
+        setChatMessages(current => current.some(message => message.id === payload.new.id) ? current : [...current, payload.new])
+        if (payload.new.sender_id !== session.user.id) recordMessageReceipt(payload.new.id, true)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_receipts' }, payload => {
+        const receipt = payload.new
+        if (receipt?.user_id && receipt.user_id !== session.user.id) setMessageReceipts(current => ({ ...current, [receipt.message_id]: receipt }))
+      }).subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [activeConversation?.id, view])
 
@@ -289,7 +316,9 @@ export default function App() {
     const channel = supabase.channel('zuno-global-message-notifications-' + session.user.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
       const incoming = payload.new
       if (incoming.sender_id === session.user.id) return
-      if (activeConversation?.id === incoming.conversation_id && view === 'chat') {
+      const isOpen = activeConversation?.id === incoming.conversation_id && view === 'chat'
+      recordMessageReceipt(incoming.id, isOpen)
+      if (isOpen) {
         markConversationRead(incoming.conversation_id)
         return
       }
@@ -433,7 +462,7 @@ export default function App() {
     <main className="app-shell">
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('chats')}><MessageCircle size={15}/> Todos los chats</button><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
       <section className="direct-chat"><div className="direct-chat-header"><button className="logout-btn" onClick={()=>setView('home')}>← Volver</button><div><strong>{activeConversation.person?.display_name || 'Chat ZUNO'}</strong><small>{activeConversation.person?.username ? '@'+activeConversation.person.username : 'Conversación privada'}</small></div></div>
-        <div className="direct-chat-messages">{chatMessages.map(message=><div key={message.id} className={message.sender_id===session.user.id?'chat-bubble own':'chat-bubble'}><p>{message.body}</p><time>{new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></div>)}</div>
+        <div className="direct-chat-messages">{chatMessages.map(message=><div key={message.id} className={message.sender_id===session.user.id?'chat-bubble own':'chat-bubble'}><p>{message.body}</p><time>{new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}{message.sender_id===session.user.id && <span className={'message-ticks '+(messageReceipts[message.id]?.read_at?'is-read':messageReceipts[message.id]?.delivered_at?'is-delivered':'')}>{messageReceipts[message.id]?.read_at?'✓✓':messageReceipts[message.id]?.delivered_at?'✓✓':'✓'}</span>}</time></div>)}</div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         <form className="chat-compose" onSubmit={sendChatMessage}><input value={chatDraft} onChange={event=>setChatDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="submit" disabled={chatBusy||!chatDraft.trim()}><Send size={18}/></button></form>
       </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
