@@ -270,7 +270,7 @@ export default function App() {
   async function openStory(story) {
     setStoryViewer(story)
     if (story.user_id !== session?.user?.id) {
-      const { error: viewError } = await supabase.from('story_views').upsert({ story_id: story.id, viewer_id: session.user.id, viewed_at: new Date().toISOString() }, { onConflict: 'story_id,viewer_id' })
+      const { error: viewError } = await supabase.from('story_views').insert({ story_id: story.id, viewer_id: session.user.id, viewed_at: new Date().toISOString() })
       if (viewError) console.warn('No se pudo registrar la visualización:', viewError.message)
     }
   }
