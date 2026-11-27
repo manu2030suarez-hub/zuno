@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
-import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, UserPlus, Check, X, Trash } from 'lucide-react'
+import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash } from 'lucide-react'
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -21,6 +21,12 @@ export default function App() {
   const [chatDraft, setChatDraft] = useState('')
   const [chatBusy, setChatBusy] = useState(false)
   const [chatMediaBusy, setChatMediaBusy] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [audioDraft, setAudioDraft] = useState(null)
+  const [audioPlaying, setAudioPlaying] = useState(false)
+  const recorderRef = useRef(null)
+  const recordingStreamRef = useRef(null)
+  const recordingChunksRef = useRef([])
   const [chatDraftImages, setChatDraftImages] = useState([])
   const [chatGallery, setChatGallery] = useState([])
   const [showChatGallery, setShowChatGallery] = useState(false)
@@ -235,7 +241,7 @@ export default function App() {
 
   async function resolveChatMedia(rows) {
     return Promise.all((rows || []).map(async item => {
-      if (item.message_type !== 'image' || !item.media_path) return item
+      if (!['image', 'audio'].includes(item.message_type) || !item.media_path) return item
       const { data } = await supabase.storage.from('zuno-chat-media').createSignedUrl(item.media_path, 300)
       return { ...item, media_url: data?.signedUrl || '' }
     }))
@@ -278,6 +284,93 @@ export default function App() {
     setChatBusy(false)
     if (sendError) { setPeopleError('No pudimos enviar el mensaje. ' + sendError.message); return }
     setChatMessages(current => [...current, data]); setChatDraft('')
+  }
+
+  async function startChatRecording(event) {
+    if (!activeConversation || isRecording || audioDraft || chatMediaBusy) return
+    event?.preventDefault?.()
+    try {
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+        setPeopleError('Tu navegador no permite grabar audio desde esta página.')
+        return
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      recordingStreamRef.current = stream
+      recordingChunksRef.current = []
+      const candidates = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4']
+      const mimeType = candidates.find(type => MediaRecorder.isTypeSupported?.(type)) || ''
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      recorderRef.current = recorder
+      recorder.ondataavailable = chunkEvent => {
+        if (chunkEvent.data?.size) recordingChunksRef.current.push(chunkEvent.data)
+      }
+      recorder.onstop = () => {
+        const type = (recorder.mimeType || 'audio/webm').split(';')[0]
+        const blob = new Blob(recordingChunksRef.current, { type })
+        stream.getTracks().forEach(track => track.stop())
+        recordingStreamRef.current = null
+        recorderRef.current = null
+        recordingChunksRef.current = []
+        setIsRecording(false)
+        if (blob.size) setAudioDraft({ blob, url: URL.createObjectURL(blob), mimeType: type })
+      }
+      recorder.start()
+      setIsRecording(true)
+      setPeopleError('')
+    } catch (error) {
+      recordingStreamRef.current?.getTracks().forEach(track => track.stop())
+      recordingStreamRef.current = null
+      setIsRecording(false)
+      setPeopleError(error.name === 'NotAllowedError' ? 'Necesitás permitir el acceso al micrófono para grabar.' : 'No pudimos iniciar la grabación. ' + error.message)
+    }
+  }
+
+  function stopChatRecording() {
+    const recorder = recorderRef.current
+    if (recorder && recorder.state !== 'inactive') recorder.stop()
+  }
+
+  function discardAudioDraft() {
+    if (audioDraft?.url) URL.revokeObjectURL(audioDraft.url)
+    setAudioDraft(null)
+    setAudioPlaying(false)
+  }
+
+  async function sendChatAudio() {
+    if (!audioDraft || !activeConversation || chatMediaBusy) return
+    setChatMediaBusy(true)
+    setPeopleError('')
+    const mime = audioDraft.mimeType
+    const extensions = { 'audio/webm':'webm', 'audio/ogg':'ogg', 'audio/mp4':'mp4', 'audio/mpeg':'mp3', 'audio/wav':'wav' }
+    const extension = extensions[mime]
+    if (!extension) {
+      setPeopleError('El formato de audio de este navegador no es compatible.')
+      setChatMediaBusy(false)
+      return
+    }
+    const path = `${activeConversation.id}/${session.user.id}/${crypto.randomUUID()}.${extension}`
+    try {
+      const file = new File([audioDraft.blob], `zuno-audio.${extension}`, { type: mime })
+      const { error: uploadError } = await supabase.storage.from('zuno-chat-media').upload(path, file, { contentType: mime, upsert: false })
+      if (uploadError) throw uploadError
+      const { data, error: insertError } = await supabase.from('messages').insert({
+        conversation_id: activeConversation.id,
+        sender_id: session.user.id,
+        body: null,
+        message_type: 'audio',
+        media_path: path
+      }).select('id,conversation_id,sender_id,body,created_at,message_type,media_path').single()
+      if (insertError) {
+        await supabase.storage.from('zuno-chat-media').remove([path])
+        throw insertError
+      }
+      const [displayMessage] = await resolveChatMedia([data])
+      setChatMessages(current => current.some(message => message.id === data.id) ? current : [...current, displayMessage])
+      discardAudioDraft()
+    } catch (error) {
+      setPeopleError('No pudimos enviar el audio. ' + error.message)
+    }
+    setChatMediaBusy(false)
   }
 
   function addChatImages(files) {
@@ -629,11 +722,13 @@ export default function App() {
     <main className="app-shell">
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('chats')}><MessageCircle size={15}/> Todos los chats</button><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
       <section className="direct-chat"><div className="direct-chat-header"><button className="logout-btn" onClick={()=>setView('home')}>← Volver</button><div><strong>{activeConversation.person?.display_name || 'Chat ZUNO'}</strong><small>{activeConversation.person?.username ? '@'+activeConversation.person.username : 'Conversación privada'}</small></div></div>
-        <div className={`direct-chat-messages ${chatDragOver ? 'is-drag-over' : ''}`} onDragOver={event=>{event.preventDefault();setChatDragOver(true)}} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget))setChatDragOver(false)}} onDrop={handleChatDrop}>{chatMessages.map(message=><div key={message.id} className={message.sender_id===session.user.id?'chat-bubble own':'chat-bubble'}>{message.message_type==='image' ? <div className="chat-image-protected" onContextMenu={event=>event.preventDefault()}><img src={message.media_url || ''} alt="Imagen privada del chat" draggable="false"/><span className="chat-image-watermark">@{profile?.username || profile?.display_name || 'ZUNO'}</span></div> : <p>{message.body}</p>}<time>{new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}{message.sender_id===session.user.id && <span className={'message-ticks '+(messageReceipts[message.id]?.read_at?'is-read':messageReceipts[message.id]?.delivered_at?'is-delivered':'')}>{messageReceipts[message.id]?.read_at?'✓✓':messageReceipts[message.id]?.delivered_at?'✓✓':'✓'}</span>}</time></div>)}{chatDragOver && <div className="chat-drop-hint">Soltá las imágenes acá para prepararlas</div>}</div>
+        <div className={`direct-chat-messages ${chatDragOver ? 'is-drag-over' : ''}`} onDragOver={event=>{event.preventDefault();setChatDragOver(true)}} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget))setChatDragOver(false)}} onDrop={handleChatDrop}>{chatMessages.map(message=><div key={message.id} className={message.sender_id===session.user.id?'chat-bubble own':'chat-bubble'}>{message.message_type==='image' ? <div className="chat-image-protected" onContextMenu={event=>event.preventDefault()}><img src={message.media_url || ''} alt="Imagen privada del chat" draggable="false"/><span className="chat-image-watermark">@{profile?.username || profile?.display_name || 'ZUNO'}</span></div> : message.message_type==='audio' ? <audio className="chat-audio-player" controls preload="metadata" src={message.media_url || ''}/> : <p>{message.body}</p>}<time>{new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}{message.sender_id===session.user.id && <span className={'message-ticks '+(messageReceipts[message.id]?.read_at?'is-read':messageReceipts[message.id]?.delivered_at?'is-delivered':'')}>{messageReceipts[message.id]?.read_at?'✓✓':messageReceipts[message.id]?.delivered_at?'✓✓':'✓'}</span>}</time></div>)}{chatDragOver && <div className="chat-drop-hint">Soltá las imágenes acá para prepararlas</div>}</div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         {chatDraftImages.length > 0 && <div className="chat-image-editor"><div className="chat-editor-heading"><strong>Prepará tus fotos ({chatDraftImages.length}/5)</strong><span>Se enviarán solo cuando pulses Enviar fotos</span></div><div className="chat-editor-grid">{chatDraftImages.map(item=><div className="chat-editor-card" key={item.id}><div className="chat-editor-preview" onPointerDown={event=>startCropDrag(event,item)} title={item.zoom>1?"Arrastrá para elegir el recorte":"Acercá la imagen para poder moverla"}><img src={item.url} alt="Vista previa" draggable="false" style={{transform:`translate(${(item.offsetX||0)*((item.zoom-1)/(2*item.zoom))*100}%, ${(item.offsetY||0)*((item.zoom-1)/(2*item.zoom))*100}%) rotate(${item.rotation}deg) scale(${item.zoom})`}}/></div><div className="chat-editor-controls"><button type="button" onClick={()=>updateDraftImage(item.id,{rotation:(item.rotation+270)%360})}>↶ Girar</button><button type="button" onClick={()=>updateDraftImage(item.id,{rotation:(item.rotation+90)%360})}>↷</button><label>Recorte <input type="range" min="1" max="2.5" step="0.05" value={item.zoom} onChange={event=>updateDraftImage(item.id,{zoom:Number(event.target.value),offsetX:0,offsetY:0})}/></label><button type="button" className="chat-editor-remove" onClick={()=>removeDraftImage(item.id)}>Quitar</button></div></div>)}</div><button type="button" className="chat-send-images" onClick={sendPreparedImages} disabled={chatMediaBusy}>{chatMediaBusy?'Enviando…':`Enviar ${chatDraftImages.length} foto(s)`}</button></div>}
         {showChatGallery && chatGallery.length > 0 && <div className="chat-gallery-strip"><strong>Fotos que ya enviaste</strong><div>{chatGallery.map(item=><button type="button" key={item.id} onClick={()=>addGalleryImage(item)} disabled={chatDraftImages.length>=5} title="Volver a usar esta foto"><img src={item.url} alt="Foto anterior"/><span>+</span></button>)}</div></div>}
-        <form className="chat-compose" onSubmit={sendChatMessage}><label className="chat-image-upload" title="Subir fotos"><ImagePlus size={19}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={event=>{addChatImages(event.target.files);event.target.value=''}} disabled={chatDraftImages.length>=5}/></label><button type="button" className={`chat-gallery-toggle ${showChatGallery?'active':''}`} title="Reutilizar fotos anteriores" aria-label="Reutilizar fotos anteriores" disabled={!chatGallery.length} onClick={()=>setShowChatGallery(value=>!value)}><Images size={19}/></button><input value={chatDraft} onChange={event=>setChatDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="submit" disabled={chatBusy||!chatDraft.trim()}><Send size={18}/></button></form>
+        {audioDraft && <div className="chat-audio-draft"><strong>Escuchá tu audio antes de enviarlo</strong><audio controls preload="metadata" src={audioDraft.url}/><div><button type="button" onClick={discardAudioDraft} disabled={chatMediaBusy}>Eliminar</button><button type="button" onClick={sendChatAudio} disabled={chatMediaBusy}>{chatMediaBusy?'Enviando…':'Enviar audio'}</button></div></div>}
+        <form className="chat-compose" onSubmit={sendChatMessage}><label className="chat-image-upload" title="Subir fotos"><ImagePlus size={19}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={event=>{addChatImages(event.target.files);event.target.value=''}} disabled={chatDraftImages.length>=5}/></label><button type="button" className={`chat-gallery-toggle ${showChatGallery?'active':''}`} title="Reutilizar fotos anteriores" aria-label="Reutilizar fotos anteriores" disabled={!chatGallery.length} onClick={()=>setShowChatGallery(value=>!value)}><Images size={19}/></button><input value={chatDraft} onChange={event=>setChatDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="button" className={`chat-mic-button ${isRecording?'recording':''}`} title={isRecording?'Soltá para terminar':'Mantené presionado para grabar'} aria-label="Mantener presionado para grabar audio" disabled={!!audioDraft||chatMediaBusy} onPointerDown={startChatRecording} onPointerUp={stopChatRecording} onPointerCancel={stopChatRecording} onContextMenu={event=>event.preventDefault()}><Mic size={19}/></button><button type="submit" disabled={chatBusy||!chatDraft.trim()}><Send size={18}/></button></form>
+        {isRecording && <div className="chat-recording-hint">Grabando… soltá el micrófono para terminar.</div>}
       </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
   )
