@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
-import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, StopCircle } from 'lucide-react'
+import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, StopCircle, Ban, Flag } from 'lucide-react'
 
 function ChatAudioPlayer({ src, error }) {
   const audioRef = useRef(null)
@@ -82,6 +82,12 @@ export default function App() {
   const [discoveryWithPhotos, setDiscoveryWithPhotos] = useState(false)
   const [discoverySort, setDiscoverySort] = useState('recent')
   const [peopleError, setPeopleError] = useState('')
+  const [blockedUsers, setBlockedUsers] = useState([])
+  const [blockBusy, setBlockBusy] = useState('')
+  const [reportTarget, setReportTarget] = useState(null)
+  const [reportReason, setReportReason] = useState('harassment')
+  const [reportDetails, setReportDetails] = useState('')
+  const [reportBusy, setReportBusy] = useState(false)
   const [mode, setMode] = useState('signup')
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
@@ -200,7 +206,74 @@ export default function App() {
     return () => { active = false }
   }, [session, view, peopleRefresh])
 
+  useEffect(() => {
+    if (!session?.user) { setBlockedUsers([]); return }
+    let active = true
+    supabase.from('user_blocks').select('id,blocked_id,created_at')
+      .eq('blocker_id', session.user.id).order('created_at', { ascending: false })
+      .then(async ({ data, error: blockError }) => {
+        if (!active) return
+        if (blockError) { setPeopleError('No pudimos cargar los bloqueos. ' + blockError.message); return }
+        const rows = data || []
+        const ids = rows.map(row => row.blocked_id)
+        let names = {}
+        if (ids.length) {
+          const { data: profiles } = await supabase.from('profiles').select('id,display_name,username').in('id', ids)
+          names = Object.fromEntries((profiles || []).map(item => [item.id, item]))
+        }
+        if (active) setBlockedUsers(rows.map(row => ({ ...row, person: names[row.blocked_id] || null })))
+      })
+    return () => { active = false }
+  }, [session, peopleRefresh])
+
+  async function blockUser(person) {
+    if (!session?.user || !person?.id || blockBusy) return
+    setBlockBusy(person.id); setPeopleError('')
+    const { data, error: blockError } = await supabase.from('user_blocks')
+      .insert({ blocker_id: session.user.id, blocked_id: person.id })
+      .select('id,blocked_id,created_at').single()
+    setBlockBusy('')
+    if (blockError) {
+      setPeopleError(blockError.code === '23505' ? 'Esta cuenta ya está bloqueada.' : 'No pudimos bloquear esta cuenta. ' + blockError.message)
+      return
+    }
+    setBlockedUsers(current => [{ ...data, person }, ...current])
+    setPeople(current => current.filter(item => item.id !== person.id))
+    setSelectedProfile(null); setView('home')
+    setPeopleError('La cuenta fue bloqueada. Ya no podrán encontrarse ni enviarse mensajes.')
+  }
+
+  async function unblockUser(blockedId) {
+    if (!session?.user || !blockedId || blockBusy) return
+    setBlockBusy(blockedId)
+    const { error: unblockError } = await supabase.from('user_blocks').delete()
+      .eq('blocker_id', session.user.id).eq('blocked_id', blockedId)
+    setBlockBusy('')
+    if (unblockError) { setPeopleError('No pudimos desbloquear esta cuenta. ' + unblockError.message); return }
+    setBlockedUsers(current => current.filter(item => item.blocked_id !== blockedId))
+    setPeopleRefresh(value => value + 1)
+    setPeopleError('Cuenta desbloqueada.')
+  }
+
+  async function submitUserReport(event) {
+    event.preventDefault()
+    if (!session?.user || !reportTarget || reportBusy) return
+    setReportBusy(true); setPeopleError('')
+    const { error: reportError } = await supabase.from('user_reports').insert({
+      reporter_id: session.user.id,
+      reported_user_id: reportTarget.id,
+      reason: reportReason,
+      details: reportDetails.trim() || null
+    })
+    setReportBusy(false)
+    if (reportError) { setPeopleError('No pudimos enviar la denuncia. ' + reportError.message); return }
+    setReportTarget(null); setReportDetails('')
+    setPeopleError('Denuncia enviada de forma privada. Gracias por ayudar a mantener ZUNO seguro.')
+  }
+
+  const blockedIds = new Set(blockedUsers.map(item => item.blocked_id))
   const discoveryPeople = people.filter(person => {
+    if (blockedIds.has(person.id)) return false
     const term = discoverySearch.trim().toLocaleLowerCase()
     const searchable = [person.display_name, person.username, person.bio, person.visibleCity, ...(person.interests || []), ...(person.looking_for || [])].filter(Boolean).join(' ').toLocaleLowerCase()
     if (term && !searchable.includes(term)) return false
@@ -328,6 +401,7 @@ export default function App() {
 
   async function openChat(person) {
     if (!session?.user || !person?.id) return
+    if (blockedUsers.some(item => item.blocked_id === person.id)) { setPeopleError('Esta cuenta está bloqueada. Desbloqueala antes de iniciar un chat.'); return }
     const ids = [session.user.id, person.id].sort()
     setChatBusy(true); setPeopleError('')
     const { data: conversation, error: conversationError } = await supabase.from('conversations').upsert({ member_one: ids[0], member_two: ids[1] }, { onConflict: 'member_one,member_two' }).select('id,member_one,member_two,ephemeral_duration_minutes').single()
@@ -945,12 +1019,13 @@ export default function App() {
           {selectedProfile.interests?.length > 0 && <section className="detail-section"><h2>Intereses y gustos</h2><div className="person-tags">{selectedProfile.interests.map(tag=><span key={tag}>{tag}</span>)}</div></section>}
           {selectedProfile.looking_for?.length > 0 && <section className="detail-section"><h2>¿Qué busca?</h2><div className="person-tags">{selectedProfile.looking_for.map(item=><span key={item}>{item}</span>)}</div></section>}
           {!selectedProfile.bio && !selectedProfile.interests?.length && !selectedProfile.looking_for?.length && !selectedProfile.visibleCity && <p className="detail-private-note">Esta persona todavía no agregó información pública a su perfil.</p>}
-          {selectedProfile.isOwn ? <p className="detail-private-note">Este es tu perfil. Podés modificar la información y la privacidad cuando quieras.</p> : <><button type="button" className={`favorite-detail-btn ${favoriteIds.includes(selectedProfile.id) ? 'is-favorite' : ''}`} disabled={favoriteBusy === selectedProfile.id} onClick={()=>toggleFavorite(selectedProfile.id)}><Heart size={17} fill={favoriteIds.includes(selectedProfile.id) ? 'currentColor' : 'none'}/>{favoriteIds.includes(selectedProfile.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}</button><p className="detail-private-note">Solo mostramos la información que esta persona decidió compartir.</p></>}
+          {selectedProfile.isOwn ? <p className="detail-private-note">Este es tu perfil. Podés modificar la información y la privacidad cuando quieras.</p> : <><button type="button" className={`favorite-detail-btn ${favoriteIds.includes(selectedProfile.id) ? 'is-favorite' : ''}`} disabled={favoriteBusy === selectedProfile.id} onClick={()=>toggleFavorite(selectedProfile.id)}><Heart size={17} fill={favoriteIds.includes(selectedProfile.id) ? 'currentColor' : 'none'}/>{favoriteIds.includes(selectedProfile.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}</button><div className="profile-safety-actions"><button type="button" className="logout-btn" disabled={blockBusy===selectedProfile.id} onClick={()=>blockUser(selectedProfile)}><Ban size={15}/> {blockBusy===selectedProfile.id ? 'Bloqueando…' : 'Bloquear usuario'}</button><button type="button" className="logout-btn" onClick={()=>{setReportTarget(selectedProfile);setReportReason('harassment');setReportDetails('')}}><Flag size={15}/> Denunciar perfil</button></div><p className="detail-private-note">Solo mostramos la información que esta persona decidió compartir.</p></>}
         </div>
       </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
   )
 
+  {reportTarget && <div className="security-modal-backdrop" role="presentation"><form className="security-modal" onSubmit={submitUserReport}><div className="security-modal-heading"><h2>Denunciar perfil</h2><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)} aria-label="Cerrar"><X size={17}/></button></div><p>Tu denuncia sobre {reportTarget.display_name || 'este usuario'} será privada y revisada por el equipo de ZUNO.</p><label>Motivo<select value={reportReason} onChange={event=>setReportReason(event.target.value)}><option value="fake_profile">Perfil falso o suplantación</option><option value="harassment">Acoso o amenazas</option><option value="inappropriate_content">Contenido inapropiado</option><option value="spam">Spam</option><option value="underage">Posible menor de edad</option><option value="scam">Estafa o fraude</option><option value="other">Otro motivo</option></select></label><label>Detalles (opcional)<textarea rows="4" maxLength="2000" value={reportDetails} onChange={event=>setReportDetails(event.target.value)} placeholder="Contanos qué pasó…"/></label><div className="security-modal-actions"><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)}>Cancelar</button><button type="submit" className="submit-btn" disabled={reportBusy}>{reportBusy ? 'Enviando…' : 'Enviar denuncia'}</button></div></form></div>}
   if (session?.user && view === 'chat' && activeConversation) return (
     <main className="app-shell">
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('chats')}><MessageCircle size={15}/> Todos los chats</button><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
@@ -1058,6 +1133,7 @@ export default function App() {
             <div className="profile-section"><h3>Intereses y gustos</h3><div className="choice-chips">{interestOptions.map(item=><button type="button" key={item} className={interests.includes(item)?'selected':''} onClick={()=>setInterests(cur=>cur.includes(item)?cur.filter(x=>x!==item):[...cur,item])}>{item}</button>)}</div></div>
             <div className="profile-section"><h3>¿Qué estás buscando?</h3><div className="choice-chips">{lookingOptions.map(item=><button type="button" key={item} className={lookingFor.includes(item)?'selected':''} onClick={()=>setLookingFor(cur=>cur.includes(item)?cur.filter(x=>x!==item):[...cur,item])}>{item}</button>)}</div><label htmlFor="ageMin">Edad mínima</label><input id="ageMin" type="number" min="18" max="99" value={ageMin} onChange={e=>setAgeMin(e.target.value)}/><label htmlFor="ageMax">Edad máxima</label><input id="ageMax" type="number" min="18" max="99" value={ageMax} onChange={e=>setAgeMax(e.target.value)}/><label htmlFor="distanceKm">Distancia máxima aproximada (km)</label><input id="distanceKm" type="number" min="1" max="500" value={distanceKm} onChange={e=>setDistanceKm(e.target.value)}/></div>
             <div className="profile-section"><h3><ShieldCheck size={17}/> Privacidad</h3><div className="privacy-options">{[['show_online','Mostrar cuando estoy conectado'],['show_distance','Mostrar distancia aproximada'],['show_age','Permitir mostrar mi edad'],['show_location','Mostrar ciudad o región']].map(([key,label])=><label className="privacy-toggle" key={key}><span>{label}</span><input type="checkbox" checked={Boolean(privacy[key])} onChange={e=>setPrivacy(cur=>({...cur,[key]:e.target.checked}))}/></label>)}</div></div>
+            <div className="profile-section"><h3><Ban size={17}/> Cuentas bloqueadas</h3>{blockedUsers.length ? <div className="blocked-users-list">{blockedUsers.map(item=><div className="blocked-user-row" key={item.id}><span><strong>{item.person?.display_name || 'Usuario ZUNO'}</strong><small>{item.person?.username ? '@'+item.person.username : 'Cuenta bloqueada'}</small></span><button type="button" className="logout-btn" disabled={blockBusy===item.blocked_id} onClick={()=>unblockUser(item.blocked_id)}>Desbloquear</button></div>)}</div> : <p className="detail-private-note">Todavía no bloqueaste ninguna cuenta.</p>}</div>
             {error && <div className="notice error">{error}</div>}{message && <div className="notice success">{message}</div>}
             <button className="submit-btn" type="submit" disabled={busy}>{busy ? 'Guardando…' : profile?.display_name ? 'Guardar cambios' : 'Guardar perfil'} <span>→</span></button>
           </form>
