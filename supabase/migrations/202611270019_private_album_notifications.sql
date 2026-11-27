@@ -19,7 +19,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if new.status = 'pending' then
+  if new.status = 'pending' and (tg_op = 'INSERT' or old.status = 'rejected') then
     perform public.zuno_create_activity_notification(
       new.owner_id,
       new.requester_id,
@@ -36,8 +36,9 @@ $$;
 revoke all on function public.zuno_notify_private_album_request() from public, anon, authenticated;
 
 drop trigger if exists zuno_notify_private_album_request_insert on public.private_album_access_requests;
-create trigger zuno_notify_private_album_request_insert
-  after insert on public.private_album_access_requests
+drop trigger if exists zuno_notify_private_album_request_change on public.private_album_access_requests;
+create trigger zuno_notify_private_album_request_change
+  after insert or update of status on public.private_album_access_requests
   for each row execute function public.zuno_notify_private_album_request();
 
 create or replace function public.zuno_notify_private_album_decision()
