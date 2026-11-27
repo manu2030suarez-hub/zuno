@@ -270,3 +270,6 @@
 .ephemeral-menu>button:disabled{opacity:.5;cursor:wait}
 .message-expiry-label{font-size:9px;color:#e6a6ca;white-space:nowrap}
 @media(max-width:600px){.direct-chat-header{flex-wrap:wrap;gap:8px}.ephemeral-settings{margin-left:auto}.ephemeral-settings>.logout-btn{font-size:10px;padding:8px 9px}}
+
+.ephemeral-settings{display:block}
+.ephemeral-settings .ephemeral-menu{display:grid;flex-direction:initial}
