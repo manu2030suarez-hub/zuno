@@ -1091,3 +1091,9 @@ button{touch-action:manipulation}
 .person-online-label.recent{color:#f1d28d}.person-online-label.recent span{background:#e9b84e;box-shadow:0 0 8px #e9b84e}
 .person-online-label.offline{color:#aaa2b2}.person-online-label.offline span{background:#77717f;box-shadow:none}
 .person-distance-label{display:flex;align-items:center;gap:5px;margin:4px 0 0;color:#d8b9ff;font-size:10px;font-weight:700}
+
+
+/* Evitar el arrastre/preview nativo de imágenes y permitir restaurar historias */
+.story-viewer>img{ -webkit-user-drag:none; -webkit-touch-callout:none; user-select:none; -webkit-user-select:none; touch-action:none }
+.story-restore{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;flex:0 0 auto;margin-top:9px;padding:11px;border:1px solid #7b55b8;border-radius:12px;background:linear-gradient(110deg,#35204b,#21152f);color:#f1d7ff;font-weight:800;cursor:pointer}
+.story-restore:disabled{opacity:.55;cursor:not-allowed}
