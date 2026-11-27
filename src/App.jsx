@@ -74,6 +74,13 @@ export default function App() {
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [peopleLoading, setPeopleLoading] = useState(false)
   const [peopleRefresh, setPeopleRefresh] = useState(0)
+  const [discoverySearch, setDiscoverySearch] = useState('')
+  const [discoveryCity, setDiscoveryCity] = useState('')
+  const [discoveryInterest, setDiscoveryInterest] = useState('')
+  const [discoveryLookingFor, setDiscoveryLookingFor] = useState('')
+  const [discoveryVerifiedOnly, setDiscoveryVerifiedOnly] = useState(false)
+  const [discoveryWithPhotos, setDiscoveryWithPhotos] = useState(false)
+  const [discoverySort, setDiscoverySort] = useState('recent')
   const [peopleError, setPeopleError] = useState('')
   const [mode, setMode] = useState('signup')
   const [displayName, setDisplayName] = useState('')
@@ -157,7 +164,7 @@ export default function App() {
     if (!session?.user || !['home', 'favorites', 'connections'].includes(view)) return
     let active = true
     setPeopleLoading(true); setPeopleError('')
-    supabase.from('profiles').select('id, display_name, username, bio, avatar_url, zuno_verified, city, region, interests, looking_for, show_location, created_at').neq('id', session.user.id).order('created_at', { ascending: false }).limit(40)
+    supabase.from('profiles').select('id, display_name, username, bio, avatar_url, zuno_verified, city, region, interests, looking_for, show_location, created_at').neq('id', session.user.id).order('created_at', { ascending: false }).limit(100)
       .then(async ({ data, error: listError }) => {
         if (!active) return
         if (listError) {
@@ -192,6 +199,19 @@ export default function App() {
       })
     return () => { active = false }
   }, [session, view, peopleRefresh])
+
+  const discoveryPeople = people.filter(person => {
+    const term = discoverySearch.trim().toLocaleLowerCase()
+    const searchable = [person.display_name, person.username, person.bio, person.visibleCity, ...(person.interests || []), ...(person.looking_for || [])].filter(Boolean).join(' ').toLocaleLowerCase()
+    if (term && !searchable.includes(term)) return false
+    if (discoveryCity.trim() && !(person.visibleCity || '').toLocaleLowerCase().includes(discoveryCity.trim().toLocaleLowerCase())) return false
+    if (discoveryInterest && !(person.interests || []).includes(discoveryInterest)) return false
+    if (discoveryLookingFor && !(person.looking_for || []).includes(discoveryLookingFor)) return false
+    if (discoveryVerifiedOnly && !person.zuno_verified) return false
+    if (discoveryWithPhotos && !(person.photos || []).length) return false
+    return true
+  }).sort((a,b) => discoverySort === 'name' ? (a.display_name || '').localeCompare(b.display_name || '') : discoverySort === 'oldest' ? new Date(a.created_at || 0)-new Date(b.created_at || 0) : new Date(b.created_at || 0)-new Date(a.created_at || 0))
+  const discoveryFiltersActive = Boolean(discoverySearch || discoveryCity || discoveryInterest || discoveryLookingFor || discoveryVerifiedOnly || discoveryWithPhotos || discoverySort !== 'recent')
 
   async function toggleFavorite(personId) {
     if (!session?.user || favoriteBusy) return
@@ -964,6 +984,20 @@ export default function App() {
         {peopleError && <div className="notice error">{peopleError}</div>}
         {peopleLoading ? <div className="empty-state">Buscando perfiles…</div> : (
           <>
+          {view === 'home' && <section className="discovery-filters">
+            <div className="discovery-filter-heading"><div><strong><Compass size={17}/> Encontrá personas</strong><small>{discoveryPeople.length} perfiles encontrados entre los cargados</small></div>{discoveryFiltersActive && <button type="button" className="filter-clear-btn" onClick={()=>{setDiscoverySearch('');setDiscoveryCity('');setDiscoveryInterest('');setDiscoveryLookingFor('');setDiscoveryVerifiedOnly(false);setDiscoveryWithPhotos(false);setDiscoverySort('recent')}}>Limpiar filtros</button>}</div>
+            <div className="discovery-filter-grid">
+              <label className="discovery-search-field"><span>Buscar</span><input type="search" value={discoverySearch} onChange={event=>setDiscoverySearch(event.target.value)} placeholder="Nombre, usuario, bio o intereses…"/></label>
+              <label><span>Ciudad o región</span><input type="search" value={discoveryCity} onChange={event=>setDiscoveryCity(event.target.value)} placeholder="Ej. Montevideo"/></label>
+              <label><span>Interés</span><select value={discoveryInterest} onChange={event=>setDiscoveryInterest(event.target.value)}><option value="">Todos los intereses</option>{['Música','Cine','Deportes','Viajes','Gastronomía','Videojuegos','Arte','Naturaleza','Fitness','Lectura','Series','Tecnología'].map(item=><option key={item} value={item}>{item}</option>)}</select></label>
+              <label><span>Qué busca</span><select value={discoveryLookingFor} onChange={event=>setDiscoveryLookingFor(event.target.value)}><option value="">Cualquier preferencia</option>{['Amistad','Citas','Relación seria','Conocer personas','Charlar'].map(item=><option key={item} value={item}>{item}</option>)}</select></label>
+              <label><span>Ordenar por</span><select value={discoverySort} onChange={event=>setDiscoverySort(event.target.value)}><option value="recent">Más recientes</option><option value="oldest">Más antiguos</option><option value="name">Nombre (A–Z)</option></select></label>
+            </div>
+            <div className="discovery-filter-toggles">
+              <label><input type="checkbox" checked={discoveryVerifiedOnly} onChange={event=>setDiscoveryVerifiedOnly(event.target.checked)}/> Solo cuentas verificadas</label>
+              <label><input type="checkbox" checked={discoveryWithPhotos} onChange={event=>setDiscoveryWithPhotos(event.target.checked)}/> Con fotos</label>
+            </div>
+          </section>}
           <div className="people-grid">
           {view === 'home' && <article className="person-card own-person-card person-card-clickable" key={session.user.id} role="button" tabIndex={0} onClick={()=>{setSelectedProfile({...profile,photos,visibleCity:profile?.show_location?[profile?.city,profile?.region].filter(Boolean).join(', '):'',isOwn:true});setView('detail')}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelectedProfile({...profile,photos,visibleCity:profile?.show_location?[profile?.city,profile?.region].filter(Boolean).join(', '):'',isOwn:true});setView('detail')}}}>
             <div className="person-card-gallery">
@@ -979,7 +1013,7 @@ export default function App() {
               <p className="person-username">Este es tu perfil</p>
             </div>
           </article>}
-          {(view === 'favorites' ? people.filter(person => favoriteIds.includes(person.id)) : people).map(person => <article className="person-card person-card-clickable" key={person.id} role="button" tabIndex={0} onClick={()=>{setSelectedProfile({...person,isOwn:false});setView('detail')}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelectedProfile({...person,isOwn:false});setView('detail')}}}>
+          {(view === 'home' ? discoveryPeople : view === 'favorites' ? people.filter(person => favoriteIds.includes(person.id)) : people).map(person => <article className="person-card person-card-clickable" key={person.id} role="button" tabIndex={0} onClick={()=>{setSelectedProfile({...person,isOwn:false});setView('detail')}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelectedProfile({...person,isOwn:false});setView('detail')}}}>
             <div className="person-card-gallery">
               {person.photos?.length ? <img src={person.photos[0].url} alt={`Foto de ${person.display_name || 'usuario'}`}/> : <div className="person-avatar">{person.avatar_url ? <img src={person.avatar_url} alt=""/> : <span>{(person.display_name || person.username || '?').slice(0,1).toUpperCase()}</span>}</div>}
             </div>
@@ -993,6 +1027,7 @@ export default function App() {
               <div className="person-card-actions"><button type="button" className="chat-start-btn" onClick={event=>{event.stopPropagation();openChat(person)}}><MessageCircle size={15}/> Chatear</button><ConnectionAction personId={person.id} currentUserId={session.user.id} rows={connectionRows} busy={connectionBusy} onSend={sendConnectionRequest} onRespond={respondToConnection}/></div>
             </div>
           </article>)}</div>
+          {view === 'home' && !discoveryPeople.length && <div className="connections-empty">No encontramos perfiles con esos filtros. Probá cambiar alguno o limpiar la búsqueda.</div>}
           {view === 'connections' && !peopleLoading && <section className="connections-panel">
             <h2>Solicitudes recibidas</h2>
             {connectionRows.filter(row=>row.receiver_id===session.user.id && row.status==='pending').length ? connectionRows.filter(row=>row.receiver_id===session.user.id && row.status==='pending').map(row=>{const person=people.find(item=>item.id===row.sender_id);return <div className="connection-row" key={row.id}><div><strong>{person?.display_name || 'Miembro de ZUNO'}</strong><span>{person?.username ? '@'+person.username : 'Quiere conectar con vos'}</span></div><div className="connection-actions"><button className="accept-btn" disabled={connectionBusy===row.id} onClick={()=>respondToConnection(row.id,'accepted')}><Check size={15}/> Aceptar</button><button className="reject-btn" disabled={connectionBusy===row.id} onClick={()=>respondToConnection(row.id,'rejected')}><X size={15}/> Rechazar</button></div></div>}) : <p className="connections-empty">No tenés solicitudes nuevas.</p>}
