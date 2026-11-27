@@ -232,6 +232,12 @@ export default function App() {
           if (actor) setNotificationActors(current => ({ ...current, [actor.id]: actor }))
         }
         if (item.notification_type === 'message') playMessageSound()
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: 'recipient_id=eq.' + session.user.id }, payload => {
+        setNotifications(current => current.map(item => item.id === payload.new.id ? payload.new : item))
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'notifications' }, payload => {
+        setNotifications(current => current.filter(item => item.id !== payload.old.id))
       }).subscribe()
     return () => { active = false; supabase.removeChannel(channel) }
   }, [session?.user?.id, activeConversation?.person?.id, view])
@@ -262,6 +268,23 @@ export default function App() {
       return
     }
     await markNotificationRead(item.id)
+  }
+
+  async function decidePrivateAlbumRequest(item, status) {
+    if (!session?.user || !item?.entity_id || notificationBusy) return
+    setNotificationBusy(item.id)
+    const { error } = await supabase.from('private_album_access_requests')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', item.entity_id)
+      .eq('owner_id', session.user.id)
+      .eq('status', 'pending')
+    if (error) {
+      setPeopleError('No pudimos responder la solicitud del álbum. ' + error.message)
+    } else {
+      await markNotificationRead(item.id)
+      setPeopleError('')
+    }
+    setNotificationBusy('')
   }
 
   useEffect(() => {
@@ -1455,20 +1478,21 @@ export default function App() {
     <main className="app-shell">
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
       <section className="notifications-page">
-        <div className="home-heading"><div><div className="eyebrow"><span/> TU ACTIVIDAD</div><h1>Notifica<span>ciones.</span></h1><p>Mensajes, solicitudes y personas que te agregaron a favoritos.</p></div>
+        <div className="home-heading"><div><div className="eyebrow"><span/> TU ACTIVIDAD</div><h1>Tu <span>actividad.</span></h1><p>Tu actividad: mensajes, conexiones, favoritos y álbum privado.</p></div>
           <button type="button" className="refresh-btn" disabled={!notifications.some(item=>!item.read_at)} onClick={async()=>{const unread=notifications.filter(item=>!item.read_at);if(!unread.length)return;const now=new Date().toISOString();const {error}=await supabase.from('notifications').update({read_at:now}).eq('recipient_id',session.user.id).is('read_at',null);if(!error)setNotifications(current=>current.map(item=>({...item,read_at:item.read_at||now})))}}>Marcar todas leídas</button>
         </div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         <div className="notifications-list">
           {notifications.length ? notifications.map(item=>{const actor=notificationActors[item.actor_id];const name=actor?.display_name||actor?.username||'Un miembro de ZUNO';return <article className={'notification-card '+(!item.read_at?'unread':'')} key={item.id}>
             <button type="button" className="notification-main" onClick={()=>openNotification(item)}>
-              <span className={'notification-symbol '+item.notification_type}>{item.notification_type==='message'?<MessageCircle size={19}/>:item.notification_type==='connection_request'?<UserPlus size={19}/>:<Heart size={19}/>}</span>
+              <span className={'notification-symbol '+item.notification_type}>{item.notification_type==='message'?<MessageCircle size={19}/>:item.notification_type==='connection_request'?<UserPlus size={19}/>:item.notification_type==='favorite'?<Heart size={19}/>:item.notification_type==='album_access_request'?<Images size={19}/>:<ShieldCheck size={19}/>}</span>
               <span className="notification-copy"><strong>{item.title}</strong><span>{name} · {item.body}</span><time>{new Date(item.created_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}</time></span>
               {!item.read_at && <i className="notification-unread-dot"/>}
             </button>
             {item.notification_type==='connection_request' && !item.read_at && <div className="notification-actions"><button type="button" className="accept-btn" disabled={notificationBusy===item.id} onClick={async()=>{setNotificationBusy(item.id);await respondToConnection(item.entity_id,'accepted');await markNotificationRead(item.id);setNotificationBusy('')}}><Check size={15}/> Aceptar</button><button type="button" className="reject-btn" disabled={notificationBusy===item.id} onClick={async()=>{setNotificationBusy(item.id);await respondToConnection(item.entity_id,'rejected');await markNotificationRead(item.id);setNotificationBusy('')}}><X size={15}/> Rechazar</button></div>}
+            {item.notification_type==='album_access_request' && <div className="notification-actions"><button type="button" className="accept-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'approved')}><Check size={15}/> {notificationBusy===item.id?'Guardando…':'Dar acceso'}</button><button type="button" className="reject-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'rejected')}><X size={15}/> Rechazar</button></div>}
             <button type="button" className="notification-delete" aria-label="Eliminar notificación" onClick={()=>deleteNotification(item.id)}><Trash2 size={15}/></button>
-          </article>}) : <div className="empty-state"><Bell size={28}/><h3>Todo al día</h3><p>Cuando recibas un mensaje, una solicitud o un favorito, aparecerá acá.</p></div>}
+          </article>}) : <div className="empty-state"><Bell size={28}/><h3>Todo al día</h3><p>Cuando recibas un mensaje, una solicitud, un favorito o una interacción con tu álbum privado, aparecerá acá.</p></div>}
         </div>
       </section>
       <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
