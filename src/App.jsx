@@ -192,6 +192,47 @@ export default function App() {
     setConnectionRows(current => current.map(row => row.id === requestId ? data : row))
   }
 
+  async function openChat(person) {
+    if (!session?.user || !person?.id) return
+    const ids = [session.user.id, person.id].sort()
+    setChatBusy(true); setPeopleError('')
+    const { data: conversation, error: conversationError } = await supabase.from('conversations').upsert({ member_one: ids[0], member_two: ids[1] }, { onConflict: 'member_one,member_two' }).select('id,member_one,member_two').single()
+    if (conversationError) { setChatBusy(false); setPeopleError('No pudimos abrir el chat. ' + conversationError.message); return }
+    const { data: messages, error: messagesError } = await supabase.from('messages').select('id,conversation_id,sender_id,body,created_at').eq('conversation_id', conversation.id).order('created_at')
+    setChatBusy(false)
+    if (messagesError) { setPeopleError('No pudimos cargar los mensajes. ' + messagesError.message); return }
+    setActiveConversation({ ...conversation, person }); setChatMessages(messages || []); setChatDraft(''); setView('chat')
+  }
+
+  async function sendChatMessage(event) {
+    event.preventDefault()
+    const body = chatDraft.trim()
+    if (!body || !activeConversation || chatBusy) return
+    setChatBusy(true)
+    const { data, error: sendError } = await supabase.from('messages').insert({ conversation_id: activeConversation.id, sender_id: session.user.id, body }).select('id,conversation_id,sender_id,body,created_at').single()
+    setChatBusy(false)
+    if (sendError) { setPeopleError('No pudimos enviar el mensaje. ' + sendError.message); return }
+    setChatMessages(current => [...current, data]); setChatDraft('')
+  }
+
+  useEffect(() => {
+    if (!activeConversation?.id || view !== 'chat') return
+    const channel = supabase.channel('zuno-chat-' + activeConversation.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + activeConversation.id }, payload => {
+      setChatMessages(current => current.some(message => message.id === payload.new.id) ? current : [...current, payload.new])
+    }).subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [activeConversation?.id, view])
+
+  async function deleteConnection(requestId) {
+    if (!session?.user || connectionBusy) return
+    if (!window.confirm('¿Querés eliminar esta persona de tus conexiones? La conversación no se borrará.')) return
+    setConnectionBusy(requestId); setPeopleError('')
+    const { error: deleteError } = await supabase.from('connection_requests').delete().eq('id', requestId)
+    setConnectionBusy('')
+    if (deleteError) { setPeopleError('No pudimos eliminar la conexión. ' + deleteError.message); return }
+    setConnectionRows(current => current.filter(row => row.id !== requestId))
+  }
+
   async function handleSubmit(event) {
     event.preventDefault()
     setMessage(''); setError('')
@@ -306,6 +347,24 @@ export default function App() {
     </main>
   )
 
+  if (session?.user && view === 'chat' && activeConversation) return (
+    <main className="app-shell">
+      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
+      <section className="direct-chat"><div className="direct-chat-header"><button className="logout-btn" onClick={()=>setView('home')}>← Volver</button><div><strong>{activeConversation.person?.display_name || 'Chat ZUNO'}</strong><small>{activeConversation.person?.username ? '@'+activeConversation.person.username : 'Conversación privada'}</small></div></div>
+        <div className="direct-chat-messages">{chatMessages.map(message=><div key={message.id} className={message.sender_id===session.user.id?'chat-bubble own':'chat-bubble'}><p>{message.body}</p><time>{new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></div>)}</div>
+        {peopleError && <div className="notice error">{peopleError}</div>}
+        <form className="chat-compose" onSubmit={sendChatMessage}><input value={chatDraft} onChange={event=>setChatDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="submit" disabled={chatBusy||!chatDraft.trim()}><Send size={18}/></button></form>
+      </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+    </main>
+  )
+
+  if (session?.user && view === 'chats') return (
+    <main className="app-shell"><header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
+      <section className="chat-page"><div className="home-heading"><div><div className="eyebrow"><span/> MENSAJES PRIVADOS</div><h1>Tus <span>chats.</span></h1><p>Podés hablar con cualquier persona, sin conexión previa.</p></div><button className="refresh-btn" onClick={()=>setView('home')}>Descubrir personas</button></div>
+        {peopleError && <div className="notice error">{peopleError}</div>}
+        <div className="chat-list">{people.map(person=><button className="chat-list-item" key={person.id} onClick={()=>openChat(person)}><span className="chat-list-avatar">{person.photos?.[0]?.url?<img src={person.photos[0].url} alt=""/>:(person.display_name||'Z').slice(0,1)}</span><span className="chat-list-name"><strong>{person.display_name||'Miembro de ZUNO'}</strong><small>{person.username?'@'+person.username:'Iniciar conversación'}</small></span><MessageCircle size={18}/></button>)}</div>
+      </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer></main>
+  )
   if (session?.user && ['home', 'favorites', 'connections'].includes(view)) return (
     <main className="app-shell">
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span><button className="logout-btn" onClick={()=>setView('chats')}><MessageCircle size={15}/> Chats</button><button className="logout-btn" onClick={()=>setView('connections')}><Users size={15}/> Conexiones ({connectionRows.filter(row=>row.status==='accepted').length})</button><button className="logout-btn" onClick={()=>setView('favorites')}><Heart size={15}/> Favoritos ({favoriteIds.length})</button><button className="logout-btn" onClick={()=>setView('profile')}><Pencil size={15}/> Editar perfil</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
