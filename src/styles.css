@@ -1343,3 +1343,11 @@ button{touch-action:manipulation}
 .story-progress-track span.current::after{animation-duration:inherit;animation-play-state:inherit}
 .profile-reply-chat>strong{display:block;font-size:11px;letter-spacing:.02em;opacity:.72;margin-bottom:5px}
 .profile-reply-chat>p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Story progress: fill from left to right instead of starting white. */
+.story-progress-track span{position:relative;display:block;flex:1;min-width:0;height:4px;width:auto;border-radius:99px;background:rgba(255,255,255,.35)!important;overflow:hidden;animation:none!important;transform:none!important}
+.story-progress-track span.completed{background:#fff!important}
+.story-progress-track span.current{background:rgba(255,255,255,.35)!important}
+.story-progress-track span.current::after{content:"";position:absolute;inset:0;background:#fff;transform:scaleX(0);transform-origin:left;animation:story-progress-fill var(--duration,7s) linear forwards;animation-play-state:inherit}
+@keyframes story-progress-fill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+/* Keep already loaded discovery cards visible while refreshing silently. */
