@@ -857,3 +857,32 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .zuno-profile-menu button svg{color:#f45bd3;filter:drop-shadow(0 0 6px #d000ff70)}
 @keyframes zuno-menu-in{from{opacity:0;transform:translate(50%,7px) scale(.96)}to{opacity:1;transform:translate(50%,0) scale(1)}}
 @media(max-width:420px){.zuno-profile-menu{right:0;transform:none}.zuno-profile-menu:after{right:22px}@keyframes zuno-menu-in{from{opacity:0;transform:translateY(7px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}}
+
+
+/* Modal de filtros de Descubrir */
+.account-actions{flex-wrap:wrap}
+.discovery-filter-trigger{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;border:1px solid #d44bd18a;border-radius:999px;padding:10px 16px;background:linear-gradient(110deg,#f02b9a,#743bff);color:#fff;font-size:13px;font-weight:800;box-shadow:0 5px 22px #9b35e64d;transition:transform .18s,box-shadow .18s}
+.discovery-filter-trigger:hover{transform:translateY(-1px);box-shadow:0 7px 26px #c22eea70}
+.filter-active-dot{position:absolute;right:5px;top:4px;width:8px;height:8px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px #ff48bd66}
+.discovery-modal-backdrop{position:fixed;inset:0;z-index:1200;display:grid;place-items:center;padding:22px;background:#07040fe8;backdrop-filter:blur(13px);-webkit-backdrop-filter:blur(13px);animation:discovery-backdrop-in .18s ease-out}
+.discovery-filter-modal{width:min(680px,100%);max-height:min(88dvh,820px);overflow:auto;padding:25px;border:1px solid #d94ee8a6;border-radius:25px;background:radial-gradient(ellipse at 90% 0%,#57208055,transparent 42%),linear-gradient(145deg,#1c112c,#0c0918 72%);color:#fff;box-shadow:0 25px 90px #000c,0 0 38px #a52eea35;animation:discovery-modal-in .2s ease-out}
+.discovery-modal-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:19px;margin-bottom:19px;border-bottom:1px solid #ffffff18}
+.discovery-modal-heading>div{display:flex;align-items:center;gap:13px}
+.discovery-modal-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#f02b9a,#743bff);box-shadow:0 0 22px #a32be955}
+.discovery-modal-heading h2{margin:0;color:#fff;font-size:23px;letter-spacing:-.035em}
+.discovery-modal-heading small{display:block;margin-top:4px;color:#bbaacb;font-size:12px}
+.discovery-modal-close{display:grid;place-items:center;width:39px;height:39px;border:1px solid #ffffff22;border-radius:50%;background:#ffffff0a;color:#fff}
+.discovery-filter-modal .discovery-filter-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.discovery-filter-modal .discovery-filter-grid label{display:grid;gap:7px;min-width:0}
+.discovery-filter-modal .discovery-filter-grid label>span{font-size:12px;color:#e5d4ef;font-weight:750}
+.discovery-filter-modal .discovery-filter-grid input,.discovery-filter-modal .discovery-filter-grid select{width:100%;min-width:0;min-height:45px;padding:10px 12px;background:#090713;border:1px solid #81549c80;border-radius:12px;color:#fff}
+.discovery-filter-modal .discovery-search-field{grid-column:1/-1}
+.discovery-filter-modal .discovery-filter-toggles{display:flex;flex-wrap:wrap;gap:22px;margin-top:19px;padding-top:17px;border-top:1px solid #ffffff16}
+.discovery-filter-modal .discovery-filter-toggles label{display:flex;align-items:center;gap:9px;color:#f0e5f5;font-size:13px}
+.discovery-filter-modal .discovery-filter-toggles input{accent-color:#d52be5;width:17px;height:17px}
+.discovery-modal-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:23px;padding-top:18px;border-top:1px solid #ffffff16}
+.discovery-modal-actions .filter-clear-btn{border:1px solid #b95acb80;border-radius:999px;padding:11px 16px;background:#ffffff08;color:#e9d5f4;font-weight:700}
+.discovery-modal-actions .submit-btn{min-width:180px;margin:0;border-radius:999px}
+@keyframes discovery-backdrop-in{from{opacity:0}to{opacity:1}}
+@keyframes discovery-modal-in{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(max-width:760px){.discovery-modal-backdrop{padding:12px}.discovery-filter-modal{max-height:90dvh;padding:19px;border-radius:21px}.discovery-modal-heading h2{font-size:20px}.discovery-filter-modal .discovery-filter-grid{grid-template-columns:1fr;gap:12px}.discovery-filter-modal .discovery-search-field{grid-column:auto}.discovery-modal-actions{align-items:stretch;flex-direction:column-reverse}.discovery-modal-actions button{width:100%;justify-content:center}.account-actions{gap:6px}.discovery-filter-trigger{padding:8px 12px;font-size:12px}}
