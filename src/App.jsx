@@ -96,6 +96,10 @@ export default function App() {
   const [discoveryVerifiedOnly, setDiscoveryVerifiedOnly] = useState(false)
   const [discoveryWithPhotos, setDiscoveryWithPhotos] = useState(false)
   const [discoverySort, setDiscoverySort] = useState('recent')
+  const [discoveryAgeMin, setDiscoveryAgeMin] = useState('')
+  const [discoveryAgeMax, setDiscoveryAgeMax] = useState('')
+  const [discoveryDistanceKm, setDiscoveryDistanceKm] = useState('')
+  const [discoveryOnlineRecently, setDiscoveryOnlineRecently] = useState(false)
   const [showDiscoveryFilters, setShowDiscoveryFilters] = useState(false)
   const [peopleError, setPeopleError] = useState('')
   const [blockedUsers, setBlockedUsers] = useState([])
@@ -138,6 +142,19 @@ export default function App() {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession))
     return () => listener.subscription.unsubscribe()
   }, [])
+
+  useEffect(() => {
+    if (!session?.user || !privacy.show_online) return
+    const pingActivity = () => {
+      if (document.visibilityState !== 'visible') return
+      supabase.from('profiles').update({last_seen_at:new Date().toISOString()}).eq('id',session.user.id)
+        .then(({error:activityError})=>{if(activityError) console.warn('No se pudo actualizar la actividad de ZUNO:',activityError.message)})
+    }
+    pingActivity()
+    const timer=window.setInterval(pingActivity,120000)
+    document.addEventListener('visibilitychange',pingActivity)
+    return ()=>{window.clearInterval(timer);document.removeEventListener('visibilitychange',pingActivity)}
+  }, [session, privacy.show_online])
 
   useEffect(() => {
     if (!session?.user) { setProfile(null); setProfileLoading(false); setView('profile'); return }
@@ -196,8 +213,39 @@ export default function App() {
     if (!session?.user || !['home', 'favorites', 'connections'].includes(view)) return
     let active = true
     setPeopleLoading(true); setPeopleError('')
-    supabase.from('profiles').select('id, display_name, username, bio, avatar_url, zuno_verified, city, region, interests, looking_for, show_location, created_at').neq('id', session.user.id).order('created_at', { ascending: false }).limit(100)
-      .then(async ({ data, error: listError }) => {
+    const loadDiscoveryProfiles = async () => {
+      let discoveryIds = null
+      let distanceByUser = {}
+      const hasServerFilters = Boolean(discoveryAgeMin || discoveryAgeMax || discoveryDistanceKm || discoveryOnlineRecently)
+      if (hasServerFilters) {
+        if (discoveryDistanceKm) {
+          const {data:myLocation,error:locationError}=await supabase.from('user_map_locations').select('map_visible,updated_at').eq('user_id',session.user.id).maybeSingle()
+          if (locationError || !myLocation?.map_visible || !myLocation?.updated_at || new Date(myLocation.updated_at).getTime()<Date.now()-86400000) {
+            if (!active) return
+            setPeopleError('Para filtrar por distancia aproximada, activá tu visibilidad en el mapa y actualizá tu ubicación. Solo se consideran personas que también eligieron aparecer en el mapa.')
+            setPeople([]);setPeopleLoading(false);return
+          }
+        }
+        const minAge=discoveryAgeMin?Number(discoveryAgeMin):null
+        const maxAge=discoveryAgeMax?Number(discoveryAgeMax):null
+        if ((minAge!==null && (minAge<18 || minAge>99)) || (maxAge!==null && (maxAge<18 || maxAge>99)) || (minAge!==null && maxAge!==null && minAge>maxAge)) {
+          if (!active) return
+          setPeopleError('Revisá el rango de edad. Debe estar entre 18 y 99 años, con la edad mínima por debajo de la máxima.')
+          setPeople([]);setPeopleLoading(false);return
+        }
+        const {data:matches,error:filterError}=await supabase.rpc('get_discovery_profile_ids',{
+          p_age_min:minAge,p_age_max:maxAge,p_distance_km:discoveryDistanceKm?Number(discoveryDistanceKm):null,p_online_recently:discoveryOnlineRecently
+        })
+        if (!active) return
+        if (filterError) {setPeopleError('No pudimos aplicar los filtros avanzados. '+filterError.message);setPeople([]);setPeopleLoading(false);return}
+        discoveryIds=(matches||[]).map(row=>row.user_id)
+        distanceByUser=(matches||[]).reduce((acc,row)=>{acc[row.user_id]=row.approximate_distance_km;return acc},{})
+        if (!discoveryIds.length) {setPeople([]);setPeopleLoading(false);return}
+      }
+      let profileQuery=supabase.from('profiles').select('id, display_name, username, bio, avatar_url, zuno_verified, city, region, interests, looking_for, show_location, show_online, last_seen_at, created_at').neq('id', session.user.id).order('created_at', { ascending: false }).limit(100)
+      if (discoveryIds) profileQuery=profileQuery.in('id',discoveryIds)
+      const { data, error: listError } = await profileQuery
+      if (!active) return
         if (!active) return
         if (listError) {
           setPeopleError('No pudimos cargar los perfiles. ' + listError.message)
@@ -227,10 +275,17 @@ export default function App() {
           photos: photosByUser[person.id] || [],
           visibleCity: person.show_location ? [person.city, person.region].filter(Boolean).join(', ') : ''
         })))
+        setPeople(profiles.map(person => ({
+          ...person,
+          approximateDistanceKm:distanceByUser[person.id] ?? null,
+          photos: photosByUser[person.id] || [],
+          visibleCity: person.show_location ? [person.city, person.region].filter(Boolean).join(', ') : ''
+        })))
         setPeopleLoading(false)
-      })
+    }
+    loadDiscoveryProfiles()
     return () => { active = false }
-  }, [session, view, peopleRefresh])
+  }, [session, view, peopleRefresh, discoveryAgeMin, discoveryAgeMax, discoveryDistanceKm, discoveryOnlineRecently])
 
   useEffect(() => {
     if (!session?.user) { setBlockedUsers([]); return }
@@ -310,7 +365,7 @@ export default function App() {
     if (discoveryWithPhotos && !(person.photos || []).length) return false
     return true
   }).sort((a,b) => discoverySort === 'name' ? (a.display_name || '').localeCompare(b.display_name || '') : discoverySort === 'oldest' ? new Date(a.created_at || 0)-new Date(b.created_at || 0) : new Date(b.created_at || 0)-new Date(a.created_at || 0))
-  const discoveryFiltersActive = Boolean(discoverySearch || discoveryCity || discoveryInterest || discoveryLookingFor || discoveryVerifiedOnly || discoveryWithPhotos || discoverySort !== 'recent')
+  const discoveryFiltersActive = Boolean(discoverySearch || discoveryCity || discoveryInterest || discoveryLookingFor || discoveryVerifiedOnly || discoveryWithPhotos || discoverySort !== 'recent' || discoveryAgeMin || discoveryAgeMax || discoveryDistanceKm || discoveryOnlineRecently)
 
   async function toggleFavorite(personId) {
     if (!session?.user || favoriteBusy) return
@@ -1361,12 +1416,16 @@ export default function App() {
               <label><span>Interés</span><select value={discoveryInterest} onChange={event=>setDiscoveryInterest(event.target.value)}><option value="">Todos los intereses</option>{['Música','Cine','Deportes','Viajes','Gastronomía','Videojuegos','Arte','Naturaleza','Fitness','Lectura','Series','Tecnología'].map(item=><option key={item} value={item}>{item}</option>)}</select></label>
               <label><span>Qué busca</span><select value={discoveryLookingFor} onChange={event=>setDiscoveryLookingFor(event.target.value)}><option value="">Cualquier preferencia</option>{['Amistad','Citas','Relación seria','Conocer personas','Charlar'].map(item=><option key={item} value={item}>{item}</option>)}</select></label>
               <label><span>Ordenar por</span><select value={discoverySort} onChange={event=>setDiscoverySort(event.target.value)}><option value="recent">Más recientes</option><option value="oldest">Más antiguos</option><option value="name">Nombre (A–Z)</option></select></label>
+              <label><span>Edad mínima (18–99)</span><input type="number" min="18" max="99" placeholder="Sin mínimo" value={discoveryAgeMin} onChange={event=>setDiscoveryAgeMin(event.target.value)}/></label>
+              <label><span>Edad máxima (18–99)</span><input type="number" min="18" max="99" placeholder="Sin máximo" value={discoveryAgeMax} onChange={event=>setDiscoveryAgeMax(event.target.value)}/></label>
+              <label><span>Distancia aproximada</span><select value={discoveryDistanceKm} onChange={event=>setDiscoveryDistanceKm(event.target.value)}><option value="">Cualquier distancia</option><option value="5">Hasta 5 km</option><option value="10">Hasta 10 km</option><option value="25">Hasta 25 km</option><option value="50">Hasta 50 km</option><option value="100">Hasta 100 km</option></select><small>Requiere activar el mapa. Solo incluye personas que también eligieron aparecer allí.</small></label>
             </div>
             <div className="discovery-filter-toggles">
               <label><input type="checkbox" checked={discoveryVerifiedOnly} onChange={event=>setDiscoveryVerifiedOnly(event.target.checked)}/> Solo cuentas verificadas</label>
               <label><input type="checkbox" checked={discoveryWithPhotos} onChange={event=>setDiscoveryWithPhotos(event.target.checked)}/> Con fotos</label>
+              <label><input type="checkbox" checked={discoveryOnlineRecently} onChange={event=>setDiscoveryOnlineRecently(event.target.checked)}/> En línea en los últimos 15 minutos</label>
             </div>
-            <div className="discovery-modal-actions"><button type="button" className="filter-clear-btn" onClick={()=>{setDiscoverySearch('');setDiscoveryCity('');setDiscoveryInterest('');setDiscoveryLookingFor('');setDiscoveryVerifiedOnly(false);setDiscoveryWithPhotos(false);setDiscoverySort('recent')}}>Limpiar filtros</button><button type="button" className="submit-btn" onClick={()=>setShowDiscoveryFilters(false)}>Aplicar filtros <span>→</span></button></div>
+            <div className="discovery-modal-actions"><button type="button" className="filter-clear-btn" onClick={()=>{setDiscoverySearch('');setDiscoveryCity('');setDiscoveryInterest('');setDiscoveryLookingFor('');setDiscoveryVerifiedOnly(false);setDiscoveryWithPhotos(false);setDiscoverySort('recent');setDiscoveryAgeMin('');setDiscoveryAgeMax('');setDiscoveryDistanceKm('');setDiscoveryOnlineRecently(false)}}>Limpiar filtros</button><button type="button" className="submit-btn" onClick={()=>setShowDiscoveryFilters(false)}>Aplicar filtros <span>→</span></button></div>
           </section></div>}
           <div className="people-grid">
           {view === 'home' && <article className="person-card own-person-card person-card-clickable" key={session.user.id} role="button" tabIndex={0} onClick={()=>openMemberProfile({...profile,photos,visibleCity:profile?.show_location?[profile?.city,profile?.region].filter(Boolean).join(', '):''},true)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openMemberProfile({...profile,photos,visibleCity:profile?.show_location?[profile?.city,profile?.region].filter(Boolean).join(', '):''},true)}}}>
@@ -1390,6 +1449,8 @@ export default function App() {
             <div className="person-info">
               <div className="person-title-row"><h3>{person.display_name || 'Usuario ZUNO'} {person.zuno_verified && <span className="verified-dot" title="Cuenta verificada">✓</span>}</h3><button type="button" className={`favorite-btn ${favoriteIds.includes(person.id) ? 'is-favorite' : ''}`} aria-label={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} title={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} disabled={favoriteBusy === person.id} onClick={event=>{event.stopPropagation();toggleFavorite(person.id)}}><Heart size={18} fill={favoriteIds.includes(person.id) ? 'currentColor' : 'none'}/></button></div>
               {person.username && <p className="person-username">@{person.username}</p>}
+              {person.show_online && person.last_seen_at && Date.now()-new Date(person.last_seen_at).getTime()<900000 && <p className="person-online-label"><span/> En línea recientemente</p>}
+              {person.approximateDistanceKm!==null && person.approximateDistanceKm!==undefined && <p className="person-distance-label">Aprox. {person.approximateDistanceKm} km</p>}
               {person.visibleCity && <p className="person-location"><Compass size={13}/>{person.visibleCity}</p>}
               {person.bio && <p className="person-bio">{person.bio}</p>}
               {person.interests?.length > 0 && <div className="person-tags">{person.interests.slice(0,5).map(tag=><span key={tag}>{tag}</span>)}</div>}
