@@ -14,6 +14,7 @@ export default function App() {
   const [mode, setMode] = useState('signup')
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
+  const [verificationEmail, setVerificationEmail] = useState('')
   const [password, setPassword] = useState('')
   const [username, setUsername] = useState('')
   const [bio, setBio] = useState('')
@@ -77,23 +78,59 @@ export default function App() {
       ? await supabase.auth.signUp({ email, password, options: { data: { display_name: displayName.trim() } } })
       : await supabase.auth.signInWithPassword({ email, password })
     setBusy(false)
-    if (result.error) setError(result.error.message)
-    else if (mode === 'signup' && !result.data.session) setMessage('¡Cuenta creada! Para entrar directamente, hay que desactivar la confirmación de correo en Supabase. Tu estado de verificación de ZUNO seguirá siendo independiente.')
-    else setMessage(mode === 'signup' ? '¡Cuenta creada! Bienvenido a ZUNO. Tu cuenta todavía no está verificada.' : '¡Sesión iniciada!')
+    if (result.error) {
+      setError(result.error.message)
+      if (result.error.code === 'email_not_confirmed') setVerificationEmail(email.trim())
+    } else if (mode === 'signup' && !result.data.session) {
+      setVerificationEmail(email.trim())
+      setMessage('Te enviamos un correo para confirmar tu dirección. Abrí el enlace que recibiste y después iniciá sesión.')
+    } else setMessage(mode === 'signup' ? '¡Cuenta creada! Bienvenido a ZUNO.' : '¡Sesión iniciada!')
+  }
+
+  async function resendVerification() {
+    if (!verificationEmail) return
+    setBusy(true); setError(''); setMessage('')
+    const { error: resendError } = await supabase.auth.resend({ type: 'signup', email: verificationEmail })
+    setBusy(false)
+    if (resendError) setError(resendError.message)
+    else setMessage('Te reenviamos el correo. Revisá también la carpeta de spam.')
   }
 
   async function saveProfile(event) {
     event.preventDefault()
     setBusy(true); setError(''); setMessage('')
+    const normalizedUsername = username.trim().toLowerCase()
+    if (normalizedUsername && !/^[a-z0-9_.]{3,24}$/.test(normalizedUsername)) {
+      setBusy(false); setError('El usuario debe tener entre 3 y 24 caracteres: letras sin acentos, números, puntos o guion bajo.'); return
+    }
+    if (normalizedUsername) {
+      const { data: taken, error: lookupError } = await supabase.from('profiles').select('id').ilike('username', normalizedUsername).neq('id', session.user.id).maybeSingle()
+      if (lookupError) { setBusy(false); setError('No pudimos comprobar ese usuario. Intentá nuevamente.'); return }
+      if (taken) { setBusy(false); setError('Ese nombre de usuario ya está ocupado. Probá con otro.'); return }
+    }
     const { data, error: saveError } = await supabase.from('profiles').upsert({
-      display_name: displayName.trim(), username: username.trim().toLowerCase() || null, bio: bio.trim(), id: session.user.id
+      display_name: displayName.trim(), username: normalizedUsername || null, bio: bio.trim(), id: session.user.id
     }, { onConflict: 'id' }).select('display_name, username, bio, avatar_url, zuno_verified').maybeSingle()
     setBusy(false)
     if (saveError) setError(saveError.code === '23505' ? 'Ese nombre de usuario ya está ocupado. Probá con otro.' : saveError.message)
     else { setProfile(data); setMessage('¡Perfil guardado correctamente!'); setView('home') }
   }
 
-  async function logout() { await supabase.auth.signOut(); setSession(null); setProfile(null); setMessage('') }
+  async function logout() { await supabase.auth.signOut(); setSession(null); setProfile(null); setMessage(''); setVerificationEmail('') }
+
+  const emailConfirmed = Boolean(session?.user?.email_confirmed_at || session?.user?.confirmed_at)
+
+  if (session?.user && !emailConfirmed) return (
+    <main className="app-shell">
+      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></header>
+      <section className="loading-state verification-screen">
+        <div className="card-icon"><ShieldCheck size={21}/></div><h2>Confirmá tu correo electrónico</h2>
+        <p>Necesitamos confirmar que esta dirección te pertenece antes de entrar a ZUNO.</p>
+        <button className="submit-btn verification-action" onClick={async()=>{setVerificationEmail(session.user.email || ''); await resendVerification()}} disabled={busy}>{busy ? 'Enviando…' : 'Reenviar correo de confirmación'}</button>
+        {error && <div className="notice error">{error}</div>}{message && <div className="notice success">{message}</div>}
+      </section>
+    </main>
+  )
 
   if (session?.user && profileLoading) return (
     <main className="app-shell"><header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header><section className="loading-state"><div className="card-icon"><Heart size={21}/></div><h2>Preparando tu espacio…</h2><p>Estamos cargando tu perfil.</p></section></main>
@@ -147,6 +184,7 @@ export default function App() {
             {error && <div className="notice error">{error}</div>}{message && <div className="notice success">{message}</div>}
             <button className="submit-btn" type="submit" disabled={busy}>{busy?'Un momento…':mode==='signup'?'Crear mi cuenta':'Entrar'} <span>→</span></button>
           </form>
+          {verificationEmail && <div className="verification-resend"><p>¿No recibiste el correo de confirmación?</p><button type="button" className="logout-btn" onClick={resendVerification} disabled={busy}>Reenviar correo</button></div>}
           <p className="legal">ZUNO es para mayores de 18 años. Al continuar confirmás que tenés al menos 18 años y aceptás nuestras condiciones y política de privacidad.</p>
           {!isSupabaseConfigured && <p className="config-hint">Configuración pendiente: conectar las variables de Supabase.</p>}
         </div><div className="under-card"><ShieldCheck size={15}/> Tus datos y tu privacidad importan.</div></div>
