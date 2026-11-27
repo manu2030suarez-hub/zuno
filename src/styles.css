@@ -1097,3 +1097,17 @@ button{touch-action:manipulation}
 .story-viewer>img{ -webkit-user-drag:none; -webkit-touch-callout:none; user-select:none; -webkit-user-select:none; touch-action:none }
 .story-restore{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;flex:0 0 auto;margin-top:9px;padding:11px;border:1px solid #7b55b8;border-radius:12px;background:linear-gradient(110deg,#35204b,#21152f);color:#f1d7ff;font-weight:800;cursor:pointer}
 .story-restore:disabled{opacity:.55;cursor:not-allowed}
+
+
+/* Interacciones de historias: respuesta privada y Me gusta */
+.story-reply-bar{display:flex;align-items:center;gap:8px;width:100%;flex:0 0 auto;margin-top:10px;padding:7px;border:1px solid #ffffff28;border-radius:999px;background:#0b0810}
+.story-reply-bar input{flex:1;min-width:0;height:40px;padding:0 12px;border:0;outline:0;background:transparent;color:#fff;font-size:13px}
+.story-reply-bar input::placeholder{color:#b9a8c5}
+.story-reply-bar button{display:grid;place-items:center;flex:0 0 40px;width:40px;height:40px;border:0;border-radius:50%;cursor:pointer}
+.story-like-button{background:#ffffff12;color:#fff}
+.story-like-button.liked{background:#51203b;color:#ff6ba8}
+.story-send-button{background:linear-gradient(120deg,#d84b9c,#8950e8);color:#fff}
+.story-send-button:disabled,.story-like-button:disabled{opacity:.45;cursor:not-allowed}
+.story-likes-trigger{margin-top:6px}
+.story-viewer>img,.story-viewer>video{flex:1 1 auto;min-height:0}
+@media(max-width:760px){.story-reply-bar{margin-top:7px}.story-reply-bar input{font-size:16px}}
