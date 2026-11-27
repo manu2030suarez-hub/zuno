@@ -719,14 +719,15 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 /* Navegación principal de la aplicación ZUNO */
 .zuno-bottom-nav{
   position:fixed;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);
-  z-index:500;display:grid;grid-template-columns:repeat(4,minmax(72px,1fr));gap:6px;
-  width:min(620px,calc(100% - 28px));padding:9px 12px;
+  z-index:500;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:clamp(2px,1vw,6px);
+  width:min(620px,calc(100vw - 24px));max-width:calc(100vw - 24px);box-sizing:border-box;padding:8px clamp(5px,1.5vw,12px);
   border:1px solid rgba(226,156,255,.28);border-radius:24px;
   background:rgba(12,8,25,.91);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
   box-shadow:0 12px 48px rgba(0,0,0,.58),0 0 28px rgba(157,45,255,.23),inset 0 1px rgba(255,255,255,.08);
 }
+ .zuno-bottom-nav button,.zuno-bottom-nav .zuno-profile-nav-wrap{min-width:0;width:100%;}
 .zuno-bottom-nav button{
-  min-width:0;min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  min-width:0;width:100%;min-height:54px;padding:4px 1px;white-space:nowrap;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
   border:0;border-radius:16px;background:transparent;color:#a99bb9;font-size:11px;font-weight:700;
   transition:background .18s,color .18s,transform .18s;
 }
@@ -743,8 +744,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 }
 .app-shell:has(.zuno-bottom-nav){padding-bottom:110px}
 @media(max-width:760px){
- .zuno-bottom-nav{bottom:max(8px,env(safe-area-inset-bottom));width:calc(100% - 20px);border-radius:21px;padding:7px 9px}
- .zuno-bottom-nav button{min-height:50px;font-size:10px}
+ .zuno-bottom-nav{left:50%;right:auto;bottom:max(8px,env(safe-area-inset-bottom));width:calc(100vw - 16px);max-width:calc(100vw - 16px);transform:translateX(-50%);border-radius:18px;padding:6px 5px;gap:2px}
+ .zuno-bottom-nav button{min-height:48px;font-size:clamp(9px,2.5vw,10px);gap:3px}
+ .zuno-bottom-nav button svg{width:19px;height:19px}
+ .zuno-bottom-nav button span{max-width:100%;overflow:hidden;text-overflow:ellipsis}
  .app-shell:has(.zuno-bottom-nav){padding-bottom:95px}
 }
 
