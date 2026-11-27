@@ -48,7 +48,7 @@ export default function App() {
     setProfileLoadError('')
     let active = true
     supabase.from('profiles').select('display_name, username, bio, avatar_url, zuno_verified, city, region, interests, looking_for, preferred_age_min, preferred_age_max, preferred_distance_km, show_online, show_distance, show_age, show_location').eq('id', session.user.id).maybeSingle()
-      .then(({ data, error: profileError }) => {
+      .then(async ({ data, error: profileError }) => {
         if (!active) return
         if (profileError) { setProfileLoadError(profileError.message); setProfileLoading(false); return }
         if (data) {
