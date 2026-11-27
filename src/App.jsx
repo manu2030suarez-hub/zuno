@@ -311,7 +311,7 @@ export default function App() {
           setCallSession(null); closeCallMedia(); return
         }
         if (updated.caller_id === session.user.id && updated.answer && peerConnectionRef.current && !peerConnectionRef.current.currentRemoteDescription) {
-          try { await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(updated.answer)); setCallSession(updated) }
+          try { await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(updated.answer)); for (const candidate of pendingIceRef.current.splice(0)) { try { await peerConnectionRef.current.addIceCandidate(candidate) } catch {} } setCallSession(updated) }
           catch (answerError) { setCallError(answerError.message) }
         }
       })
