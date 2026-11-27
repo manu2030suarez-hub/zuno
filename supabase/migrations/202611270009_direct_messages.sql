@@ -34,4 +34,26 @@ grant select, insert on public.messages to authenticated;
 drop policy if exists "Members can remove accepted connections" on public.connection_requests;
 create policy "Members can remove accepted connections" on public.connection_requests for delete to authenticated using (status = 'accepted' and (auth.uid() = sender_id or auth.uid() = receiver_id));
 grant delete on public.connection_requests to authenticated;
+create or replace function public.prevent_conversation_member_changes()
+returns trigger language plpgsql as $
+begin
+  if old.member_one <> new.member_one or old.member_two <> new.member_two then
+    raise exception 'Conversation members cannot be changed';
+  end if;
+  return new;
+end;
+$;
+drop trigger if exists conversations_prevent_member_changes on public.conversations;
+create trigger conversations_prevent_member_changes before update on public.conversations for each row execute function public.prevent_conversation_member_changes();
+
+create or replace function public.update_conversation_last_message()
+returns trigger language plpgsql security definer set search_path = public as $
+begin
+  update public.conversations set last_message_at = new.created_at where id = new.conversation_id;
+  return new;
+end;
+$;
+drop trigger if exists messages_update_conversation_timestamp on public.messages;
+create trigger messages_update_conversation_timestamp after insert on public.messages for each row execute function public.update_conversation_last_message();
+
 alter publication supabase_realtime add table public.messages;
