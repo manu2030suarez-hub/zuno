@@ -57,6 +57,11 @@ export default function App() {
   const [storyRemainingMs, setStoryRemainingMs] = useState(7000)
   const storyPauseStartedRef = useRef(null)
   const [storyViewers, setStoryViewers] = useState([])
+  const [storyLikes, setStoryLikes] = useState([])
+  const [storyLiked, setStoryLiked] = useState(false)
+  const [storyLikeCount, setStoryLikeCount] = useState(0)
+  const [storyReplyDraft, setStoryReplyDraft] = useState('')
+  const [storyReplyBusy, setStoryReplyBusy] = useState(false)
   const [showStoryViewers, setShowStoryViewers] = useState(false)
   const [storyBusy, setStoryBusy] = useState(false)
   const [storyMessage, setStoryMessage] = useState('')
@@ -550,7 +555,22 @@ export default function App() {
     setStoryViewer(story)
     setStoryRemainingMs(7000); setStoryPaused(false); setShowStoryMenu(false)
     setShowStoryViewers(false)
-    setStoryViewers([])
+    setStoryViewers([]); setStoryLikes([]); setStoryLiked(false); setStoryLikeCount(0); setStoryReplyDraft('')
+    const [{ data: likes, error: likesError }, { count: likeCount, error: countError }] = await Promise.all([
+      supabase.from('story_likes').select('user_id,created_at').eq('story_id', story.id),
+      supabase.from('story_likes').select('id', { count: 'exact', head: true }).eq('story_id', story.id)
+    ])
+    if (likesError) console.warn('No se pudieron cargar los Me gusta:', likesError.message)
+    else {
+      setStoryLiked((likes || []).some(item => item.user_id === session.user.id))
+      if (story.user_id === session.user.id) {
+        const ids = (likes || []).map(item => item.user_id)
+        const { data: likers } = ids.length ? await supabase.from('profiles').select('id,display_name,username,avatar_url').in('id', ids) : { data: [] }
+        const byId = Object.fromEntries((likers || []).map(person => [person.id, person]))
+        setStoryLikes((likes || []).map(item => ({ ...item, person: byId[item.user_id] || null })))
+      }
+    }
+    if (!countError) setStoryLikeCount(likeCount || 0)
     if (story.user_id !== session?.user?.id) {
       const { error: viewError } = await supabase.from('story_views').insert({ story_id: story.id, viewer_id: session.user.id, viewed_at: new Date().toISOString() })
       if (viewError && viewError.code !== '23505') console.warn('No se pudo registrar la visualización:', viewError.message)
@@ -564,6 +584,44 @@ export default function App() {
         setStoryViewers((views || []).map(row => ({ ...row, person: byId[row.viewer_id] || null })))
       }
     }
+  }
+
+  async function toggleStoryLike() {
+    if (!storyViewer || storyViewer.user_id === session?.user?.id || storyBusy) return
+    setStoryBusy(true)
+    if (storyLiked) {
+      const { error } = await supabase.from('story_likes').delete().eq('story_id', storyViewer.id).eq('user_id', session.user.id)
+      if (error) setStoryMessage('No se pudo quitar el Me gusta: ' + error.message)
+      else { setStoryLiked(false); setStoryLikeCount(value => Math.max(0, value - 1)) }
+    } else {
+      const { error } = await supabase.from('story_likes').insert({ story_id: storyViewer.id, user_id: session.user.id })
+      if (error && error.code !== '23505') setStoryMessage('No se pudo dar Me gusta: ' + error.message)
+      else { setStoryLiked(true); setStoryLikeCount(value => value + 1) }
+    }
+    setStoryBusy(false)
+  }
+
+  async function sendStoryReply(event) {
+    event.preventDefault()
+    const reply = storyReplyDraft.trim()
+    if (!reply || !storyViewer || storyViewer.user_id === session?.user?.id || storyReplyBusy) return
+    const person = storyViewer.owner
+    if (!person?.id) { setStoryMessage('No pudimos identificar al dueño de esta historia.'); return }
+    setStoryReplyBusy(true)
+    const ids = [session.user.id, person.id].sort()
+    const { data: conversation, error: conversationError } = await supabase.from('conversations').upsert({ member_one: ids[0], member_two: ids[1] }, { onConflict: 'member_one,member_two' }).select('id').single()
+    if (conversationError) {
+      setStoryMessage('No se pudo abrir el chat: ' + conversationError.message)
+      setStoryReplyBusy(false)
+      return
+    }
+    const storyContext = storyViewer.caption ? '“' + storyViewer.caption + '”' : 'Foto o video de la historia'
+    const body = '↪️ Respondió a tu historia\n' + storyContext + '\n\n' + reply
+    const { error: messageError } = await supabase.from('messages').insert({ conversation_id: conversation.id, sender_id: session.user.id, body })
+    setStoryReplyBusy(false)
+    if (messageError) { setStoryMessage('No se pudo enviar la respuesta: ' + messageError.message); return }
+    setStoryViewer(null)
+    await openChat(person)
   }
 
   async function archiveStory(story) {
@@ -1956,8 +2014,15 @@ export default function App() {
           <div className="story-progress-track" aria-hidden="true"><span key={storyViewer.id} style={{ animationDuration: storyViewer.media_type === 'video' ? '30s' : '7s', animationPlayState: storyPaused ? 'paused' : 'running' }}/></div><div className="story-viewer-top"><span>{storyViewer.owner?.display_name || storyViewer.owner?.username || 'Tu historia'}</span><div className="story-viewer-top-actions">{storyViewer.user_id === session.user.id && !storyViewer.archived_at && <button type="button" onClick={() => setShowStoryMenu(value => !value)} aria-label="Opciones de historia"><MoreVertical/></button>}<button type="button" onClick={() => setStoryViewer(null)} aria-label="Cerrar historia"><X/></button></div>{showStoryMenu && <div className="story-options-menu"><button type="button" disabled={storyBusy} onClick={() => archiveStory(storyViewer)}><Archive size={16}/> Archivar historia</button></div>}</div>
           {storyViewer.media_type === 'video' ? <video src={storyViewer.url} controls autoPlay playsInline onEnded={() => setStoryViewer(null)}/> : <img src={storyViewer.url} alt="Historia" draggable="false" onDragStart={event => event.preventDefault()} onPointerDown={event => { event.preventDefault(); event.stopPropagation(); if (!storyPaused) { storyPauseStartedRef.current = Date.now(); setStoryPaused(true) } }} onPointerUp={event => { event.preventDefault(); event.stopPropagation(); if (storyPauseStartedRef.current) { setStoryRemainingMs(value => Math.max(0, value - (Date.now() - storyPauseStartedRef.current))); storyPauseStartedRef.current = null } setStoryPaused(false) }} onPointerCancel={() => { if (storyPauseStartedRef.current) { setStoryRemainingMs(value => Math.max(0, value - (Date.now() - storyPauseStartedRef.current))); storyPauseStartedRef.current = null } setStoryPaused(false) }} onPointerLeave={() => { if (storyPauseStartedRef.current) { setStoryRemainingMs(value => Math.max(0, value - (Date.now() - storyPauseStartedRef.current))); storyPauseStartedRef.current = null } setStoryPaused(false) }} onContextMenu={event => event.preventDefault()}/> }
           {storyViewer.caption && <p>{storyViewer.caption}</p>}
+          {storyViewer.user_id !== session.user.id && !storyViewer.archived_at && <form className="story-reply-bar" onSubmit={sendStoryReply}>
+            <input value={storyReplyDraft} onChange={event => setStoryReplyDraft(event.target.value)} onFocus={() => setStoryPaused(true)} onBlur={() => setStoryPaused(false)} placeholder="Responder a la historia..." maxLength={1000} aria-label="Responder a la historia"/>
+            <button type="button" className={'story-like-button'+(storyLiked?' liked':'')} onClick={toggleStoryLike} disabled={storyBusy} aria-label={storyLiked?'Quitar Me gusta':'Me gusta'}><Heart size={21} fill={storyLiked?'currentColor':'none'}/></button>
+            <button type="submit" className="story-send-button" disabled={!storyReplyDraft.trim() || storyReplyBusy} aria-label="Enviar respuesta"><Send size={19}/></button>
+          </form>}
+
+          {storyViewer.user_id === session.user.id && <button type="button" className="story-viewers-trigger story-likes-trigger" onClick={() => setShowStoryViewers(true)}><Heart size={17}/><strong>Me gusta · {storyLikeCount}</strong><span>Ver quién</span></button>}
           {storyViewer.user_id === session.user.id && <button type="button" className="story-viewers-trigger" onClick={() => setShowStoryViewers(true)}><Eye size={17}/><strong>Visto por {storyViewers.length}</strong><span>Ver lista</span></button>}
-          {showStoryViewers && storyViewer.user_id === session.user.id && <div className="story-viewers-sheet-backdrop" onClick={() => setShowStoryViewers(false)}><section className="story-viewers-sheet" role="dialog" aria-modal="true" aria-label="Personas que vieron tu historia" onClick={event => event.stopPropagation()}><div className="story-viewers-sheet-heading"><div><strong>Visualizaciones</strong><small>{storyViewers.length} {storyViewers.length === 1 ? 'persona vio' : 'personas vieron'} tu historia</small></div><button type="button" onClick={() => setShowStoryViewers(false)} aria-label="Cerrar"><X size={19}/></button></div>{storyViewers.length ? <div className="story-viewers-list">{storyViewers.map(item => <div className="story-viewer-person" key={item.viewer_id}><img src={item.person?.avatar_url || ''} alt=""/><div><strong>{item.person?.display_name || item.person?.username || 'Usuario'}</strong><small>@{item.person?.username || 'usuario'}</small></div><time>{new Date(item.viewed_at).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'})}</time></div>)}</div> : <div className="story-viewers-empty"><Eye size={25}/><strong>Todavía nadie vio tu historia</strong><small>Cuando alguien la vea, aparecerá acá.</small></div>}</section></div>}
+          {showStoryViewers && storyViewer.user_id === session.user.id && <div className="story-viewers-sheet-backdrop" onClick={() => setShowStoryViewers(false)}><section className="story-viewers-sheet" role="dialog" aria-modal="true" aria-label="Personas que vieron tu historia" onClick={event => event.stopPropagation()}><div className="story-viewers-sheet-heading"><div><strong>Visualizaciones</strong><small>{storyViewers.length} visualizaciones · {storyLikeCount} Me gusta</small></div><button type="button" onClick={() => setShowStoryViewers(false)} aria-label="Cerrar"><X size={19}/></button></div>{storyViewers.length || storyLikes.length ? <div className="story-viewers-list">{storyLikes.map(item => <div className="story-viewer-person" key={'like-'+item.user_id}><img src={item.person?.avatar_url || ''} alt=""/><div><strong>{item.person?.display_name || item.person?.username || 'Usuario'}</strong><small>@{item.person?.username || 'usuario'}</small></div><time>❤️ Me gusta</time></div>)}{storyViewers.map(item => <div className="story-viewer-person" key={'view-'+item.viewer_id}><img src={item.person?.avatar_url || ''} alt=""/><div><strong>{item.person?.display_name || item.person?.username || 'Usuario'}</strong><small>@{item.person?.username || 'usuario'}</small></div><time>{new Date(item.viewed_at).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'})}</time></div>)}</div> : <div className="story-viewers-empty"><Eye size={25}/><strong>Todavía no hay interacciones</strong><small>Cuando alguien vea o indique Me gusta, aparecerá acá.</small></div>}</section></div>}
           {storyViewer.user_id === session.user.id && storyViewer.archived_at && <button type="button" className="story-restore" disabled={storyBusy || !storyViewer.expires_at || new Date(storyViewer.expires_at).getTime() <= Date.now()} onClick={() => unarchiveStory(storyViewer)}><RefreshCw size={16}/> {storyViewer.expires_at && new Date(storyViewer.expires_at).getTime() > Date.now() ? 'Desarchivar y volver a publicar' : 'Venció · no se puede restaurar'}</button>}
           {storyViewer.user_id === session.user.id && <button type="button" className="story-delete" disabled={storyBusy} onClick={() => deleteStory(storyViewer)}><Trash2 size={16}/> Eliminar historia</button>}
         </section></div>}
