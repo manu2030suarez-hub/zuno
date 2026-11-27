@@ -149,7 +149,7 @@ export default function App() {
       } else setMessage('¡Sesión iniciada!')
       return
     }
-    const { data, error: loginError } = await supabase.functions.invoke('username-login', { body: { username: identifier.toLowerCase(), password } })
+    const { data, error: loginError } = await supabase.functions.invoke('super-processor', { body: { username: identifier.toLowerCase(), password } })
     if (loginError || !data?.session?.access_token || !data?.session?.refresh_token) {
       setBusy(false)
       setError(data?.error || 'No pudimos iniciar sesión. Revisá tu nombre de usuario y contraseña.')
