@@ -325,6 +325,7 @@ export default function App() {
       const nextFacing = currentFacing === 'environment' ? 'user' : 'environment'
       const cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: nextFacing } }, audio: false })
       const nextTrack = cameraStream.getVideoTracks()[0]
+      if (callCameraOff) nextTrack.enabled = false
       const sender = peerConnectionRef.current?.getSenders().find(item => item.track?.kind === 'video')
       if (sender) await sender.replaceTrack(nextTrack)
       stream.removeTrack(oldTrack)
