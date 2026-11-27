@@ -294,3 +294,20 @@
 .filter-clear-btn{border:1px solid #ffffff20;background:#241c2b;color:#e9b1d1;border-radius:8px;padding:8px 11px;font:600 10px 'DM Sans';cursor:pointer}
 @media(max-width:760px){.discovery-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.discovery-filters{padding:14px;border-radius:14px}.discovery-filter-grid{grid-template-columns:1fr}.discovery-filter-heading{align-items:flex-start}.discovery-filter-heading strong{font-size:13px}.discovery-filter-heading small{font-size:10px}.discovery-filter-toggles{gap:12px}.discovery-filter-toggles label{font-size:10px}}
+
+
+/* ZUNO privacy and safety controls */
+.profile-safety-actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.blocked-users-list{display:grid;gap:10px;margin-top:12px}
+.blocked-user-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--border,#e6e6e6);border-radius:12px}
+.blocked-user-row span{display:grid;gap:3px;min-width:0}
+.blocked-user-row small{opacity:.7}
+.security-modal-backdrop{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:rgba(10,12,20,.62)}
+.security-modal{width:min(100%,480px);max-height:min(90vh,760px);overflow:auto;display:grid;gap:16px;padding:24px;background:var(--surface,#fff);color:var(--text,#171717);border:1px solid var(--border,#e6e6e6);border-radius:20px;box-shadow:0 24px 80px rgba(0,0,0,.28)}
+.security-modal-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.security-modal-heading h2{margin:0;font-size:1.25rem}
+.security-modal label{display:grid;gap:8px;font-weight:600}
+.security-modal select,.security-modal textarea{width:100%;padding:12px;border:1px solid var(--border,#ddd);border-radius:10px;background:var(--background,#fff);color:inherit;font:inherit}
+.security-modal textarea{resize:vertical}
+.security-modal-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+@media(max-width:520px){.security-modal{padding:18px}.profile-safety-actions{display:grid}.blocked-user-row{align-items:flex-start}}
