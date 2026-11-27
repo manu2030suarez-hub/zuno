@@ -323,7 +323,7 @@ export default function App() {
     const { data: activeLocations } = await supabase.from('live_locations').select('id,conversation_id,sender_id,latitude,longitude,expires_at,ended_at,updated_at').eq('conversation_id', conversation.id).is('ended_at', null).gt('expires_at', new Date().toISOString())
     setLiveLocations(activeLocations || [])
     setLiveSharing((activeLocations || []).find(item => item.sender_id === session.user.id) || null)
-    const { data: priorImages } = await supabase.from('messages').select('id,media_path,created_at').eq('sender_id', session.user.id).eq('message_type', 'image').not('media_path', 'is', null).order('created_at', { ascending: false }).limit(30)
+    const { data: priorImages } = await supabase.from('messages').select('id,media_path,created_at,expires_at').eq('sender_id', session.user.id).eq('message_type', 'image').not('media_path', 'is', null).or('expires_at.is.null,expires_at.gt.' + new Date().toISOString()).order('created_at', { ascending: false }).limit(30)
     const gallery = await Promise.all((priorImages || []).map(async item => { const { data: signed } = await supabase.storage.from('zuno-chat-media').createSignedUrl(item.media_path, 3600); return { ...item, url: signed?.signedUrl || '' } }))
     setChatGallery(gallery.filter(item => item.url))
     const incomingMessages = (messages || []).filter(item => item.sender_id !== session.user.id)
@@ -541,7 +541,7 @@ export default function App() {
         body: null,
         message_type: 'audio',
         media_path: storedPath
-      }).select('id,conversation_id,sender_id,body,created_at,message_type,media_path').single()
+      }).select('id,conversation_id,sender_id,body,created_at,message_type,media_path,expires_at').single()
       if (insertError) {
         await supabase.storage.from('zuno-chat-media').remove([storedPath])
         throw insertError
@@ -651,7 +651,7 @@ export default function App() {
         const path = `${activeConversation.id}/${session.user.id}/${crypto.randomUUID()}.jpg`
         const { error: uploadError } = await supabase.storage.from('zuno-chat-media').upload(path, file, { contentType: 'image/jpeg', upsert: false })
         if (uploadError) throw uploadError
-        const { data, error: insertError } = await supabase.from('messages').insert({ conversation_id: activeConversation.id, sender_id: session.user.id, body: null, message_type: 'image', media_path: path }).select('id,conversation_id,sender_id,body,created_at,message_type,media_path').single()
+        const { data, error: insertError } = await supabase.from('messages').insert({ conversation_id: activeConversation.id, sender_id: session.user.id, body: null, message_type: 'image', media_path: path }).select('id,conversation_id,sender_id,body,created_at,message_type,media_path,expires_at').single()
         if (insertError) { await supabase.storage.from('zuno-chat-media').remove([path]); throw insertError }
         const [displayMessage] = await resolveChatMedia([data])
         setChatMessages(current => current.some(message => message.id === data.id) ? current : [...current, displayMessage])
