@@ -21,6 +21,9 @@ export default function App() {
   const [chatDraft, setChatDraft] = useState('')
   const [chatBusy, setChatBusy] = useState(false)
   const [chatMediaBusy, setChatMediaBusy] = useState(false)
+  const [chatDraftImages, setChatDraftImages] = useState([])
+  const [chatGallery, setChatGallery] = useState([])
+  const [chatDragOver, setChatDragOver] = useState(false)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [peopleLoading, setPeopleLoading] = useState(false)
   const [peopleRefresh, setPeopleRefresh] = useState(0)
@@ -247,6 +250,9 @@ export default function App() {
     setChatBusy(false)
     if (messagesError) { setPeopleError('No pudimos cargar los mensajes. ' + messagesError.message); return }
     const displayMessages = await resolveChatMedia(messages || [])
+    const { data: priorImages } = await supabase.from('messages').select('id,media_path,created_at').eq('sender_id', session.user.id).eq('message_type', 'image').not('media_path', 'is', null).order('created_at', { ascending: false }).limit(30)
+    const gallery = await Promise.all((priorImages || []).map(async item => { const { data: signed } = await supabase.storage.from('zuno-chat-media').createSignedUrl(item.media_path, 3600); return { ...item, url: signed?.signedUrl || '' } }))
+    setChatGallery(gallery.filter(item => item.url))
     const incomingMessages = (messages || []).filter(item => item.sender_id !== session.user.id)
     if (incomingMessages.length) {
       const now = new Date().toISOString()
@@ -273,27 +279,89 @@ export default function App() {
     setChatMessages(current => [...current, data]); setChatDraft('')
   }
 
-  async function sendChatImage(event) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file || !activeConversation || chatMediaBusy) return
-    if (!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type) || file.size > 10 * 1024 * 1024) {
-      setPeopleError('Elegí una imagen JPG, PNG, WEBP o GIF de hasta 10 MB.')
-      return
-    }
+  function addChatImages(files) {
+    const accepted = Array.from(files || [])
+    if (!accepted.length) return
+    setPeopleError('')
+    setChatDraftImages(current => {
+      const room = 5 - current.length
+      if (room <= 0) { setPeopleError('Podés preparar hasta 5 imágenes por envío.'); return current }
+      const valid = accepted.slice(0, room).filter(file => ['image/jpeg','image/png','image/webp','image/gif'].includes(file.type) && file.size <= 10 * 1024 * 1024)
+      if (valid.length !== Math.min(accepted.length, room)) setPeopleError('Se aceptan JPG, PNG, WEBP o GIF de hasta 10 MB cada una. Máximo 5 imágenes.')
+      return [...current, ...valid.map(file => ({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file), rotation: 0, zoom: 1 }))]
+    })
+  }
+
+  function updateDraftImage(id, changes) {
+    setChatDraftImages(current => current.map(item => item.id === id ? { ...item, ...changes } : item))
+  }
+
+  function removeDraftImage(id) {
+    setChatDraftImages(current => {
+      const item = current.find(image => image.id === id)
+      if (item?.url?.startsWith('blob:')) URL.revokeObjectURL(item.url)
+      return current.filter(image => image.id !== id)
+    })
+  }
+
+  async function addGalleryImage(item) {
+    if (chatDraftImages.length >= 5) { setPeopleError('Podés preparar hasta 5 imágenes por envío.'); return }
+    try {
+      const { data, error: downloadError } = await supabase.storage.from('zuno-chat-media').download(item.media_path)
+      if (downloadError) throw downloadError
+      const file = new File([data], 'zuno-foto.jpg', { type: data.type || 'image/jpeg' })
+      setChatDraftImages(current => current.length >= 5 ? current : [...current, { id: crypto.randomUUID(), file, url: URL.createObjectURL(file), rotation: 0, zoom: 1 }])
+    } catch (error) { setPeopleError('No pudimos reutilizar esa foto. ' + error.message) }
+  }
+
+  async function prepareEditedImage(item) {
+    const image = new Image()
+    image.src = item.url
+    await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject })
+    const angle = ((item.rotation % 360) + 360) % 360
+    const swapped = angle === 90 || angle === 270
+    const width = swapped ? image.naturalHeight : image.naturalWidth
+    const height = swapped ? image.naturalWidth : image.naturalHeight
+    const canvas = document.createElement('canvas')
+    canvas.width = width; canvas.height = height
+    const ctx = canvas.getContext('2d')
+    ctx.translate(width / 2, height / 2); ctx.rotate(angle * Math.PI / 180)
+    ctx.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2)
+    const zoom = Math.max(1, item.zoom || 1)
+    const cropWidth = width / zoom, cropHeight = height / zoom
+    const output = document.createElement('canvas')
+    output.width = Math.round(cropWidth); output.height = Math.round(cropHeight)
+    output.getContext('2d').drawImage(canvas, (width-cropWidth)/2, (height-cropHeight)/2, cropWidth, cropHeight, 0, 0, output.width, output.height)
+    const blob = await new Promise(resolve => output.toBlob(resolve, 'image/jpeg', 0.9))
+    if (!blob) throw new Error('No se pudo procesar la imagen.')
+    return new File([blob], 'zuno-editada.jpg', { type: 'image/jpeg' })
+  }
+
+  async function sendPreparedImages() {
+    if (!activeConversation || !chatDraftImages.length || chatMediaBusy) return
     setChatMediaBusy(true); setPeopleError('')
-    const extension = ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'})[file.type]
-    const path = `${activeConversation.id}/${session.user.id}/${crypto.randomUUID()}.${extension}`
-    const { error: uploadError } = await supabase.storage.from('zuno-chat-media').upload(path, file, { contentType: file.type, upsert: false })
-    if (uploadError) { setChatMediaBusy(false); setPeopleError('No pudimos subir la foto. ' + uploadError.message); return }
-    const { data, error: insertError } = await supabase.from('messages').insert({ conversation_id: activeConversation.id, sender_id: session.user.id, body: null, message_type: 'image', media_path: path }).select('id,conversation_id,sender_id,body,created_at,message_type,media_path').single()
-    if (insertError) {
-      await supabase.storage.from('zuno-chat-media').remove([path])
-      setChatMediaBusy(false); setPeopleError('No pudimos enviar la foto. ' + insertError.message); return
+    for (const item of chatDraftImages) {
+      try {
+        const file = await prepareEditedImage(item)
+        const path = `${activeConversation.id}/${session.user.id}/${crypto.randomUUID()}.jpg`
+        const { error: uploadError } = await supabase.storage.from('zuno-chat-media').upload(path, file, { contentType: 'image/jpeg', upsert: false })
+        if (uploadError) throw uploadError
+        const { data, error: insertError } = await supabase.from('messages').insert({ conversation_id: activeConversation.id, sender_id: session.user.id, body: null, message_type: 'image', media_path: path }).select('id,conversation_id,sender_id,body,created_at,message_type,media_path').single()
+        if (insertError) { await supabase.storage.from('zuno-chat-media').remove([path]); throw insertError }
+        const [displayMessage] = await resolveChatMedia([data])
+        setChatMessages(current => current.some(message => message.id === data.id) ? current : [...current, displayMessage])
+      } catch (error) {
+        setPeopleError('No pudimos enviar una de las fotos. ' + error.message)
+        break
+      }
     }
-    const [displayMessage] = await resolveChatMedia([data])
-    setChatMessages(current => current.some(item => item.id === data.id) ? current : [...current, displayMessage])
+    setChatDraftImages(current => { current.forEach(item => { if (item.url?.startsWith('blob:')) URL.revokeObjectURL(item.url) }); return [] })
     setChatMediaBusy(false)
+  }
+
+  function handleChatDrop(event) {
+    event.preventDefault(); setChatDragOver(false)
+    addChatImages(Array.from(event.dataTransfer.files || []).filter(file => file.type.startsWith('image/')))
   }
 
   useEffect(() => {
@@ -495,9 +563,11 @@ export default function App() {
     <main className="app-shell">
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('chats')}><MessageCircle size={15}/> Todos los chats</button><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
       <section className="direct-chat"><div className="direct-chat-header"><button className="logout-btn" onClick={()=>setView('home')}>← Volver</button><div><strong>{activeConversation.person?.display_name || 'Chat ZUNO'}</strong><small>{activeConversation.person?.username ? '@'+activeConversation.person.username : 'Conversación privada'}</small></div></div>
-        <div className="direct-chat-messages">{chatMessages.map(message=><div key={message.id} className={message.sender_id===session.user.id?'chat-bubble own':'chat-bubble'}>{message.message_type==='image' ? <div className="chat-image-protected" onContextMenu={event=>event.preventDefault()}><img src={message.media_url || ''} alt="Imagen privada del chat" draggable="false"/><span className="chat-image-watermark">@{profile?.username || profile?.display_name || 'ZUNO'}</span></div> : <p>{message.body}</p>}<time>{new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}{message.sender_id===session.user.id && <span className={'message-ticks '+(messageReceipts[message.id]?.read_at?'is-read':messageReceipts[message.id]?.delivered_at?'is-delivered':'')}>{messageReceipts[message.id]?.read_at?'✓✓':messageReceipts[message.id]?.delivered_at?'✓✓':'✓'}</span>}</time></div>)}</div>
+        <div className={`direct-chat-messages ${chatDragOver ? 'is-drag-over' : ''}`} onDragOver={event=>{event.preventDefault();setChatDragOver(true)}} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget))setChatDragOver(false)}} onDrop={handleChatDrop}>{chatMessages.map(message=><div key={message.id} className={message.sender_id===session.user.id?'chat-bubble own':'chat-bubble'}>{message.message_type==='image' ? <div className="chat-image-protected" onContextMenu={event=>event.preventDefault()}><img src={message.media_url || ''} alt="Imagen privada del chat" draggable="false"/><span className="chat-image-watermark">@{profile?.username || profile?.display_name || 'ZUNO'}</span></div> : <p>{message.body}</p>}<time>{new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}{message.sender_id===session.user.id && <span className={'message-ticks '+(messageReceipts[message.id]?.read_at?'is-read':messageReceipts[message.id]?.delivered_at?'is-delivered':'')}>{messageReceipts[message.id]?.read_at?'✓✓':messageReceipts[message.id]?.delivered_at?'✓✓':'✓'}</span>}</time></div>)}{chatDragOver && <div className="chat-drop-hint">Soltá las imágenes acá para prepararlas</div>}</div>
         {peopleError && <div className="notice error">{peopleError}</div>}
-        <form className="chat-compose" onSubmit={sendChatMessage}><label className="chat-image-upload" title="Enviar foto"><ImagePlus size={19}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={sendChatImage} disabled={chatMediaBusy}/></label><input value={chatDraft} onChange={event=>setChatDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="submit" disabled={chatBusy||!chatDraft.trim()}><Send size={18}/></button></form>
+        {chatDraftImages.length > 0 && <div className="chat-image-editor"><div className="chat-editor-heading"><strong>Prepará tus fotos ({chatDraftImages.length}/5)</strong><span>Se enviarán solo cuando pulses Enviar fotos</span></div><div className="chat-editor-grid">{chatDraftImages.map(item=><div className="chat-editor-card" key={item.id}><div className="chat-editor-preview"><img src={item.url} alt="Vista previa" style={{transform:`rotate(${item.rotation}deg) scale(${item.zoom})`}}/></div><div className="chat-editor-controls"><button type="button" onClick={()=>updateDraftImage(item.id,{rotation:(item.rotation+270)%360})}>↶ Girar</button><button type="button" onClick={()=>updateDraftImage(item.id,{rotation:(item.rotation+90)%360})}>↷</button><label>Recorte <input type="range" min="1" max="2.5" step="0.05" value={item.zoom} onChange={event=>updateDraftImage(item.id,{zoom:Number(event.target.value)})}/></label><button type="button" className="chat-editor-remove" onClick={()=>removeDraftImage(item.id)}>Quitar</button></div></div>)}</div><button type="button" className="chat-send-images" onClick={sendPreparedImages} disabled={chatMediaBusy}>{chatMediaBusy?'Enviando…':`Enviar ${chatDraftImages.length} foto(s)`}</button></div>}
+        {chatGallery.length > 0 && <div className="chat-gallery-strip"><strong>Fotos que ya enviaste</strong><div>{chatGallery.map(item=><button type="button" key={item.id} onClick={()=>addGalleryImage(item)} disabled={chatDraftImages.length>=5} title="Volver a usar esta foto"><img src={item.url} alt="Foto anterior"/><span>+</span></button>)}</div></div>}
+        <form className="chat-compose" onSubmit={sendChatMessage}><label className="chat-image-upload" title="Seleccionar hasta 5 fotos"><ImagePlus size={19}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={event=>{addChatImages(event.target.files);event.target.value=''}} disabled={chatDraftImages.length>=5}/></label><input value={chatDraft} onChange={event=>setChatDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="submit" disabled={chatBusy||!chatDraft.trim()}><Send size={18}/></button></form>
       </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
   )
