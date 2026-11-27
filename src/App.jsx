@@ -530,6 +530,12 @@ export default function App() {
     setStoryBusy(false)
   }
 
+  useEffect(() => {
+    if (!storyViewer || storyViewer.media_type === 'video') return
+    const timer = window.setTimeout(() => setStoryViewer(null), 7000)
+    return () => window.clearTimeout(timer)
+  }, [storyViewer?.id, storyViewer?.media_type])
+
   async function openStory(story) {
     setStoryViewer(story)
     setShowStoryViewers(false)
@@ -1892,13 +1898,13 @@ export default function App() {
               else groups.push({ user_id: story.user_id, owner: story.owner, items: [story] })
               return groups
             }, []).map(group => <button type="button" className="story-person" key={group.user_id} onClick={() => openStory(group.items[0])}><span className="story-ring"><img src={group.owner?.avatar_url || ''} alt=""/></span><span>{group.owner?.display_name || group.owner?.username || 'Usuario'}</span></button>)}
-            {stories.filter(story => story.user_id === session.user.id).map(story => <button type="button" className="story-person own-story" key={story.id} onClick={() => openStory(story)}><span className="story-ring"><img src={profile?.avatar_url || ''} alt=""/></span><span>Tu historia</span></button>)}
+            {stories.filter(story => story.user_id === session.user.id).map(story => <button type="button" className="story-person own-story" key={story.id} onClick={() => openStory(story)}><span className="story-ring"><img src={story.url} alt="Miniatura de tu historia"/></span><span>Tu historia</span></button>)}
           </div>
           {storyMessage && <p className="story-feedback">{storyMessage}</p>}
         </section>}
         {storyViewer && <div className="story-viewer-backdrop" role="presentation" onClick={() => setStoryViewer(null)}><section className="story-viewer" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}>
-          <div className="story-viewer-top"><span>{storyViewer.owner?.display_name || storyViewer.owner?.username || 'Tu historia'}</span><button type="button" onClick={() => setStoryViewer(null)} aria-label="Cerrar historia"><X/></button></div>
-          {storyViewer.media_type === 'video' ? <video src={storyViewer.url} controls autoPlay playsInline/> : <img src={storyViewer.url} alt="Historia"/>}
+          <div className="story-progress-track" aria-hidden="true"><span key={storyViewer.id} style={{ animationDuration: storyViewer.media_type === 'video' ? '30s' : '7s' }}/></div><div className="story-viewer-top"><span>{storyViewer.owner?.display_name || storyViewer.owner?.username || 'Tu historia'}</span><button type="button" onClick={() => setStoryViewer(null)} aria-label="Cerrar historia"><X/></button></div>
+          {storyViewer.media_type === 'video' ? <video src={storyViewer.url} controls autoPlay playsInline onEnded={() => setStoryViewer(null)}/> : <img src={storyViewer.url} alt="Historia"/>}
           {storyViewer.caption && <p>{storyViewer.caption}</p>}
           {storyViewer.user_id === session.user.id && <button type="button" className="story-viewers-trigger" onClick={() => setShowStoryViewers(true)}><Eye size={17}/><strong>Visto por {storyViewers.length}</strong><span>Ver lista</span></button>}
           {showStoryViewers && storyViewer.user_id === session.user.id && <div className="story-viewers-sheet-backdrop" onClick={() => setShowStoryViewers(false)}><section className="story-viewers-sheet" role="dialog" aria-modal="true" aria-label="Personas que vieron tu historia" onClick={event => event.stopPropagation()}><div className="story-viewers-sheet-heading"><div><strong>Visualizaciones</strong><small>{storyViewers.length} {storyViewers.length === 1 ? 'persona vio' : 'personas vieron'} tu historia</small></div><button type="button" onClick={() => setShowStoryViewers(false)} aria-label="Cerrar"><X size={19}/></button></div>{storyViewers.length ? <div className="story-viewers-list">{storyViewers.map(item => <div className="story-viewer-person" key={item.viewer_id}><img src={item.person?.avatar_url || ''} alt=""/><div><strong>{item.person?.display_name || item.person?.username || 'Usuario'}</strong><small>@{item.person?.username || 'usuario'}</small></div><time>{new Date(item.viewed_at).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'})}</time></div>)}</div> : <div className="story-viewers-empty"><Eye size={25}/><strong>Todavía nadie vio tu historia</strong><small>Cuando alguien la vea, aparecerá acá.</small></div>}</section></div>}
