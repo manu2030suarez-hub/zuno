@@ -952,3 +952,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .story-viewer>p{width:100%;margin:8px 0 0;color:#fff;font-size:13px;text-align:center}
 .story-delete{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;flex:0 0 auto;margin-top:9px;padding:10px;border:1px solid #a33d68;border-radius:12px;background:#4b142d;color:#ffd9e8;font-weight:750}
 @media(max-width:760px){.zuno-stories{margin-bottom:17px;padding:14px}.stories-rail{gap:13px}.story-viewer{height:86dvh;padding:9px}}
+
+.story-viewers{width:100%;max-height:115px;overflow:auto;display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:9px;padding:8px 4px;color:#f4e8fb;font-size:11px}
+.story-viewers>strong{display:flex;align-items:center;gap:5px;width:100%;font-size:12px}
+.story-viewers>span{display:flex;align-items:center;gap:5px;padding:4px 7px;border:1px solid #ffffff18;border-radius:999px;background:#ffffff0b}
+.story-viewers img{width:20px;height:20px;border-radius:50%;object-fit:cover;background:#291735}
+.story-viewers small{color:#b9a8c5}
