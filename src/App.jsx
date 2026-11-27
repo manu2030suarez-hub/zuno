@@ -59,6 +59,7 @@ export default function App() {
   const [people, setPeople] = useState([])
   const [favoriteIds, setFavoriteIds] = useState([])
   const [favoriteBusy, setFavoriteBusy] = useState('')
+  const [hiddenProfileIds, setHiddenProfileIds] = useState([])
   const [connectionRows, setConnectionRows] = useState([])
   const [connectionBusy, setConnectionBusy] = useState('')
   const [conversations, setConversations] = useState([])
@@ -1041,7 +1042,7 @@ export default function App() {
 
   const blockedIds = new Set(blockedUsers.map(item => item.blocked_id))
   const discoveryPeople = people.filter(person => {
-    if (blockedIds.has(person.id)) return false
+    if (blockedIds.has(person.id) || hiddenProfileIds.includes(person.id)) return false
     const term = discoverySearch.trim().toLocaleLowerCase()
     const searchable = [person.display_name, person.username, person.bio, person.visibleCity, ...(person.interests || []), ...(person.looking_for || [])].filter(Boolean).join(' ').toLocaleLowerCase()
     if (term && !searchable.includes(term)) return false
@@ -2114,16 +2115,32 @@ export default function App() {
             </div>
           </div>
           <div className="detail-content profile-detail-content">
-            {selectedProfile.bio && <section className="detail-section"><h2>Sobre mí</h2><p>{selectedProfile.bio}</p></section>}
-            {selectedProfile.interests?.length>0 && <section className="detail-section"><h2>Intereses y gustos</h2><div className="person-tags">{selectedProfile.interests.map(tag=><span key={tag}>{tag}</span>)}</div></section>}
-            {selectedProfile.looking_for?.length>0 && <section className="detail-section"><h2>¿Qué busca?</h2><div className="person-tags">{selectedProfile.looking_for.map(item=><span key={item}>{item}</span>)}</div></section>}
+            <section className="detail-section profile-stats-section"><h2>ESTADÍSTICAS</h2>
+              <div className="profile-stat-row"><Ruler size={18}/><span>{selectedProfile.height_cm ? selectedProfile.height_cm+' cm' : 'Altura no especificada'}</span>{selectedProfile.weight_kg ? <><i/> <span>{selectedProfile.weight_kg+' kg'}</span></> : null}{selectedProfile.body_type ? <><i/> <span>{selectedProfile.body_type}</span></> : null}</div>
+              {selectedProfile.gender && <div className="profile-stat-row"><Users size={18}/><span>{selectedProfile.gender}</span></div>}
+              {selectedProfile.role && <div className="profile-stat-row"><ArrowDownRight size={18}/><span>{selectedProfile.role}</span></div>}
+              {selectedProfile.relationship_status && <div className="profile-stat-row"><Heart size={18}/><span>{selectedProfile.relationship_status}</span></div>}
+              {selectedProfile.visibleCity && <div className="profile-stat-row"><MapPin size={18}/><span>{selectedProfile.visibleCity}</span></div>}
+              {selectedProfile.activityStatus && <div className="profile-stat-row"><Clock3 size={18}/><span>{selectedProfile.activityStatus}</span></div>}
+              {selectedProfile.approximateDistanceKm!=null && selectedProfile.show_distance && <div className="profile-stat-row"><Navigation size={18}/><span>A {formatApproxDistance(selectedProfile.approximateDistanceKm)}</span></div>}
+            </section>
+            {selectedProfile.bio && <section className="detail-section"><h2>SOBRE MÍ</h2><p>{selectedProfile.bio}</p></section>}
+            {selectedProfile.interests?.length>0 && <section className="detail-section"><h2>INTERESES</h2><div className="person-tags">{selectedProfile.interests.map(tag=><span key={tag}>{tag}</span>)}</div></section>}
+            {selectedProfile.looking_for?.length>0 && <section className="detail-section"><h2>PREFERENCIAS</h2><div className="profile-stat-row"><Users size={18}/><span>Lo que busco: <strong>{selectedProfile.looking_for.join(', ')}</strong></span></div></section>}
             {!selectedProfile.bio&&!selectedProfile.interests?.length&&!selectedProfile.looking_for?.length&&!selectedProfile.visibleCity&&<p className="detail-private-note">Esta persona todavía no agregó información pública a su perfil.</p>}
             {!selectedProfile.isOwn && <>
-              <button type="button" className="favorite-detail-btn" onClick={()=>openChat(selectedProfile)}><MessageCircle size={17}/> Enviar mensaje</button>
-              <div className="profile-safety-actions"><button type="button" className="logout-btn" disabled={blockBusy===selectedProfile.id} onClick={()=>blockUser(selectedProfile)}><Ban size={15}/> {blockBusy===selectedProfile.id?'Bloqueando…':'Bloquear usuario'}</button><button type="button" className="logout-btn" onClick={()=>{setReportTarget(selectedProfile);setReportReason('harassment');setReportDetails('')}}><Flag size={15}/> Denunciar perfil</button></div>
+              <div className="profile-safety-actions profile-safety-inline">
+                <button type="button" className="logout-btn" disabled={blockBusy===selectedProfile.id} onClick={()=>blockUser(selectedProfile)}><Ban size={15}/> Bloquear</button>
+                <button type="button" className="logout-btn" onClick={()=>{setReportTarget(selectedProfile);setReportReason('harassment');setReportDetails('')}}><Flag size={15}/> Denunciar</button>
+                <button type="button" className="logout-btn" onClick={()=>{setHiddenProfileIds(items=>items.includes(selectedProfile.id)?items:[...items,selectedProfile.id]);setSelectedProfile(null);setView('home')}}><EyeOff size={15}/> Ocultar</button>
+              </div>
             </>}
             {selectedProfile.isOwn && <p className="detail-private-note">Este es tu perfil. Podés administrar tu álbum privado desde el botón Álbum.</p>}
           </div>
+          {!selectedProfile.isOwn && <div className="profile-contact-bar">
+            <button type="button" className="profile-message-action" onClick={()=>openChat(selectedProfile)}><MessageCircle size={19}/> Enviar mensaje</button>
+            <button type="button" className="profile-fire-action" disabled={favoriteBusy===selectedProfile.id} onClick={()=>toggleFavorite(selectedProfile.id)} aria-label="Dar fuego"><Flame size={25} fill={favoriteIds.includes(selectedProfile.id)?'currentColor':'none'}/></button>
+          </div>}
         </section>
         {profilePhotoFullscreen && currentPhoto?.url && <div className="profile-photo-fullscreen" role="dialog" aria-modal="true" onClick={()=>setProfilePhotoFullscreen(false)}><button type="button" aria-label="Cerrar foto" onClick={()=>setProfilePhotoFullscreen(false)}><X size={27}/></button><img src={currentPhoto.url} alt="Foto ampliada" onClick={event=>event.stopPropagation()}/></div>}
         {showProfileAlbum && <div className="profile-album-backdrop" role="presentation" onClick={()=>setShowProfileAlbum(false)}><section className="profile-album-panel" role="dialog" aria-modal="true" aria-label="Álbum privado" onClick={event=>event.stopPropagation()}>
