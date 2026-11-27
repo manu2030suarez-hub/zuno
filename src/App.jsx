@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
 import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, StopCircle, Ban, Flag } from 'lucide-react'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 
 function ChatAudioPlayer({ src, error }) {
   const audioRef = useRef(null)
@@ -72,6 +74,14 @@ export default function App() {
   const [liveSharing, setLiveSharing] = useState(null)
   const locationWatchRef = useRef(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
+  const [mapVisible, setMapVisible] = useState(false)
+  const [mapBusy, setMapBusy] = useState(false)
+  const [mapUsers, setMapUsers] = useState([])
+  const [mapCenter, setMapCenter] = useState(null)
+  const [mapStatus, setMapStatus] = useState('')
+  const mapContainerRef = useRef(null)
+  const leafletMapRef = useRef(null)
+  const mapMarkersRef = useRef([])
   const [peopleLoading, setPeopleLoading] = useState(false)
   const [peopleRefresh, setPeopleRefresh] = useState(0)
   const [discoverySearch, setDiscoverySearch] = useState('')
@@ -517,6 +527,106 @@ export default function App() {
   useEffect(() => () => {
     if (locationWatchRef.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(locationWatchRef.current)
   }, [])
+
+
+  useEffect(() => {
+    if (view !== 'map' || !session?.user || !mapContainerRef.current) return
+    let cancelled = false
+    let map = leafletMapRef.current
+    if (!map) {
+      map = L.map(mapContainerRef.current, { zoomControl: true }).setView([-34.9011, -56.1645], 11)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map)
+      leafletMapRef.current = map
+    }
+    const loadMapData = async () => {
+      setMapStatus('')
+      const [{ data: ownLocation, error: ownError }, { data: nearby, error: nearbyError }] = await Promise.all([
+        supabase.from('user_map_locations').select('latitude,longitude,map_visible,updated_at').eq('user_id', session.user.id).maybeSingle(),
+        supabase.rpc('get_nearby_map_users', { p_radius_km: 50 })
+      ])
+      if (cancelled) return
+      if (ownError) { setMapStatus('No pudimos consultar tu configuración del mapa: ' + ownError.message); return }
+      if (nearbyError) { setMapStatus('No pudimos cargar los usuarios cercanos: ' + nearbyError.message); return }
+      setMapVisible(Boolean(ownLocation?.map_visible))
+      setMapUsers(nearby || [])
+      if (ownLocation?.latitude != null && ownLocation?.longitude != null && ownLocation?.updated_at && new Date(ownLocation.updated_at).getTime() > Date.now() - 86400000) {
+        const center = [Number(Number(ownLocation.latitude).toFixed(2)), Number(Number(ownLocation.longitude).toFixed(2))]
+        setMapCenter(center)
+        map.setView(center, 11)
+      } else if ((nearby || []).length) {
+        const first = nearby[0]
+        map.setView([Number(first.approximate_latitude), Number(first.approximate_longitude)], 10)
+      }
+      mapMarkersRef.current.forEach(marker => marker.remove())
+      mapMarkersRef.current = (nearby || []).map(person => {
+        const safeName = String(person.display_name || 'Usuario ZUNO').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+        const marker = L.circleMarker(
+          [Number(person.approximate_latitude), Number(person.approximate_longitude)],
+          { radius: 9, color: '#ffffff', weight: 2, fillColor: '#7657e8', fillOpacity: 0.95 }
+        ).bindPopup('<strong>' + safeName + '</strong><br>Distancia aproximada: ' + (person.approximate_distance_km ?? '—') + ' km')
+        marker.addTo(map)
+        return marker
+      })
+      window.setTimeout(() => map.invalidateSize(), 100)
+    }
+    loadMapData()
+    return () => { cancelled = true }
+  }, [view, session?.user?.id, mapVisible])
+
+  useEffect(() => () => {
+    if (leafletMapRef.current) {
+      leafletMapRef.current.remove()
+      leafletMapRef.current = null
+      mapMarkersRef.current = []
+    }
+  }, [])
+
+  async function refreshMyMapLocation() {
+    if (mapBusy) return
+    setMapBusy(true)
+    setMapStatus('')
+    try {
+      const coords = await getBrowserPosition()
+      const { error: updateError } = await supabase.rpc('update_my_map_location', {
+        p_latitude: coords.latitude,
+        p_longitude: coords.longitude
+      })
+      if (updateError) throw updateError
+      setMapVisible(true)
+      setMapCenter([Number(coords.latitude.toFixed(2)), Number(coords.longitude.toFixed(2))])
+      setMapStatus('Tu ubicación aproximada se actualizó. Ya aparecés en el mapa.')
+      const { data, error: nearbyError } = await supabase.rpc('get_nearby_map_users', { p_radius_km: 50 })
+      if (nearbyError) throw nearbyError
+      setMapUsers(data || [])
+      setPeopleRefresh(value => value + 1)
+    } catch (locationError) {
+      setMapStatus('No pudimos actualizar tu ubicación. ' + (locationError.message || 'Revisá el permiso del navegador.'))
+    } finally { setMapBusy(false) }
+  }
+
+  async function setMyMapVisibility(visible) {
+    if (mapBusy) return
+    setMapBusy(true)
+    setMapStatus('')
+    const { error: visibilityError } = await supabase.rpc('set_my_map_visibility', { p_visible: visible })
+    if (visibilityError) {
+      setMapStatus('No pudimos cambiar tu visibilidad: ' + visibilityError.message)
+    } else {
+      setMapVisible(visible)
+      if (!visible) {
+        setMapCenter(null)
+        setMapStatus('Ya no aparecés en el mapa y tus coordenadas guardadas fueron eliminadas.')
+      } else {
+        setMapStatus('Visibilidad activada. Para aparecer, actualizá tu ubicación con tu permiso.')
+      }
+      const { data } = await supabase.rpc('get_nearby_map_users', { p_radius_km: 50 })
+      setMapUsers(data || [])
+    }
+    setMapBusy(false)
+  }
 
   async function hideMessageForMe(message) {
     const { error: hideError } = await supabase.from('message_hidden_for').insert({ message_id: message.id, user_id: session.user.id })
@@ -1046,6 +1156,27 @@ export default function App() {
     </main>
   )
 
+  if (session?.user && view === 'map') return (
+    <main className="app-shell">
+      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
+      <section className="map-page">
+        <div className="home-heading"><div><div className="eyebrow"><span/> COMUNIDAD CERCANA</div><h1>Mapa de <span>usuarios.</span></h1><p>Encontrá personas cerca sin compartir tu dirección exacta.</p></div><button className="refresh-btn" onClick={()=>setView('home')}>Volver a descubrir</button></div>
+        <div className="map-privacy-panel">
+          <div><strong>{mapVisible ? 'Aparecés en el mapa' : 'No aparecés en el mapa'}</strong><p>{mapVisible ? 'Tu posición se muestra de forma aproximada. La ubicación no se actualiza sola.' : 'Tu ubicación permanece oculta hasta que decidas activarla.'}</p></div>
+          <button type="button" className={mapVisible ? 'map-hide-btn' : 'submit-btn'} disabled={mapBusy} onClick={()=>setMyMapVisibility(!mapVisible)}>{mapBusy ? 'Guardando…' : mapVisible ? 'Desaparecer del mapa' : 'Activar visibilidad'}</button>
+          <button type="button" className="refresh-btn" disabled={mapBusy} onClick={refreshMyMapLocation}><Navigation size={16}/>{mapBusy ? 'Actualizando…' : 'Actualizar mi ubicación'}</button>
+        </div>
+        <p className="map-consent-note"><ShieldCheck size={16}/> Al actualizar, el navegador te pedirá permiso. ZUNO guarda tu ubicación para calcular la zona, pero solo muestra un punto aproximado. No hacemos seguimiento en segundo plano.</p>
+        {mapStatus && <div className={mapStatus.startsWith('No pudimos') ? 'notice error' : 'notice success'}>{mapStatus}</div>}
+        <div className="map-results-heading"><strong>{mapUsers.length} {mapUsers.length === 1 ? 'persona cercana' : 'personas cercanas'}</strong><span>Radio de búsqueda: 50 km · Distancias aproximadas</span></div>
+        <div ref={mapContainerRef} className="zuno-map-canvas" aria-label="Mapa de usuarios cercanos"/>
+        {!mapVisible && <p className="map-empty-hint">Activá tu visibilidad y actualizá tu ubicación para ver personas cercanas.</p>}
+        {mapVisible && mapUsers.length === 0 && <p className="map-empty-hint">Todavía no hay otros usuarios visibles en tu zona. Podés volver a actualizar más tarde.</p>}
+      </section>
+      <footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+    </main>
+  )
+
   if (session?.user && view === 'chats') return (
     <main className="app-shell"><header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
       <section className="chat-page"><div className="home-heading"><div><div className="eyebrow"><span/> MENSAJES PRIVADOS</div><h1>Tus <span>chats.</span></h1><p>Podés hablar con cualquier persona, sin conexión previa.</p></div><button className="refresh-btn" onClick={()=>setView('home')}>Descubrir personas</button></div>
@@ -1057,7 +1188,7 @@ export default function App() {
     <main className="app-shell">
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span><button className="logout-btn chats-nav-btn" onClick={()=>setView('chats')}><MessageCircle size={15}/> Chats {Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)>0 && <span className="nav-unread-count">+{Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}</span>}</button><button className="logout-btn" onClick={()=>setView('connections')}><Users size={15}/> Conexiones ({connectionRows.filter(row=>row.status==='accepted').length})</button><button className="logout-btn" onClick={()=>setView('favorites')}><Heart size={15}/> Favoritos ({favoriteIds.length})</button><button className="logout-btn" onClick={()=>setView('profile')}><Pencil size={15}/> Editar perfil</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
       <section className="home-content">
-        <div className="home-heading"><div><div className="eyebrow"><span/> {view === 'favorites' ? 'TUS PERSONAS GUARDADAS' : view === 'connections' ? 'TUS CONEXIONES' : 'DESCUBRÍ ZUNO'}</div><h1>{view === 'favorites' ? <>Tus <span>favoritos.</span></> : view === 'connections' ? <>Tus <span>conexiones.</span></> : <>Hola, <span>{profile?.display_name || displayName || 'bienvenido'}.</span></>}</h1><p>{view === 'favorites' ? 'Perfiles que guardaste para volver a encontrarlos.' : view === 'connections' ? 'Solicitudes recibidas, enviadas y conexiones aceptadas.' : 'Estas son algunas de las personas de la comunidad. ¡Tu próxima conexión puede empezar acá!'}</p></div><div className="home-actions">{view !== 'home' && <button className="refresh-btn" onClick={()=>setView('home')}><Compass size={16}/> Descubrir</button>}<button className="refresh-btn" onClick={()=>setPeopleRefresh(value=>value+1)}><RefreshCw size={16}/> Actualizar</button></div></div>
+        <div className="home-heading"><div><div className="eyebrow"><span/> {view === 'favorites' ? 'TUS PERSONAS GUARDADAS' : view === 'connections' ? 'TUS CONEXIONES' : 'DESCUBRÍ ZUNO'}</div><h1>{view === 'favorites' ? <>Tus <span>favoritos.</span></> : view === 'connections' ? <>Tus <span>conexiones.</span></> : <>Hola, <span>{profile?.display_name || displayName || 'bienvenido'}.</span></>}</h1><p>{view === 'favorites' ? 'Perfiles que guardaste para volver a encontrarlos.' : view === 'connections' ? 'Solicitudes recibidas, enviadas y conexiones aceptadas.' : 'Estas son algunas de las personas de la comunidad. ¡Tu próxima conexión puede empezar acá!'}</p></div><div className="home-actions"><button className="refresh-btn" onClick={()=>setView('map')}><MapPin size={16}/> Mapa</button>{view !== 'home' && <button className="refresh-btn" onClick={()=>setView('home')}><Compass size={16}/> Descubrir</button>}<button className="refresh-btn" onClick={()=>setPeopleRefresh(value=>value+1)}><RefreshCw size={16}/> Actualizar</button></div></div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         {peopleLoading ? <div className="empty-state">Buscando perfiles…</div> : (
           <>
