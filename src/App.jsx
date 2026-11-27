@@ -523,8 +523,7 @@ export default function App() {
     if (view === 'profile') loadPrivateAlbumOwnerData()
   }, [session, view])
 
-  // La preferencia de aparecer en el mapa viene activada por defecto para cuentas nuevas.
-  // Si ya existe una fila, respetamos la decisión previa del usuario.
+  // Cargar preferencia del mapa una vez; la ubicación se actualiza por el watcher independiente.
   useEffect(() => {
     if (!session?.user || !profile) return
     let active = true
@@ -538,11 +537,49 @@ export default function App() {
         if (!enableError && active) setMapVisible(true)
         else if (enableError) console.warn('No se pudo activar la preferencia de visibilidad:', enableError.message)
       } else setMapVisible(Boolean(data.map_visible))
-      if (active && locationTermsAccepted && (mapVisible || privacy.show_distance)) refreshMyMapLocation()
     }
     initializeMapVisibility()
     return () => { active = false }
-  }, [session?.user?.id, Boolean(profile), locationTermsAccepted, mapVisible, privacy.show_distance])
+  }, [session?.user?.id, Boolean(profile)])
+
+  // watchPosition obtiene una primera ubicación y continúa actualizando mientras ZUNO está en primer plano.
+  useEffect(() => {
+    if (!session?.user || !profile || !locationTermsAccepted || (!privacy.show_distance && !mapVisible)) return
+    if (!navigator.geolocation) { setMapStatus('Este navegador no permite actualizar la ubicación automáticamente.'); return }
+    let active = true
+    let lastSentAt = 0
+    let lastLat = null
+    let lastLng = null
+    const publishPosition = async position => {
+      if (!active || document.visibilityState === 'hidden') return
+      const latitude = position.coords.latitude
+      const longitude = position.coords.longitude
+      const now = Date.now()
+      const movedEnough = lastLat === null || Math.abs(latitude-lastLat) + Math.abs(longitude-lastLng) > 0.00015
+      if (!movedEnough && now-lastSentAt < 60000) return
+      if (now-lastSentAt < 15000) return
+      lastSentAt = now; lastLat = latitude; lastLng = longitude
+      const { error: updateError } = await supabase.rpc('update_my_map_location', { p_latitude: latitude, p_longitude: longitude })
+      if (!active) return
+      if (updateError) { setMapStatus('No pudimos actualizar la ubicación automáticamente. ' + updateError.message); return }
+      setMapStatus('')
+      setPeopleRefresh(value => value + 1)
+      if (view === 'map') {
+        const { data, error } = await supabase.rpc('get_nearby_map_users', { p_radius_km: 50 })
+        if (active && !error) setMapUsers(data || [])
+      }
+    }
+    const watchId = navigator.geolocation.watchPosition(
+      publishPosition,
+      error => { if (active && error.code !== 1) setMapStatus('No pudimos actualizar la ubicación automáticamente. Activá el permiso de ubicación del navegador.') },
+      { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 }
+    )
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') navigator.geolocation.getCurrentPosition(publishPosition, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 })
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => { active = false; navigator.geolocation.clearWatch(watchId); document.removeEventListener('visibilitychange', onVisibility) }
+  }, [session?.user?.id, Boolean(profile), locationTermsAccepted, privacy.show_distance, mapVisible, view])
 
   useEffect(() => {
     if (!session?.user || view !== 'home') return
@@ -1350,7 +1387,7 @@ export default function App() {
         setMapCenter(null)
         setMapStatus('Ya no aparecés en el mapa y tus coordenadas guardadas fueron eliminadas.')
       } else {
-        setMapStatus('Visibilidad activada. Para aparecer, actualizá tu ubicación con tu permiso.')
+        setMapStatus('Visibilidad activada. ZUNO actualizará tu ubicación automáticamente con tu permiso.')
       }
       const { data } = await supabase.rpc('get_nearby_map_users', { p_radius_km: 50 })
       setMapUsers(data || [])
@@ -2040,7 +2077,7 @@ export default function App() {
         {mapStatus && <div className={mapStatus.startsWith('No pudimos') ? 'notice error' : 'notice success'}>{mapStatus}</div>}
         <div className="map-results-heading"><strong>{mapUsers.length} {mapUsers.length === 1 ? 'persona cercana' : 'personas cercanas'}</strong><span>Radio de búsqueda: 50 km · Distancias aproximadas</span></div>
         <div ref={mapContainerRef} className="zuno-map-canvas" aria-label="Mapa de usuarios cercanos"/>
-        {!mapVisible && <p className="map-empty-hint">Activá tu visibilidad y actualizá tu ubicación para ver personas cercanas.</p>}
+        {!mapVisible && <p className="map-empty-hint">Activá tu visibilidad y aceptá los términos de ubicación para ver personas cercanas.</p>}
         {mapVisible && mapUsers.length === 0 && <p className="map-empty-hint">Todavía no hay otros usuarios visibles en tu zona. Podés volver a actualizar más tarde.</p>}
       </section>
       <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
@@ -2208,7 +2245,7 @@ export default function App() {
             <div className="profile-section"><h3>Datos personales</h3><label htmlFor="birthDate">Fecha de nacimiento (privada)</label><input id="birthDate" type="date" value={birthDate} max={new Date().toISOString().slice(0,10)} onChange={e=>setBirthDate(e.target.value)}/><p className="field-hint">Tu fecha completa no se muestra públicamente. ZUNO es solo para mayores de 18 años.</p><label htmlFor="city">Ciudad o localidad aproximada</label><input id="city" value={city} onChange={e=>setCity(e.target.value)} placeholder="Ej. Montevideo"/><label htmlFor="region">Departamento / región</label><input id="region" value={region} onChange={e=>setRegion(e.target.value)} placeholder="Ej. Montevideo"/></div>
             <div className="profile-section"><h3>Intereses y gustos</h3><div className="choice-chips">{interestOptions.map(item=><button type="button" key={item} className={interests.includes(item)?'selected':''} onClick={()=>setInterests(cur=>cur.includes(item)?cur.filter(x=>x!==item):[...cur,item])}>{item}</button>)}</div></div>
             <div className="profile-section"><h3>¿Qué estás buscando?</h3><div className="choice-chips">{lookingOptions.map(item=><button type="button" key={item} className={lookingFor.includes(item)?'selected':''} onClick={()=>setLookingFor(cur=>cur.includes(item)?cur.filter(x=>x!==item):[...cur,item])}>{item}</button>)}</div><label htmlFor="ageMin">Edad mínima</label><input id="ageMin" type="number" min="18" max="99" value={ageMin} onChange={e=>setAgeMin(e.target.value)}/><label htmlFor="ageMax">Edad máxima</label><input id="ageMax" type="number" min="18" max="99" value={ageMax} onChange={e=>setAgeMax(e.target.value)}/><label htmlFor="distanceKm">Distancia máxima aproximada (km)</label><input id="distanceKm" type="number" min="1" max="500" value={distanceKm} onChange={e=>setDistanceKm(e.target.value)}/></div>
-            <div className="profile-section"><h3><ShieldCheck size={17}/> Privacidad</h3><div className="privacy-options"><label className="privacy-toggle"><span>Acepto los términos de uso de ubicación y distancias</span><input type="checkbox" checked={locationTermsAccepted} onChange={e=>setLocationTermsAccepted(e.target.checked)}/></label><p className="detail-private-note">Al aceptar, autorizás a ZUNO a calcular y mostrar a otros usuarios la distancia en metros entre las ubicaciones compartidas por ambos. La distancia se calcula con los datos de ubicación del dispositivo y puede variar; no muestra tu dirección ni coordenadas. Podés retirar el consentimiento cuando quieras.</p><label className="privacy-toggle"><span>Aparecer en el mapa</span><input type="checkbox" checked={mapVisible} disabled={mapBusy || !locationTermsAccepted} onChange={e=>setMyMapVisibility(e.target.checked)}/></label>{[['show_online','Mostrar cuando estoy conectado'],['show_distance','Mostrar distancia en perfiles'],['show_age','Permitir mostrar mi edad'],['show_location','Mostrar ciudad o región']].map(([key,label])=><label className="privacy-toggle" key={key}><span>{label}</span><input type="checkbox" checked={Boolean(privacy[key])} onChange={e=>setPrivacy(cur=>({...cur,[key]:e.target.checked}))}/></label>)}</div><p className="detail-private-note">Para mostrar la distancia, ambos usuarios deben aceptar estos términos, activar “Mostrar distancia en perfiles” y compartir una ubicación reciente. La opción “Aparecer en el mapa” es independiente. Si desactivás ambas opciones, ZUNO deja de usar tu ubicación para estas funciones.</p></div>
+            <div className="profile-section"><h3><ShieldCheck size={17}/> Privacidad</h3><div className="privacy-options"><label className="privacy-toggle"><span>Acepto los términos de uso de ubicación y distancias</span><input type="checkbox" checked={locationTermsAccepted} onChange={async e=>{const accepted=e.target.checked;setError('');const {error:consentError}=await supabase.from('profiles').update({location_terms_accepted:accepted}).eq('id',session.user.id);if(consentError){setError('No pudimos guardar tu consentimiento de ubicación: '+consentError.message);return}setLocationTermsAccepted(accepted);setProfile(current=>({...current,location_terms_accepted:accepted}));setMessage(accepted?'Consentimiento de ubicación guardado. La actualización automática está activada.':'Consentimiento retirado. ZUNO dejará de actualizar tu ubicación.')}}/></label><p className="detail-private-note">Al aceptar, autorizás a ZUNO a calcular y mostrar a otros usuarios la distancia en metros entre las ubicaciones compartidas por ambos. La distancia se calcula con los datos de ubicación del dispositivo y puede variar; no muestra tu dirección ni coordenadas. Podés retirar el consentimiento cuando quieras.</p><label className="privacy-toggle"><span>Aparecer en el mapa</span><input type="checkbox" checked={mapVisible} disabled={mapBusy || !locationTermsAccepted} onChange={e=>setMyMapVisibility(e.target.checked)}/></label>{[['show_online','Mostrar cuando estoy conectado'],['show_distance','Mostrar distancia en perfiles'],['show_age','Permitir mostrar mi edad'],['show_location','Mostrar ciudad o región']].map(([key,label])=><label className="privacy-toggle" key={key}><span>{label}</span><input type="checkbox" checked={Boolean(privacy[key])} onChange={e=>setPrivacy(cur=>({...cur,[key]:e.target.checked}))}/></label>)}</div><p className="detail-private-note">Para mostrar la distancia, ambos usuarios deben aceptar estos términos, activar “Mostrar distancia en perfiles” y compartir una ubicación reciente. La opción “Aparecer en el mapa” es independiente. Si desactivás ambas opciones, ZUNO deja de usar tu ubicación para estas funciones.</p></div>
             <div className="profile-section"><h3><Ban size={17}/> Cuentas bloqueadas</h3>{blockedUsers.length ? <div className="blocked-users-list">{blockedUsers.map(item=><div className="blocked-user-row" key={item.id}><span><strong>{item.person?.display_name || 'Usuario ZUNO'}</strong><small>{item.person?.username ? '@'+item.person.username : 'Cuenta bloqueada'}</small></span><button type="button" className="logout-btn" disabled={blockBusy===item.blocked_id} onClick={()=>unblockUser(item.blocked_id)}>Desbloquear</button></div>)}</div> : <p className="detail-private-note">Todavía no bloqueaste ninguna cuenta.</p>}</div>
             {error && <div className="notice error">{error}</div>}{message && <div className="notice success">{message}</div>}
             <button className="submit-btn" type="submit" disabled={busy}>{busy ? 'Guardando…' : profile?.display_name ? 'Guardar cambios' : 'Guardar perfil'} <span>→</span></button>
