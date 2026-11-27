@@ -59,3 +59,13 @@
   .logout-btn{padding:8px;font-size:10px}
   .home-heading h1{font-size:37px}
 }
+
+
+/* Email confirmation and privacy feedback */
+.verification-screen{max-width:560px;margin:0 auto;padding:55px 22px}
+.verification-screen>p{max-width:420px;text-align:center;line-height:1.7}
+.verification-action{max-width:340px}
+.verification-resend{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px;margin-top:17px}
+.verification-resend p{font-size:11px;color:#aaa2b2;margin:0}
+.verification-resend .logout-btn{padding:8px 11px}
+@media(max-width:520px){.verification-screen{min-height:calc(100dvh - 80px);padding:35px 12px}.verification-screen h2{font-size:21px}.verification-resend{flex-direction:column}}
