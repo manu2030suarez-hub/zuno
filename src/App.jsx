@@ -103,11 +103,6 @@ export default function App() {
     if (normalizedUsername && !/^[a-z0-9_.]{3,24}$/.test(normalizedUsername)) {
       setBusy(false); setError('El usuario debe tener entre 3 y 24 caracteres: letras sin acentos, números, puntos o guion bajo.'); return
     }
-    if (normalizedUsername) {
-      const { data: taken, error: lookupError } = await supabase.from('profiles').select('id').ilike('username', normalizedUsername).neq('id', session.user.id).maybeSingle()
-      if (lookupError) { setBusy(false); setError('No pudimos comprobar ese usuario. Intentá nuevamente.'); return }
-      if (taken) { setBusy(false); setError('Ese nombre de usuario ya está ocupado. Probá con otro.'); return }
-    }
     const { data, error: saveError } = await supabase.from('profiles').upsert({
       display_name: displayName.trim(), username: normalizedUsername || null, bio: bio.trim(), id: session.user.id
     }, { onConflict: 'id' }).select('display_name, username, bio, avatar_url, zuno_verified').maybeSingle()
