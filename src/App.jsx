@@ -67,6 +67,7 @@ export default function App() {
   const [notifications, setNotifications] = useState([])
   const [stories, setStories] = useState([])
   const [storyViewer, setStoryViewer] = useState(null)
+  const [storyQueue, setStoryQueue] = useState([])
   const [archivedStories, setArchivedStories] = useState([])
   const [showStoryArchive, setShowStoryArchive] = useState(false)
   const [showStoryMenu, setShowStoryMenu] = useState(false)
@@ -635,9 +636,9 @@ export default function App() {
   useEffect(() => {
     if (!storyViewer || storyViewer.media_type === 'video' || showStoryViewers) return
     if (storyPaused) return
-    const timer = window.setTimeout(() => setStoryViewer(null), storyRemainingMs)
+    const timer = window.setTimeout(() => { const index=storyQueue.findIndex(item=>item.id===storyViewer.id); if(index>=0&&index<storyQueue.length-1) openStory(storyQueue[index+1],storyQueue); else {setStoryViewer(null);setStoryQueue([])} }, storyRemainingMs)
     return () => window.clearTimeout(timer)
-  }, [storyViewer?.id, storyViewer?.media_type, storyPaused, storyRemainingMs, showStoryViewers])
+  }, [storyViewer?.id, storyViewer?.media_type, storyPaused, storyRemainingMs, showStoryViewers, storyQueue])
 
   async function loadStoryPeople(ids) {
     if (!ids.length) return {}
@@ -660,7 +661,8 @@ export default function App() {
     }]))
   }
 
-  async function openStory(story) {
+  async function openStory(story, groupItems = null) {
+    const queue=(groupItems?.length?[...groupItems]:[story]).sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0)); setStoryQueue(queue)
     setStoryViewer(story)
     setStoryMessage('')
     setStoryRemainingMs(7000); setStoryPaused(false); setShowStoryMenu(false)
@@ -804,7 +806,7 @@ export default function App() {
     const loadNotifications = async () => {
       const { data, error: notificationError } = await supabase.from('notifications')
         .select('id,recipient_id,actor_id,notification_type,entity_id,title,body,created_at,read_at,metadata')
-        .eq('recipient_id', session.user.id).in('notification_type',['favorite','album_access_request']).order('created_at', { ascending: false }).limit(100)
+        .eq('recipient_id', session.user.id).in('notification_type',['favorite','tap','album_access_request']).order('created_at', { ascending: false }).limit(100)
       if (!active) return
       if (notificationError) { setPeopleError('No pudimos cargar las notificaciones. ' + notificationError.message); return }
       setNotifications(data || [])
@@ -819,7 +821,7 @@ export default function App() {
     const channel = supabase.channel('zuno-notifications-' + session.user.id)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: 'recipient_id=eq.' + session.user.id }, async payload => {
         const item = payload.new
-        if (!['favorite','album_access_request'].includes(item.notification_type)) return
+        if (!['favorite','tap','album_access_request'].includes(item.notification_type)) return
         const peerId = activeConversation?.person?.id
         if (item.notification_type === 'message' && view === 'chat' && peerId === item.actor_id) return
         setNotifications(current => current.some(existing => existing.id === item.id) ? current : [item, ...current].slice(0, 100))
@@ -1052,6 +1054,15 @@ export default function App() {
     return true
   }).sort((a,b) => discoverySort === 'name' ? (a.display_name || '').localeCompare(b.display_name || '') : discoverySort === 'oldest' ? new Date(a.created_at || 0)-new Date(b.created_at || 0) : new Date(b.created_at || 0)-new Date(a.created_at || 0))
   const discoveryFiltersActive = Boolean(discoverySearch || discoveryCity || discoveryInterest || discoveryLookingFor || discoveryVerifiedOnly || discoveryWithPhotos || discoverySort !== 'recent' || discoveryAgeMin || discoveryAgeMax || discoveryDistanceKm || discoveryOnlineRecently)
+
+  async function sendProfileTap(personId) {
+    if(!session?.user||favoriteBusy)return
+    setFavoriteBusy(personId)
+    const {error:tapError}=await supabase.from('profile_taps').insert({user_id:session.user.id,tapped_user_id:personId})
+    setFavoriteBusy('')
+    if(tapError&&tapError.code!=='23505'){setPeopleError('No pudimos enviar el tap. '+tapError.message);return}
+    setPeopleError('¡Tap enviado! 🔥')
+  }
 
   async function toggleFavorite(personId) {
     if (!session?.user || favoriteBusy) return
@@ -2102,7 +2113,7 @@ export default function App() {
               <button type="button" className="profile-stage-back" onClick={()=>{setSelectedProfile(null);setView('home')}} aria-label="Volver a descubrir"><X size={23}/></button>
               <div className="profile-stage-top-actions profile-top-five-actions">
                 {!selectedProfile.isOwn && <>
-                  <button type="button" onClick={()=>toggleFavorite(selectedProfile.id)} aria-label="Tap" title="Tap"><Heart size={19} fill={favoriteIds.includes(selectedProfile.id)?'currentColor':'none'}/></button>
+                  <button type="button" onClick={()=>toggleFavorite(selectedProfile.id)} aria-label="Favorito" title="Favorito"><Heart size={19} fill={favoriteIds.includes(selectedProfile.id)?'currentColor':'none'}/></button>
                   <button type="button" disabled={blockBusy===selectedProfile.id} onClick={()=>blockUser(selectedProfile)} aria-label="Bloquear" title="Bloquear"><Ban size={19}/></button>
                   <button type="button" onClick={()=>{setReportTarget(selectedProfile);setReportReason('harassment');setReportDetails('')}} aria-label="Denunciar" title="Denunciar"><Flag size={19}/></button>
                   <button type="button" onClick={()=>{setHiddenProfileIds(items=>items.includes(selectedProfile.id)?items:[...items,selectedProfile.id]);setSelectedProfile(null);setView('home')}} aria-label="Ocultar" title="Ocultar"><EyeOff size={19}/></button>
@@ -2113,7 +2124,7 @@ export default function App() {
             {publicPhotos.length>1 && <div className="profile-photo-segments" aria-label="Fotos del perfil">{publicPhotos.map((photo,index)=><button key={photo.id||photo.url||index} type="button" className={index===profilePhotoIndex?'active':''} onClick={()=>setProfilePhotoIndex(index)} aria-label={`Ver foto ${index+1}`}/>)}</div>}
 
             <div className="profile-stage-caption">
-              <div className="profile-stage-name">{selectedProfile.display_name || 'Usuario ZUNO'}{selectedProfile.age ? <span> {selectedProfile.age}</span> : null}</div>
+              <div className="profile-stage-name-row"><div className="profile-stage-name">{selectedProfile.display_name || 'Usuario ZUNO'}{selectedProfile.age ? <span> {selectedProfile.age}</span> : null}</div>{!selectedProfile.isOwn&&<button type="button" className="profile-name-fire" disabled={favoriteBusy===selectedProfile.id} onClick={()=>sendProfileTap(selectedProfile.id)} aria-label="Enviar tap de fuego" title="Enviar tap 🔥"><Flame size={24} fill="currentColor"/></button>}</div>
               {selectedProfile.username && <div className="profile-stage-username">@{selectedProfile.username}</div>}
               {selectedProfile.visibleCity && <div className="profile-stage-city"><Compass size={14}/>{selectedProfile.visibleCity}</div>}
             </div>
@@ -2139,7 +2150,7 @@ export default function App() {
           </div>
           {!selectedProfile.isOwn && <div className="profile-contact-bar">
             <button type="button" className="profile-message-action" onClick={()=>openChat(selectedProfile)}><MessageCircle size={19}/> Enviar mensaje</button>
-            <button type="button" className="profile-fire-action" disabled={favoriteBusy===selectedProfile.id} onClick={()=>toggleFavorite(selectedProfile.id)} aria-label="Dar fuego"><Flame size={25} fill={favoriteIds.includes(selectedProfile.id)?'currentColor':'none'}/></button>
+            <button type="button" className="profile-fire-action" disabled={favoriteBusy===selectedProfile.id} onClick={()=>toggleFavorite(selectedProfile.id)} aria-label="Agregar a favoritos"><Heart size={25} fill={favoriteIds.includes(selectedProfile.id)?'currentColor':'none'}/></button>
           </div>}
         </section>
         {profilePhotoFullscreen && currentPhoto?.url && <div className="profile-photo-fullscreen" role="dialog" aria-modal="true" onClick={()=>setProfilePhotoFullscreen(false)}><button type="button" aria-label="Cerrar foto" onClick={()=>setProfilePhotoFullscreen(false)}><X size={27}/></button><img src={currentPhoto.url} alt="Foto ampliada" onClick={event=>event.stopPropagation()}/></div>}
@@ -2151,7 +2162,7 @@ export default function App() {
           </div>}
         </section></div>}
         {reportTarget && <div className="security-modal-backdrop" role="presentation"><form className="security-modal" onSubmit={submitUserReport}><div className="security-modal-heading"><h2>Denunciar perfil</h2><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)} aria-label="Cerrar"><X size={17}/></button></div><p>Tu denuncia sobre {reportTarget.display_name || 'este usuario'} será privada y revisada por el equipo de ZUNO.</p><label>Motivo<select value={reportReason} onChange={event=>setReportReason(event.target.value)}><option value="fake_profile">Perfil falso o suplantación</option><option value="harassment">Acoso o amenazas</option><option value="inappropriate_content">Contenido inapropiado</option><option value="spam">Spam</option><option value="underage">Posible menor de edad</option><option value="scam">Estafa o fraude</option><option value="other">Otro motivo</option></select></label><label>Detalles (opcional)<textarea rows="4" maxLength="2000" value={reportDetails} onChange={event=>setReportDetails(event.target.value)} placeholder="Contanos qué pasó…"/></label><div className="security-modal-actions"><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)}>Cancelar</button><button type="submit" className="submit-btn" disabled={reportBusy}>{reportBusy?'Enviando…':'Enviar denuncia'}</button></div></form></div>}
-        <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>['favorite','album_access_request'].includes(item.notification_type)&&!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+        <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>['favorite','tap','album_access_request'].includes(item.notification_type)&&!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
       </main>
     )
   }
@@ -2201,13 +2212,13 @@ export default function App() {
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
       <section className="notifications-page">
         <div className="home-heading"><div><div className="eyebrow"><span/> TU ACTIVIDAD</div><h1>Tu <span>actividad.</span></h1><p>Notificaciones de taps y solicitudes de álbum privado.</p></div>
-          <button type="button" className="refresh-btn" disabled={!notifications.some(item=>!item.read_at)} onClick={async()=>{const unread=notifications.filter(item=>['favorite','album_access_request'].includes(item.notification_type)&&!item.read_at);if(!unread.length)return;const now=new Date().toISOString();const {error}=await supabase.from('notifications').update({read_at:now}).eq('recipient_id',session.user.id).in('notification_type',['favorite','album_access_request']).is('read_at',null);if(!error)setNotifications(current=>current.map(item=>({...item,read_at:item.read_at||now})))}}>Marcar todas leídas</button>
+          <button type="button" className="refresh-btn" disabled={!notifications.some(item=>!item.read_at)} onClick={async()=>{const unread=notifications.filter(item=>['favorite','tap','album_access_request'].includes(item.notification_type)&&!item.read_at);if(!unread.length)return;const now=new Date().toISOString();const {error}=await supabase.from('notifications').update({read_at:now}).eq('recipient_id',session.user.id).in('notification_type',['favorite','tap','album_access_request']).is('read_at',null);if(!error)setNotifications(current=>current.map(item=>({...item,read_at:item.read_at||now})))}}>Marcar todas leídas</button>
         </div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         <div className="notifications-list">
-          {notifications.filter(item=>['favorite','album_access_request'].includes(item.notification_type)).length ? notifications.filter(item=>['favorite','album_access_request'].includes(item.notification_type)).map(item=>{const actor=notificationActors[item.actor_id];const name=actor?.display_name||actor?.username||'Un miembro de ZUNO';return <article className={'notification-card '+(!item.read_at?'unread':'')} key={item.id}>
+          {notifications.filter(item=>['favorite','tap','album_access_request'].includes(item.notification_type)).length ? notifications.filter(item=>['favorite','tap','album_access_request'].includes(item.notification_type)).map(item=>{const actor=notificationActors[item.actor_id];const name=actor?.display_name||actor?.username||'Un miembro de ZUNO';return <article className={'notification-card '+(!item.read_at?'unread':'')} key={item.id}>
             <button type="button" className="notification-main" onClick={()=>openNotification(item)}>
-              <span className={'notification-symbol '+item.notification_type}>{item.notification_type==='favorite'?<Heart size={19}/>:<Images size={19}/>}</span>
+              <span className={'notification-symbol '+item.notification_type}>{item.notification_type==='album_access_request'?<Images size={19}/>:item.notification_type==='tap'?<Flame size={19}/>:<Heart size={19}/>}</span>
               <span className="notification-copy"><strong>{item.title}</strong><span>{name} · {item.body}</span><time>{new Date(item.created_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}</time></span>
               {!item.read_at && <i className="notification-unread-dot"/>}
             </button>
@@ -2238,13 +2249,8 @@ export default function App() {
           <div className="stories-rail">
             <label className="story-create"><span className="story-create-avatar"><ImagePlus size={23}/></span><span>{storyBusy ? 'Subiendo…' : 'Tu historia'}</span><input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" onChange={uploadStory} disabled={storyBusy}/></label>
             <button type="button" className="story-person story-archive-shortcut" onClick={() => setShowStoryArchive(true)}><span className="story-create-avatar"><Archive size={21}/></span><span>Archivo</span></button>
-            {stories.filter(story => story.user_id !== session.user.id).reduce((groups, story) => {
-              const last = groups[groups.length - 1]
-              if (last?.user_id === story.user_id) last.items.push(story)
-              else groups.push({ user_id: story.user_id, owner: story.owner, items: [story] })
-              return groups
-            }, []).map(group => <button type="button" className="story-person" key={group.user_id} onClick={() => openStory(group.items[0])}><span className="story-ring">{group.items[0].media_type === 'video' ? <video src={group.items[0].url} muted playsInline preload="metadata"/> : <img src={group.items[0].url} alt="Historia de {group.owner?.display_name || group.owner?.username || 'usuario'}"/>}</span><span>{group.owner?.display_name || group.owner?.username || 'Usuario'}</span></button>)}
-            {stories.filter(story => story.user_id === session.user.id).map(story => <button type="button" className="story-person own-story" key={story.id} onClick={() => openStory(story)}><span className="story-ring">{story.media_type === 'video' ? <video src={story.url} muted playsInline preload="metadata"/> : <img src={story.url} alt="Miniatura de tu historia"/>}</span><span>Tu historia</span></button>)}
+            {Array.from(stories.filter(story=>story.user_id!==session.user.id).reduce((groups,story)=>{if(!groups.has(story.user_id))groups.set(story.user_id,{user_id:story.user_id,owner:story.owner,items:[]});groups.get(story.user_id).items.push(story);return groups},new Map()).values()).map(group=>{const items=[...group.items].sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0));const latest=items[items.length-1];return <button type="button" className="story-person" key={group.user_id} onClick={()=>openStory(items[0],items)}><span className="story-ring">{latest.media_type==='video'?<video src={latest.url} muted playsInline preload="metadata"/>:<img src={latest.url} alt={`Historias de ${group.owner?.display_name||group.owner?.username||'usuario'}`}/>}</span><span>{group.owner?.display_name||group.owner?.username||'Usuario'}</span></button>})}
+            {(()=>{const own=stories.filter(story=>story.user_id===session.user.id).sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0));if(!own.length)return null;const latest=own[own.length-1];return <button type="button" className="story-person own-story" onClick={()=>openStory(own[0],own)}><span className="story-ring">{latest.media_type==='video'?<video src={latest.url} muted playsInline preload="metadata"/>:<img src={latest.url} alt="Tus historias"/>}</span><span>Tu historia</span></button>})()}
           </div>
           {storyMessage && <p className="story-feedback">{storyMessage}</p>}
         </section>}
