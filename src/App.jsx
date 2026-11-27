@@ -58,6 +58,7 @@ export default function App() {
   const [profileLoadError, setProfileLoadError] = useState('')
   const [people, setPeople] = useState([])
   const [favoriteIds, setFavoriteIds] = useState([])
+  const [activeTapIds, setActiveTapIds] = useState([])
   const [favoriteBusy, setFavoriteBusy] = useState('')
   const [hiddenProfileIds, setHiddenProfileIds] = useState([])
   const [connectionRows, setConnectionRows] = useState([])
@@ -888,14 +889,17 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!session?.user) { setFavoriteIds([]); return }
+    if (!session?.user) { setFavoriteIds([]); setActiveTapIds([]); return }
     let active = true
-    supabase.from('profile_favorites').select('favorite_user_id').eq('user_id', session.user.id)
-      .then(({ data, error: favoritesError }) => {
-        if (!active) return
-        if (favoritesError) setPeopleError('No pudimos cargar tus favoritos. ' + favoritesError.message)
-        else setFavoriteIds((data || []).map(row => row.favorite_user_id))
-      })
+    Promise.all([
+      supabase.from('profile_favorites').select('favorite_user_id').eq('user_id', session.user.id),
+      supabase.from('profile_taps').select('tapped_user_id,created_at').eq('user_id', session.user.id).gte('created_at', new Date(Date.now()-86400000).toISOString())
+    ]).then(([favoritesResult,tapsResult]) => {
+      if (!active) return
+      if (favoritesResult.error) setPeopleError('No pudimos cargar tus favoritos. ' + favoritesResult.error.message)
+      else setFavoriteIds((favoritesResult.data || []).map(row => row.favorite_user_id))
+      if (!tapsResult.error) setActiveTapIds((tapsResult.data || []).map(row => row.tapped_user_id))
+    })
     return () => { active = false }
   }, [session])
 
@@ -1066,18 +1070,19 @@ export default function App() {
     const ids=[session.user.id,person.id].sort()
     const {data:conversation,error:conversationError}=await supabase.from('conversations').upsert({member_one:ids[0],member_two:ids[1]},{onConflict:'member_one,member_two'}).select('id').single()
     if(conversationError){setPeopleError('No pudimos abrir el chat. '+conversationError.message);setProfileMessageBusy(false);return}
-    const {error:sendError}=await supabase.from('messages').insert({conversation_id:conversation.id,sender_id:session.user.id,body})
+    const {error:sendError}=await supabase.from('messages').insert({conversation_id:conversation.id,sender_id:session.user.id,body:'Ha respondido al perfil:\n'+body})
     setProfileMessageBusy(false)
     if(sendError){setPeopleError('No pudimos enviar el mensaje. '+sendError.message);return}
     setProfileMessageDraft('');setPeopleError('¡Mensaje enviado!')
   }
 
   async function sendProfileTap(personId) {
-    if(!session?.user||favoriteBusy)return
-    setFavoriteBusy(personId)
+    if(!session?.user||favoriteBusy||activeTapIds.includes(personId))return
+    setFavoriteBusy(personId);setPeopleError('')
     const {error:tapError}=await supabase.from('profile_taps').insert({user_id:session.user.id,tapped_user_id:personId})
     setFavoriteBusy('')
-    if(tapError&&tapError.code!=='23505'){setPeopleError('No pudimos enviar el tap. '+tapError.message);return}
+    if(tapError){setPeopleError(tapError.code==='23505'||tapError.code==='P0001'?'Ya le enviaste un tap a esta persona. Podés volver a hacerlo dentro de 24 horas.':'No pudimos enviar el tap. '+tapError.message);return}
+    setActiveTapIds(current=>[...current,personId])
     setPeopleError('¡Tap enviado! 🔥')
   }
 
@@ -2142,7 +2147,7 @@ export default function App() {
             {publicPhotos.length>1 && <div className="profile-photo-segments" aria-label="Fotos del perfil">{publicPhotos.map((photo,index)=><button key={photo.id||photo.url||index} type="button" className={index===profilePhotoIndex?'active':''} onClick={()=>setProfilePhotoIndex(index)} aria-label={`Ver foto ${index+1}`}/>)}</div>}
 
             <div className="profile-stage-caption">
-              <div className="profile-stage-name-row"><div className="profile-stage-name">{selectedProfile.display_name || 'Usuario ZUNO'}{selectedProfile.age ? <span> {selectedProfile.age}</span> : null}</div>{!selectedProfile.isOwn&&<button type="button" className="profile-name-fire" disabled={favoriteBusy===selectedProfile.id} onClick={()=>sendProfileTap(selectedProfile.id)} aria-label="Enviar tap de fuego" title="Enviar tap 🔥"><Flame size={24} fill="currentColor"/></button>}</div>
+              <div className="profile-stage-name-row"><div className="profile-stage-name">{selectedProfile.display_name || 'Usuario ZUNO'}{selectedProfile.age ? <span> {selectedProfile.age}</span> : null}</div>{!selectedProfile.isOwn&&<button type="button" className={"profile-name-fire "+(activeTapIds.includes(selectedProfile.id)?"is-active":"")} disabled={favoriteBusy===selectedProfile.id||activeTapIds.includes(selectedProfile.id)} onClick={()=>sendProfileTap(selectedProfile.id)} aria-label="Enviar tap de fuego" title="Enviar tap 🔥"><Flame size={24} fill="currentColor"/></button>}</div>
               {selectedProfile.username && <div className="profile-stage-username">@{selectedProfile.username}</div>}
               {!selectedProfile.isOwn && <form className="profile-quick-message" onSubmit={sendProfileQuickMessage}><input aria-label="Escribir mensaje" value={profileMessageDraft} onChange={event=>setProfileMessageDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="submit" disabled={!profileMessageDraft.trim()||profileMessageBusy} aria-label="Enviar mensaje" title="Enviar mensaje">{profileMessageBusy?'…':<Send size={18}/>}</button></form>}
               {selectedProfile.visibleCity && <div className="profile-stage-city"><Compass size={14}/>{selectedProfile.visibleCity}</div>}
@@ -2270,12 +2275,12 @@ export default function App() {
             <button type="button" className="story-person story-archive-shortcut" onClick={() => setShowStoryArchive(true)}><span className="story-create-avatar"><Archive size={21}/></span><span>Archivo</span></button>
             {(()=>{const own=stories.filter(story=>story.user_id===session.user.id).sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0));if(!own.length)return null;const latest=own[own.length-1];return <button type="button" className="story-person own-story" onClick={()=>openStory(own[0],own)}><span className="story-ring">{latest.media_type==='video'?<video src={latest.url} muted playsInline preload="metadata"/>:<img src={latest.url} alt="Tus historias"/>}</span><span>Tu historia</span></button>})()}
             {Array.from(stories.filter(story=>story.user_id!==session.user.id).reduce((groups,story)=>{if(!groups.has(story.user_id))groups.set(story.user_id,{user_id:story.user_id,owner:story.owner,items:[]});groups.get(story.user_id).items.push(story);return groups},new Map()).values()).map(group=>{const items=[...group.items].sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0));const latest=items[items.length-1];return <button type="button" className="story-person" key={group.user_id} onClick={()=>openStory(items[0],items)}><span className="story-ring">{latest.media_type==='video'?<video src={latest.url} muted playsInline preload="metadata"/>:<img src={latest.url} alt={`Historias de ${group.owner?.display_name||group.owner?.username||'usuario'}`}/>}</span><span>{group.owner?.display_name||group.owner?.username||'Usuario'}</span></button>})}
-            {(()=>{const own=stories.filter(story=>story.user_id===session.user.id).sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0));if(!own.length)return null;const latest=own[own.length-1];return <button type="button" className="story-person own-story" onClick={()=>openStory(own[0],own)}><span className="story-ring">{latest.media_type==='video'?<video src={latest.url} muted playsInline preload="metadata"/>:<img src={latest.url} alt="Tus historias"/>}</span><span>Tu historia</span></button>})()}
+
           </div>
           {storyMessage && <p className="story-feedback">{storyMessage}</p>}
         </section>}
         {storyViewer && <div className="story-viewer-backdrop" role="presentation" onClick={() => setStoryViewer(null)}><section className="story-viewer" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}>
-          <div className="story-progress-track" aria-hidden="true"><span key={storyViewer.id} style={{ animationDuration: storyViewer.media_type === 'video' ? '30s' : '7s', animationPlayState: storyPaused ? 'paused' : 'running' }}/></div><div className="story-viewer-top"><span>{storyViewer.owner?.display_name || storyViewer.owner?.username || 'Tu historia'}</span><div className="story-viewer-top-actions">{storyViewer.user_id === session.user.id && !storyViewer.archived_at && <button type="button" onClick={() => setShowStoryMenu(value => !value)} aria-label="Opciones de historia"><MoreVertical/></button>}<button type="button" onClick={() => setStoryViewer(null)} aria-label="Cerrar historia"><X/></button></div>{showStoryMenu && <div className="story-options-menu"><button type="button" disabled={storyBusy} onClick={() => archiveStory(storyViewer)}><Archive size={16}/> Archivar historia</button></div>}</div>
+          <div className="story-progress-track" aria-label={"Historia "+(Math.max(1,storyQueue.findIndex(item=>item.id===storyViewer.id)+1))+" de "+(storyQueue.length||1)}>{storyQueue.map((item,index)=> <span key={item.id} className={item.id===storyViewer.id?'current':index<storyQueue.findIndex(row=>row.id===storyViewer.id)?'completed':''} style={item.id===storyViewer.id?{animationDuration:(storyRemainingMs/1000)+'s',animationPlayState:storyPaused?'paused':'running'}:{}}/>)}</div><div className="story-viewer-top"><span>{storyViewer.owner?.display_name || storyViewer.owner?.username || 'Tu historia'}</span><div className="story-viewer-top-actions">{storyViewer.user_id === session.user.id && !storyViewer.archived_at && <button type="button" onClick={() => setShowStoryMenu(value => !value)} aria-label="Opciones de historia"><MoreVertical/></button>}<button type="button" onClick={() => setStoryViewer(null)} aria-label="Cerrar historia"><X/></button></div>{showStoryMenu && <div className="story-options-menu"><button type="button" disabled={storyBusy} onClick={() => archiveStory(storyViewer)}><Archive size={16}/> Archivar historia</button></div>}</div>
           {storyViewer.media_type === 'video' ? <video src={storyViewer.url} controls autoPlay playsInline onEnded={() => { const index=storyQueue.findIndex(item=>item.id===storyViewer.id); if(index>=0&&index<storyQueue.length-1)openStory(storyQueue[index+1],storyQueue);else{setStoryViewer(null);setStoryQueue([])} }}/> : <img src={storyViewer.url} alt="Historia" draggable="false" onDragStart={event => event.preventDefault()} onPointerDown={event => { event.preventDefault(); event.stopPropagation(); if (!storyPaused) { storyPauseStartedRef.current = Date.now(); setStoryPaused(true) } }} onPointerUp={event => { event.preventDefault(); event.stopPropagation(); if (storyPauseStartedRef.current) { setStoryRemainingMs(value => Math.max(0, value - (Date.now() - storyPauseStartedRef.current))); storyPauseStartedRef.current = null } setStoryPaused(false) }} onPointerCancel={() => { if (storyPauseStartedRef.current) { setStoryRemainingMs(value => Math.max(0, value - (Date.now() - storyPauseStartedRef.current))); storyPauseStartedRef.current = null } setStoryPaused(false) }} onPointerLeave={() => { if (storyPauseStartedRef.current) { setStoryRemainingMs(value => Math.max(0, value - (Date.now() - storyPauseStartedRef.current))); storyPauseStartedRef.current = null } setStoryPaused(false) }} onContextMenu={event => event.preventDefault()}/> }
           {storyViewer.caption && <p>{storyViewer.caption}</p>}
           {storyMessage && <p className="story-feedback" role="status">{storyMessage}</p>}
