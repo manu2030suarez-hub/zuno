@@ -691,6 +691,7 @@ export default function App() {
       let discoveryIds = null
       let distanceByUser = {}
       let onlineRecentlyByUser = {}
+      let activityStatusByUser = {}
       const hasServerFilters = true
       if (hasServerFilters) {
         if (discoveryDistanceKm) {
@@ -716,9 +717,10 @@ export default function App() {
         discoveryIds=(matches||[]).map(row=>row.user_id)
         distanceByUser=(matches||[]).reduce((acc,row)=>{acc[row.user_id]=row.approximate_distance_km;return acc},{})
         onlineRecentlyByUser=(matches||[]).reduce((acc,row)=>{acc[row.user_id]=row.online_recently===true;return acc},{})
+        activityStatusByUser=(matches||[]).reduce((acc,row)=>{acc[row.user_id]=row.activity_status || null;return acc},{})
         if (!discoveryIds.length) {setPeople([]);setPeopleLoading(false);return}
       }
-      let profileQuery=supabase.from('profiles').select('id, display_name, username, bio, avatar_url, zuno_verified, city, region, interests, looking_for, show_location, show_online, show_distance, last_seen_at, created_at').neq('id', session.user.id).order('created_at', { ascending: false }).limit(100)
+      let profileQuery=supabase.from('profiles').select('id, display_name, username, bio, avatar_url, zuno_verified, city, region, interests, looking_for, show_location, show_online, show_distance, created_at').neq('id', session.user.id).order('created_at', { ascending: false }).limit(100)
       if (discoveryIds) profileQuery=profileQuery.in('id',discoveryIds)
       const { data, error: listError } = await profileQuery
       if (!active) return
@@ -749,7 +751,7 @@ export default function App() {
           ...person,
           approximateDistanceKm:distanceByUser[person.id] ?? null,
           onlineRecently:onlineRecentlyByUser[person.id]===true,
-          activityStatus:!person.show_online ? null : (person.last_seen_at && Date.now()-new Date(person.last_seen_at).getTime()<=120000 ? 'active' : person.last_seen_at && Date.now()-new Date(person.last_seen_at).getTime()<=900000 ? 'recent' : 'offline'),
+          activityStatus:person.show_online ? activityStatusByUser[person.id] : null,
           photos: photosByUser[person.id] || [],
           visibleCity: person.show_location ? [person.city, person.region].filter(Boolean).join(', ') : ''
         })))
@@ -1925,7 +1927,7 @@ export default function App() {
           {storyMessage && <p className="story-feedback">{storyMessage}</p>}
         </section>}
         {storyViewer && <div className="story-viewer-backdrop" role="presentation" onClick={() => setStoryViewer(null)}><section className="story-viewer" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}>
-          <div className="story-progress-track" aria-hidden="true"><span key={storyViewer.id} style={{ animationDuration: storyViewer.media_type === 'video' ? '30s' : '7s' }}/></div><div className="story-viewer-top"><span>{storyViewer.owner?.display_name || storyViewer.owner?.username || 'Tu historia'}</span><div className="story-viewer-top-actions">{storyViewer.user_id === session.user.id && !storyViewer.archived_at && <button type="button" onClick={() => setShowStoryMenu(value => !value)} aria-label="Opciones de historia"><MoreVertical/></button>}<button type="button" onClick={() => setStoryViewer(null)} aria-label="Cerrar historia"><X/></button></div>{showStoryMenu && <div className="story-options-menu"><button type="button" disabled={storyBusy} onClick={() => archiveStory(storyViewer)}><Archive size={16}/> Archivar historia</button></div>}</div>
+          <div className="story-progress-track" aria-hidden="true"><span key={storyViewer.id} style={{ animationDuration: storyViewer.media_type === 'video' ? '30s' : '7s', animationPlayState: storyPaused ? 'paused' : 'running' }}/></div><div className="story-viewer-top"><span>{storyViewer.owner?.display_name || storyViewer.owner?.username || 'Tu historia'}</span><div className="story-viewer-top-actions">{storyViewer.user_id === session.user.id && !storyViewer.archived_at && <button type="button" onClick={() => setShowStoryMenu(value => !value)} aria-label="Opciones de historia"><MoreVertical/></button>}<button type="button" onClick={() => setStoryViewer(null)} aria-label="Cerrar historia"><X/></button></div>{showStoryMenu && <div className="story-options-menu"><button type="button" disabled={storyBusy} onClick={() => archiveStory(storyViewer)}><Archive size={16}/> Archivar historia</button></div>}</div>
           {storyViewer.media_type === 'video' ? <video src={storyViewer.url} controls autoPlay playsInline onEnded={() => setStoryViewer(null)}/> : <img src={storyViewer.url} alt="Historia" onPointerDown={() => { if (!storyPaused) { storyPauseStartedRef.current = Date.now(); setStoryPaused(true) } }} onPointerUp={() => { if (storyPauseStartedRef.current) { setStoryRemainingMs(value => Math.max(0, value - (Date.now() - storyPauseStartedRef.current))); storyPauseStartedRef.current = null } setStoryPaused(false) }} onPointerLeave={() => { if (storyPauseStartedRef.current) { setStoryRemainingMs(value => Math.max(0, value - (Date.now() - storyPauseStartedRef.current))); storyPauseStartedRef.current = null } setStoryPaused(false) }} onContextMenu={event => event.preventDefault()}/> }
           {storyViewer.caption && <p>{storyViewer.caption}</p>}
           {storyViewer.user_id === session.user.id && <button type="button" className="story-viewers-trigger" onClick={() => setShowStoryViewers(true)}><Eye size={17}/><strong>Visto por {storyViewers.length}</strong><span>Ver lista</span></button>}
