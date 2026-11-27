@@ -815,3 +815,34 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
  .person-info{padding-left:8px;padding-right:8px}
  .person-card-actions button{font-size:9px}
 }
+
+
+/* ZUNO auth landing — neon magenta/violet direction */
+.auth-landing{position:relative;isolation:isolate;grid-template-columns:minmax(0,1fr) minmax(360px,470px);gap:clamp(28px,6vw,92px);min-height:calc(100vh - 150px);padding:48px 0 66px;overflow:hidden}
+.auth-landing:before{content:"";position:absolute;inset:2% -12% 4% -16%;z-index:-2;background:radial-gradient(ellipse at 18% 42%,#7b16a766 0,transparent 34%),radial-gradient(ellipse at 78% 55%,#4011a455 0,transparent 35%),linear-gradient(135deg,transparent 0 18%,#f000a922 18.2%,transparent 18.8% 26%,#8d27ff22 26.2%,transparent 26.8% 100%);pointer-events:none}
+.auth-landing:after{content:"";position:absolute;left:-15%;top:8%;width:48%;height:70%;z-index:-1;border:1px solid #e500ff33;transform:skewY(-24deg);box-shadow:0 0 45px #c000ff20,inset 0 0 45px #c000ff12;pointer-events:none}
+.auth-brand-panel{min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:clamp(24px,4vw,56px) 0 60px 3%;min-height:570px}
+.auth-heart-mark{display:grid;place-items:center;width:76px;height:76px;border-radius:24px;color:#ff20bd;background:linear-gradient(145deg,#ff18b722,#702cff35);filter:drop-shadow(0 0 20px #d000ff99);margin-bottom:12px}
+.auth-heart-mark svg{stroke:#ff31c7;stroke-width:2.4}
+.auth-wordmark{font:900 clamp(64px,8vw,104px)/.98 Manrope,sans-serif;letter-spacing:-7px;color:#fff;text-shadow:0 0 26px #b900ff66}
+.auth-tagline{font-size:clamp(14px,1.5vw,18px);font-weight:600;color:#f7e8ff;letter-spacing:.2px;margin-top:13px}
+.auth-divider{height:1px;width:min(330px,85%);margin:30px 0 19px;background:linear-gradient(90deg,#f000c9,#8d32ff,transparent);box-shadow:0 0 12px #d000ff88}
+.auth-brand-panel>p{margin:0;color:#f2e9f7;font-size:clamp(17px,2vw,22px);font-weight:600}
+.auth-feature-pills{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
+.auth-feature-pills span{display:flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid #ed5bff44;border-radius:999px;background:#170d2488;color:#e8d9f1;font-size:12px}
+.auth-feature-pills svg{color:#ff55d4}
+.auth-card-neon{border:1px solid #e94bff66;background:linear-gradient(150deg,#17101fee,#0c0915f5);border-radius:25px;padding:clamp(23px,3vw,34px);box-shadow:0 25px 90px #000a,0 0 35px #a000ff25;backdrop-filter:blur(18px)}
+.auth-card-neon .card-icon{width:48px;height:48px;border-radius:16px;color:#ff65d4;background:linear-gradient(135deg,#f000a72a,#7c2bff38);box-shadow:0 0 22px #b000ff2c}
+.auth-card-neon h2{margin-top:19px;font-size:25px}
+.auth-card-neon .mode-switch{background:#090711;border:1px solid #ffffff12;border-radius:999px;padding:4px;gap:4px}
+.auth-card-neon .mode-switch button{border-radius:999px;padding:12px 8px;font-size:12px}
+.auth-card-neon .mode-switch button.active{background:linear-gradient(100deg,#f000a8,#702cff);color:white;box-shadow:0 0 18px #c000ff55}
+.auth-card-neon form input{background:#0b0911;border-color:#ffffff22;border-radius:12px}
+.auth-card-neon form input:focus{border-color:#e64bff;box-shadow:0 0 0 3px #c000ff25,0 0 18px #b000ff25}
+.auth-card-neon .submit-btn{height:52px;border-radius:999px;background:linear-gradient(100deg,#f000a8,#762cff);box-shadow:0 8px 28px #b000ff55,0 0 18px #b000ff30}
+.auth-card-neon .legal{color:#a79aae}
+.auth-landing .under-card{color:#b9a9c5}
+.auth-landing .under-card svg{color:#ff5bd4}
+@media(max-width:900px){.app-shell{padding-left:28px;padding-right:28px}.auth-landing{grid-template-columns:minmax(0,1fr) minmax(330px,430px);gap:28px}.auth-brand-panel{padding-left:0}.auth-wordmark{font-size:70px}}
+@media(max-width:700px){.app-shell{padding-left:18px;padding-right:18px}.topbar{height:72px}.auth-landing{display:flex;flex-direction:column;gap:22px;min-height:calc(100vh - 130px);padding:28px 0 38px;overflow:visible}.auth-brand-panel{min-height:0;width:100%;align-items:center;text-align:center;padding:18px 0 8px}.auth-heart-mark{width:58px;height:58px;border-radius:18px;margin-bottom:8px}.auth-heart-mark svg{width:34px;height:34px}.auth-wordmark{font-size:62px;letter-spacing:-4px}.auth-divider{margin:18px 0 13px}.auth-brand-panel>p{font-size:16px}.auth-feature-pills{justify-content:center;margin-top:17px}.auth-wrap{max-width:480px;margin:0 auto}.auth-card-neon{padding:23px 20px}.auth-card-neon h2{font-size:22px}.auth-landing:after{left:-45%;top:4%;width:100%;height:45%}}
+@media(max-width:390px){.auth-card-neon{padding:20px 16px}.auth-card-neon .mode-switch button{font-size:11px}.auth-feature-pills span{font-size:11px;padding:8px 10px}}
