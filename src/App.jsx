@@ -2021,6 +2021,26 @@ export default function App() {
     </>
   ) : null
 
+  if (session?.user && !emailConfirmed) return (
+    <main className="app-shell">{callOverlay}
+      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header>
+      <section className="loading-state verification-screen">
+        <div className="card-icon"><ShieldCheck size={21}/></div><h2>Confirmá tu correo electrónico</h2>
+        <p>Necesitamos confirmar que esta dirección te pertenece antes de entrar a ZUNO.</p>
+        <button className="submit-btn verification-action" onClick={async()=>{setVerificationEmail(session.user.email || ''); await resendVerification(session.user.email || '')}} disabled={busy}>{busy ? 'Enviando…' : 'Reenviar correo de confirmación'}</button>
+        {error && <div className="notice error">{error}</div>}{message && <div className="notice success">{message}</div>}
+      </section>
+    </main>
+  )
+
+  if (session?.user && profileLoading) return (
+    <main className="app-shell">{callOverlay}<header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header><section className="loading-state"><div className="card-icon"><Heart size={21}/></div><h2>Preparando tu espacio…</h2><p>Estamos cargando tu perfil.</p></section></main>
+  )
+
+  if (session?.user && profileLoadError) return (
+    <main className="app-shell">{callOverlay}<header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header><section className="loading-state"><div className="card-icon"><ShieldCheck size={21}/></div><h2>No pudimos cargar tu perfil</h2><p>{profileLoadError}</p><p>Por seguridad, no te vamos a pedir que crees otro perfil mientras no podamos comprobar si ya existe.</p><button className="submit-btn" onClick={()=>window.location.reload()}>Volver a intentar <span>→</span></button></section></main>
+  )
+
   if (session?.user && !profileLoading && !profileLoadError && !locationTermsAccepted) return (
     <main className="app-shell">
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header>
@@ -2043,26 +2063,6 @@ export default function App() {
         </section>
       </div>
     </main>
-  )
-
-  if (session?.user && !emailConfirmed) return (
-    <main className="app-shell">{callOverlay}
-      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header>
-      <section className="loading-state verification-screen">
-        <div className="card-icon"><ShieldCheck size={21}/></div><h2>Confirmá tu correo electrónico</h2>
-        <p>Necesitamos confirmar que esta dirección te pertenece antes de entrar a ZUNO.</p>
-        <button className="submit-btn verification-action" onClick={async()=>{setVerificationEmail(session.user.email || ''); await resendVerification(session.user.email || '')}} disabled={busy}>{busy ? 'Enviando…' : 'Reenviar correo de confirmación'}</button>
-        {error && <div className="notice error">{error}</div>}{message && <div className="notice success">{message}</div>}
-      </section>
-    </main>
-  )
-
-  if (session?.user && profileLoading) return (
-    <main className="app-shell">{callOverlay}<header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header><section className="loading-state"><div className="card-icon"><Heart size={21}/></div><h2>Preparando tu espacio…</h2><p>Estamos cargando tu perfil.</p></section></main>
-  )
-
-  if (session?.user && profileLoadError) return (
-    <main className="app-shell">{callOverlay}<header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header><section className="loading-state"><div className="card-icon"><ShieldCheck size={21}/></div><h2>No pudimos cargar tu perfil</h2><p>{profileLoadError}</p><p>Por seguridad, no te vamos a pedir que crees otro perfil mientras no podamos comprobar si ya existe.</p><button className="submit-btn" onClick={()=>window.location.reload()}>Volver a intentar <span>→</span></button></section></main>
   )
 
   if (session?.user && view === 'detail' && selectedProfile) return (
