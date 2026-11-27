@@ -51,6 +51,7 @@ export default function App() {
   const [stories, setStories] = useState([])
   const [storyViewer, setStoryViewer] = useState(null)
   const [storyViewers, setStoryViewers] = useState([])
+  const [showStoryViewers, setShowStoryViewers] = useState(false)
   const [storyBusy, setStoryBusy] = useState(false)
   const [storyMessage, setStoryMessage] = useState('')
   const [notificationActors, setNotificationActors] = useState({})
@@ -270,6 +271,7 @@ export default function App() {
 
   async function openStory(story) {
     setStoryViewer(story)
+    setShowStoryViewers(false)
     setStoryViewers([])
     if (story.user_id !== session?.user?.id) {
       const { error: viewError } = await supabase.from('story_views').insert({ story_id: story.id, viewer_id: session.user.id, viewed_at: new Date().toISOString() })
@@ -1624,7 +1626,8 @@ export default function App() {
           <div className="story-viewer-top"><span>{storyViewer.owner?.display_name || storyViewer.owner?.username || 'Tu historia'}</span><button type="button" onClick={() => setStoryViewer(null)} aria-label="Cerrar historia"><X/></button></div>
           {storyViewer.media_type === 'video' ? <video src={storyViewer.url} controls autoPlay playsInline/> : <img src={storyViewer.url} alt="Historia"/>}
           {storyViewer.caption && <p>{storyViewer.caption}</p>}
-          {storyViewer.user_id === session.user.id && <div className="story-viewers"><strong><Eye size={15}/> {storyViewers.length} visualizaciones</strong>{storyViewers.map(item => <span key={item.viewer_id}><img src={item.person?.avatar_url || ''} alt=""/>{item.person?.display_name || item.person?.username || 'Usuario'}</span>)}{!storyViewers.length && <small>Todavía nadie vio esta historia.</small>}</div>}
+          {storyViewer.user_id === session.user.id && <button type="button" className="story-viewers-trigger" onClick={() => setShowStoryViewers(true)}><Eye size={17}/><strong>Visto por {storyViewers.length}</strong><span>Ver lista</span></button>}
+          {showStoryViewers && storyViewer.user_id === session.user.id && <div className="story-viewers-sheet-backdrop" onClick={() => setShowStoryViewers(false)}><section className="story-viewers-sheet" role="dialog" aria-modal="true" aria-label="Personas que vieron tu historia" onClick={event => event.stopPropagation()}><div className="story-viewers-sheet-heading"><div><strong>Visualizaciones</strong><small>{storyViewers.length} {storyViewers.length === 1 ? 'persona vio' : 'personas vieron'} tu historia</small></div><button type="button" onClick={() => setShowStoryViewers(false)} aria-label="Cerrar"><X size={19}/></button></div>{storyViewers.length ? <div className="story-viewers-list">{storyViewers.map(item => <div className="story-viewer-person" key={item.viewer_id}><img src={item.person?.avatar_url || ''} alt=""/><div><strong>{item.person?.display_name || item.person?.username || 'Usuario'}</strong><small>@{item.person?.username || 'usuario'}</small></div><time>{new Date(item.viewed_at).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'})}</time></div>)}</div> : <div className="story-viewers-empty"><Eye size={25}/><strong>Todavía nadie vio tu historia</strong><small>Cuando alguien la vea, aparecerá acá.</small></div>}</section></div>}
           {storyViewer.user_id === session.user.id && <button type="button" className="story-delete" disabled={storyBusy} onClick={() => deleteStory(storyViewer)}><Trash2 size={16}/> Eliminar historia</button>}
         </section></div>}
         {view === 'home' && <nav className="home-shortcuts" aria-label="Secciones de descubrir">
