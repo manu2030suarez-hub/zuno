@@ -99,6 +99,8 @@ export default function App() {
   const [deleteConfirmMessage, setDeleteConfirmMessage] = useState(null)
   const longPressTimerRef = useRef(null)
   const [chatDraft, setChatDraft] = useState('')
+  const [profileMessageDraft, setProfileMessageDraft] = useState('')
+  const [profileMessageBusy, setProfileMessageBusy] = useState(false)
   const [chatBusy, setChatBusy] = useState(false)
   const [chatMediaBusy, setChatMediaBusy] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
@@ -1055,6 +1057,21 @@ export default function App() {
   }).sort((a,b) => discoverySort === 'name' ? (a.display_name || '').localeCompare(b.display_name || '') : discoverySort === 'oldest' ? new Date(a.created_at || 0)-new Date(b.created_at || 0) : new Date(b.created_at || 0)-new Date(a.created_at || 0))
   const discoveryFiltersActive = Boolean(discoverySearch || discoveryCity || discoveryInterest || discoveryLookingFor || discoveryVerifiedOnly || discoveryWithPhotos || discoverySort !== 'recent' || discoveryAgeMin || discoveryAgeMax || discoveryDistanceKm || discoveryOnlineRecently)
 
+  async function sendProfileQuickMessage(event) {
+    event.preventDefault()
+    const body=profileMessageDraft.trim(), person=selectedProfile
+    if(!body||!person?.id||!session?.user||profileMessageBusy)return
+    if(blockedUsers.some(item=>item.blocked_id===person.id)){setPeopleError('Esta cuenta está bloqueada. Desbloqueala antes de iniciar un chat.');return}
+    setProfileMessageBusy(true);setPeopleError('')
+    const ids=[session.user.id,person.id].sort()
+    const {data:conversation,error:conversationError}=await supabase.from('conversations').upsert({member_one:ids[0],member_two:ids[1]},{onConflict:'member_one,member_two'}).select('id').single()
+    if(conversationError){setPeopleError('No pudimos abrir el chat. '+conversationError.message);setProfileMessageBusy(false);return}
+    const {error:sendError}=await supabase.from('messages').insert({conversation_id:conversation.id,sender_id:session.user.id,body})
+    setProfileMessageBusy(false)
+    if(sendError){setPeopleError('No pudimos enviar el mensaje. '+sendError.message);return}
+    setProfileMessageDraft('');setPeopleError('¡Mensaje enviado!')
+  }
+
   async function sendProfileTap(personId) {
     if(!session?.user||favoriteBusy)return
     setFavoriteBusy(personId)
@@ -1994,7 +2011,7 @@ export default function App() {
   }
   async function openMemberProfile(person,isOwn=false) {
     const selected={...person,isOwn}
-    setProfilePhotoIndex(0);setProfilePhotoFullscreen(false);setShowProfileAlbum(false)
+    setProfilePhotoIndex(0);setProfilePhotoFullscreen(false);setShowProfileAlbum(false);setProfileMessageDraft('')
     setPrivateAlbumRequestStatus('')
     setPrivateAlbumMessage('')
     if(!isOwn && session?.user){
@@ -2114,6 +2131,7 @@ export default function App() {
               <div className="profile-stage-top-actions profile-top-five-actions">
                 {!selectedProfile.isOwn && <>
                   <button type="button" onClick={()=>toggleFavorite(selectedProfile.id)} aria-label="Favorito" title="Favorito"><Heart size={19} fill={favoriteIds.includes(selectedProfile.id)?'currentColor':'none'}/></button>
+                  <button type="button" onClick={()=>openChat(selectedProfile)} aria-label="Abrir chat" title="Chat"><MessageCircle size={19}/></button>
                   <button type="button" disabled={blockBusy===selectedProfile.id} onClick={()=>blockUser(selectedProfile)} aria-label="Bloquear" title="Bloquear"><Ban size={19}/></button>
                   <button type="button" onClick={()=>{setReportTarget(selectedProfile);setReportReason('harassment');setReportDetails('')}} aria-label="Denunciar" title="Denunciar"><Flag size={19}/></button>
                   <button type="button" onClick={()=>{setHiddenProfileIds(items=>items.includes(selectedProfile.id)?items:[...items,selectedProfile.id]);setSelectedProfile(null);setView('home')}} aria-label="Ocultar" title="Ocultar"><EyeOff size={19}/></button>
@@ -2126,6 +2144,7 @@ export default function App() {
             <div className="profile-stage-caption">
               <div className="profile-stage-name-row"><div className="profile-stage-name">{selectedProfile.display_name || 'Usuario ZUNO'}{selectedProfile.age ? <span> {selectedProfile.age}</span> : null}</div>{!selectedProfile.isOwn&&<button type="button" className="profile-name-fire" disabled={favoriteBusy===selectedProfile.id} onClick={()=>sendProfileTap(selectedProfile.id)} aria-label="Enviar tap de fuego" title="Enviar tap 🔥"><Flame size={24} fill="currentColor"/></button>}</div>
               {selectedProfile.username && <div className="profile-stage-username">@{selectedProfile.username}</div>}
+              {!selectedProfile.isOwn && <form className="profile-quick-message" onSubmit={sendProfileQuickMessage}><input aria-label="Escribir mensaje" value={profileMessageDraft} onChange={event=>setProfileMessageDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="submit" disabled={!profileMessageDraft.trim()||profileMessageBusy} aria-label="Enviar mensaje" title="Enviar mensaje">{profileMessageBusy?'…':<Send size={18}/>}</button></form>}
               {selectedProfile.visibleCity && <div className="profile-stage-city"><Compass size={14}/>{selectedProfile.visibleCity}</div>}
             </div>
           </div>
