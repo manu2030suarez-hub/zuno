@@ -289,12 +289,38 @@ export default function App() {
       if (room <= 0) { setPeopleError('Podés preparar hasta 5 imágenes por envío.'); return current }
       const valid = accepted.slice(0, room).filter(file => ['image/jpeg','image/png','image/webp','image/gif'].includes(file.type) && file.size <= 10 * 1024 * 1024)
       if (valid.length !== Math.min(accepted.length, room)) setPeopleError('Se aceptan JPG, PNG, WEBP o GIF de hasta 10 MB cada una. Máximo 5 imágenes.')
-      return [...current, ...valid.map(file => ({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file), rotation: 0, zoom: 1 }))]
+      return [...current, ...valid.map(file => ({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file), rotation: 0, zoom: 1, offsetX: 0, offsetY: 0 }))]
     })
   }
 
   function updateDraftImage(id, changes) {
     setChatDraftImages(current => current.map(item => item.id === id ? { ...item, ...changes } : item))
+  }
+
+  function startCropDrag(event, item) {
+    if (item.zoom <= 1) return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const startX = event.clientX
+    const startY = event.clientY
+    const startOffsetX = item.offsetX || 0
+    const startOffsetY = item.offsetY || 0
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const rangeX = Math.max(1, bounds.width * (item.zoom - 1) / 2)
+    const rangeY = Math.max(1, bounds.height * (item.zoom - 1) / 2)
+    const move = moveEvent => {
+      const offsetX = Math.max(-1, Math.min(1, startOffsetX + (moveEvent.clientX - startX) / rangeX))
+      const offsetY = Math.max(-1, Math.min(1, startOffsetY + (moveEvent.clientY - startY) / rangeY))
+      updateDraftImage(item.id, { offsetX, offsetY })
+    }
+    const stop = () => {
+      event.currentTarget.removeEventListener('pointermove', move)
+      event.currentTarget.removeEventListener('pointerup', stop)
+      event.currentTarget.removeEventListener('pointercancel', stop)
+    }
+    event.currentTarget.addEventListener('pointermove', move)
+    event.currentTarget.addEventListener('pointerup', stop)
+    event.currentTarget.addEventListener('pointercancel', stop)
   }
 
   function removeDraftImage(id) {
@@ -311,7 +337,7 @@ export default function App() {
       const { data, error: downloadError } = await supabase.storage.from('zuno-chat-media').download(item.media_path)
       if (downloadError) throw downloadError
       const file = new File([data], 'zuno-foto.jpg', { type: data.type || 'image/jpeg' })
-      setChatDraftImages(current => current.length >= 5 ? current : [...current, { id: crypto.randomUUID(), file, url: URL.createObjectURL(file), rotation: 0, zoom: 1 }])
+      setChatDraftImages(current => current.length >= 5 ? current : [...current, { id: crypto.randomUUID(), file, url: URL.createObjectURL(file), rotation: 0, zoom: 1, offsetX: 0, offsetY: 0 }])
     } catch (error) { setPeopleError('No pudimos reutilizar esa foto. ' + error.message) }
   }
 
@@ -332,7 +358,9 @@ export default function App() {
     const cropWidth = width / zoom, cropHeight = height / zoom
     const output = document.createElement('canvas')
     output.width = Math.round(cropWidth); output.height = Math.round(cropHeight)
-    output.getContext('2d').drawImage(canvas, (width-cropWidth)/2, (height-cropHeight)/2, cropWidth, cropHeight, 0, 0, output.width, output.height)
+    const cropLeft = Math.max(0, Math.min(width - cropWidth, (width-cropWidth)/2 + (item.offsetX || 0) * (width-cropWidth)/2))
+    const cropTop = Math.max(0, Math.min(height - cropHeight, (height-cropHeight)/2 + (item.offsetY || 0) * (height-cropHeight)/2))
+    output.getContext('2d').drawImage(canvas, cropLeft, cropTop, cropWidth, cropHeight, 0, 0, output.width, output.height)
     const blob = await new Promise(resolve => output.toBlob(resolve, 'image/jpeg', 0.9))
     if (!blob) throw new Error('No se pudo procesar la imagen.')
     return new File([blob], 'zuno-editada.jpg', { type: 'image/jpeg' })
@@ -602,7 +630,7 @@ export default function App() {
       <section className="direct-chat"><div className="direct-chat-header"><button className="logout-btn" onClick={()=>setView('home')}>← Volver</button><div><strong>{activeConversation.person?.display_name || 'Chat ZUNO'}</strong><small>{activeConversation.person?.username ? '@'+activeConversation.person.username : 'Conversación privada'}</small></div></div>
         <div className={`direct-chat-messages ${chatDragOver ? 'is-drag-over' : ''}`} onDragOver={event=>{event.preventDefault();setChatDragOver(true)}} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget))setChatDragOver(false)}} onDrop={handleChatDrop}>{chatMessages.map(message=><div key={message.id} className={message.sender_id===session.user.id?'chat-bubble own':'chat-bubble'}>{message.message_type==='image' ? <div className="chat-image-protected" onContextMenu={event=>event.preventDefault()}><img src={message.media_url || ''} alt="Imagen privada del chat" draggable="false"/><span className="chat-image-watermark">@{profile?.username || profile?.display_name || 'ZUNO'}</span></div> : <p>{message.body}</p>}<time>{new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}{message.sender_id===session.user.id && <span className={'message-ticks '+(messageReceipts[message.id]?.read_at?'is-read':messageReceipts[message.id]?.delivered_at?'is-delivered':'')}>{messageReceipts[message.id]?.read_at?'✓✓':messageReceipts[message.id]?.delivered_at?'✓✓':'✓'}</span>}</time></div>)}{chatDragOver && <div className="chat-drop-hint">Soltá las imágenes acá para prepararlas</div>}</div>
         {peopleError && <div className="notice error">{peopleError}</div>}
-        {chatDraftImages.length > 0 && <div className="chat-image-editor"><div className="chat-editor-heading"><strong>Prepará tus fotos ({chatDraftImages.length}/5)</strong><span>Se enviarán solo cuando pulses Enviar fotos</span></div><div className="chat-editor-grid">{chatDraftImages.map(item=><div className="chat-editor-card" key={item.id}><div className="chat-editor-preview"><img src={item.url} alt="Vista previa" style={{transform:`rotate(${item.rotation}deg) scale(${item.zoom})`}}/></div><div className="chat-editor-controls"><button type="button" onClick={()=>updateDraftImage(item.id,{rotation:(item.rotation+270)%360})}>↶ Girar</button><button type="button" onClick={()=>updateDraftImage(item.id,{rotation:(item.rotation+90)%360})}>↷</button><label>Recorte <input type="range" min="1" max="2.5" step="0.05" value={item.zoom} onChange={event=>updateDraftImage(item.id,{zoom:Number(event.target.value)})}/></label><button type="button" className="chat-editor-remove" onClick={()=>removeDraftImage(item.id)}>Quitar</button></div></div>)}</div><button type="button" className="chat-send-images" onClick={sendPreparedImages} disabled={chatMediaBusy}>{chatMediaBusy?'Enviando…':`Enviar ${chatDraftImages.length} foto(s)`}</button></div>}
+        {chatDraftImages.length > 0 && <div className="chat-image-editor"><div className="chat-editor-heading"><strong>Prepará tus fotos ({chatDraftImages.length}/5)</strong><span>Se enviarán solo cuando pulses Enviar fotos</span></div><div className="chat-editor-grid">{chatDraftImages.map(item=><div className="chat-editor-card" key={item.id}><div className="chat-editor-preview" onPointerDown={event=>startCropDrag(event,item)} title={item.zoom>1?"Arrastrá para elegir el recorte":"Acercá la imagen para poder moverla"}><img src={item.url} alt="Vista previa" draggable="false" style={{transform:`translate(${(item.offsetX||0)*50}%, ${(item.offsetY||0)*50}%) rotate(${item.rotation}deg) scale(${item.zoom})`}}/></div><div className="chat-editor-controls"><button type="button" onClick={()=>updateDraftImage(item.id,{rotation:(item.rotation+270)%360})}>↶ Girar</button><button type="button" onClick={()=>updateDraftImage(item.id,{rotation:(item.rotation+90)%360})}>↷</button><label>Recorte <input type="range" min="1" max="2.5" step="0.05" value={item.zoom} onChange={event=>updateDraftImage(item.id,{zoom:Number(event.target.value),offsetX:0,offsetY:0})}/></label><button type="button" className="chat-editor-remove" onClick={()=>removeDraftImage(item.id)}>Quitar</button></div></div>)}</div><button type="button" className="chat-send-images" onClick={sendPreparedImages} disabled={chatMediaBusy}>{chatMediaBusy?'Enviando…':`Enviar ${chatDraftImages.length} foto(s)`}</button></div>}
         {showChatGallery && chatGallery.length > 0 && <div className="chat-gallery-strip"><strong>Fotos que ya enviaste</strong><div>{chatGallery.map(item=><button type="button" key={item.id} onClick={()=>addGalleryImage(item)} disabled={chatDraftImages.length>=5} title="Volver a usar esta foto"><img src={item.url} alt="Foto anterior"/><span>+</span></button>)}</div></div>}
         <form className="chat-compose" onSubmit={sendChatMessage}><label className="chat-image-upload" title="Subir fotos"><ImagePlus size={19}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={event=>{addChatImages(event.target.files);event.target.value=''}} disabled={chatDraftImages.length>=5}/></label><button type="button" className={`chat-gallery-toggle ${showChatGallery?'active':''}`} title="Reutilizar fotos anteriores" aria-label="Reutilizar fotos anteriores" disabled={!chatGallery.length} onClick={()=>setShowChatGallery(value=>!value)}><Images size={19}/></button><input value={chatDraft} onChange={event=>setChatDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="submit" disabled={chatBusy||!chatDraft.trim()}><Send size={18}/></button></form>
       </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
