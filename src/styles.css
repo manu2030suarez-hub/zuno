@@ -1221,3 +1221,52 @@ button{touch-action:manipulation}
   .chat-image-fullscreen { padding: 12px; }
   .chat-image-fullscreen > img { max-width: 100%; max-height: 100%; }
 }
+
+
+/* ZUNO member profile: immersive photo viewer inspired by the supplied reference */
+.profile-detail-shell{padding:0 0 80px}
+.profile-detail-screen{width:min(100%,760px);max-width:760px;min-height:0;margin:0 auto;padding:0 0 34px}
+.profile-photo-stage{position:relative;width:100%;height:min(78dvh,820px);min-height:510px;overflow:hidden;background:#08080b;color:#fff;isolation:isolate}
+.profile-stage-image{display:block;width:100%;height:100%;object-fit:cover;object-position:center;cursor:zoom-in}
+.profile-stage-empty{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#b8adbf;background:linear-gradient(145deg,#201827,#08080b)}
+.profile-stage-top{position:absolute;z-index:3;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:calc(env(safe-area-inset-top) + 14px) 17px 15px;background:linear-gradient(#0008,transparent)}
+.profile-stage-top button{width:42px;height:42px;display:grid;place-items:center;border:0;border-radius:50%;background:#0005;color:#fff;cursor:pointer;backdrop-filter:blur(8px)}
+.profile-stage-top-actions{display:flex;gap:8px}.profile-stage-top-actions button{color:#fff}
+.profile-stage-top-actions button:has(svg[fill="currentColor"]){color:#ff78b8}
+.profile-photo-segments{position:absolute;z-index:4;right:9px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:7px;width:5px;max-height:45%;overflow:auto}
+.profile-photo-segments button{width:5px;height:31px;min-height:18px;padding:0;border:0;border-radius:8px;background:#ffffff70;cursor:pointer}
+.profile-photo-segments button.active{background:#fff;box-shadow:0 0 8px #0008}
+.profile-album-shortcut{position:absolute;z-index:4;right:17px;bottom:135px;display:flex;flex-direction:column;align-items:center;gap:4px;border:1px solid #ffffff55;border-radius:13px;padding:9px 10px;background:#09090a88;color:#fff;font:600 10px 'DM Sans',sans-serif;cursor:pointer;backdrop-filter:blur(8px)}
+.profile-album-shortcut svg{width:21px;height:21px}
+.profile-stage-caption{position:absolute;z-index:2;left:0;right:0;bottom:0;padding:70px 20px 22px;background:linear-gradient(transparent,#000c 42%,#000f)}
+.profile-stage-name{font:800 clamp(28px,5vw,40px)/1.12 Manrope,sans-serif;letter-spacing:-1px;color:#fff}
+.profile-stage-name span{font-weight:400}
+.profile-stage-username{margin-top:5px;color:#f3d7e9;font-size:13px}
+.profile-stage-city{display:flex;align-items:center;gap:6px;margin-top:8px;color:#eee;font-size:12px}
+.profile-detail-content{max-width:none;padding:0 20px}
+.profile-detail-content .detail-section{padding:20px 0}
+.profile-photo-fullscreen{position:fixed;z-index:1600;inset:0;display:flex;align-items:center;justify-content:center;background:#000}
+.profile-photo-fullscreen>img{display:block;max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain}
+.profile-photo-fullscreen>button{position:absolute;z-index:2;top:calc(env(safe-area-inset-top) + 15px);right:15px;width:46px;height:46px;display:grid;place-items:center;border:1px solid #ffffff45;border-radius:50%;background:#1119;color:#fff;cursor:pointer}
+.profile-album-backdrop{position:fixed;z-index:1500;inset:0;display:flex;align-items:flex-end;justify-content:center;padding:0;background:#000a;backdrop-filter:blur(4px)}
+.profile-album-panel{width:min(100%,760px);max-height:min(78dvh,760px);overflow:auto;padding:20px 18px calc(24px + env(safe-area-inset-bottom));border:1px solid #ffffff20;border-bottom:0;border-radius:22px 22px 0 0;background:#17131c;color:#fff;box-shadow:0 -18px 60px #0009}
+.profile-album-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.profile-album-heading>div{display:flex;align-items:center;gap:10px;color:#f0a5d0}
+.profile-album-heading strong{color:#fff;font:700 17px Manrope,sans-serif}
+.profile-album-heading button{width:38px;height:38px;display:grid;place-items:center;border:0;border-radius:50%;background:#ffffff12;color:#fff;cursor:pointer}
+.profile-album-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.profile-album-grid img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:10px;background:#09080d}
+.profile-album-locked{min-height:230px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;color:#e7a4ce}
+.profile-album-locked strong{color:#fff;font:700 17px Manrope,sans-serif}
+.profile-album-locked p{max-width:300px;margin:0;color:#b9adbf;font-size:12px;line-height:1.6}
+.profile-album-locked .favorite-detail-btn{margin:3px auto 0;min-width:180px}
+.profile-detail-shell .topbar{display:none}
+@media(max-width:600px){
+ .profile-detail-shell{padding:0 0 calc(68px + env(safe-area-inset-bottom))}
+ .profile-detail-screen{width:100%;padding:0}
+ .profile-photo-stage{height:76dvh;min-height:470px}
+ .profile-stage-caption{padding:64px 18px 18px}
+ .profile-album-shortcut{right:14px;bottom:124px}
+ .profile-detail-content{padding:0 17px}
+ .profile-album-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+}
