@@ -151,3 +151,10 @@
 .chat-compose button{width:46px;height:46px;flex:0 0 46px;border:0;border-radius:50%;background:linear-gradient(120deg,#df579f,#9258dc);color:white;cursor:pointer}
 .chat-compose button:disabled{opacity:.5}
 @media(max-width:600px){.person-card-gallery{aspect-ratio:1/1}.chat-page{padding:35px 0}.direct-chat{height:calc(100dvh - 180px);min-height:420px;margin:20px auto 35px}.chat-bubble{max-width:88%}}
+
+
+/* Mensajes no leídos */
+.chats-nav-btn{position:relative}
+.nav-unread-count{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 6px;border-radius:999px;background:#e63e55;color:#fff;font-size:10px;font-weight:800;line-height:1}
+.chat-list-item{position:relative;padding-right:48px}
+.chat-unread-count{position:absolute;right:15px;top:12px;display:flex;align-items:center;justify-content:center;min-width:23px;height:23px;padding:0 6px;border-radius:50%;background:#e63e55;color:#fff;font-size:11px;font-weight:800;box-shadow:0 0 0 3px #15121b}
