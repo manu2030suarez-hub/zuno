@@ -144,7 +144,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!session?.user || !privacy.show_online) return
+    if (!session?.user || !profile || !privacy.show_online) return
     const pingActivity = () => {
       if (document.visibilityState !== 'visible') return
       supabase.from('profiles').update({last_seen_at:new Date().toISOString()}).eq('id',session.user.id)
@@ -154,7 +154,7 @@ export default function App() {
     const timer=window.setInterval(pingActivity,120000)
     document.addEventListener('visibilitychange',pingActivity)
     return ()=>{window.clearInterval(timer);document.removeEventListener('visibilitychange',pingActivity)}
-  }, [session, privacy.show_online])
+  }, [session, privacy.show_online, profile])
 
   useEffect(() => {
     if (!session?.user) { setProfile(null); setProfileLoading(false); setView('profile'); return }
@@ -246,7 +246,6 @@ export default function App() {
       if (discoveryIds) profileQuery=profileQuery.in('id',discoveryIds)
       const { data, error: listError } = await profileQuery
       if (!active) return
-        if (!active) return
         if (listError) {
           setPeopleError('No pudimos cargar los perfiles. ' + listError.message)
           setPeopleLoading(false)
