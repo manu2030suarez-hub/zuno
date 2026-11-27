@@ -145,7 +145,7 @@
 .direct-chat-messages{flex:1;display:flex;flex-direction:column;gap:10px;padding:18px;overflow:auto}
 .chat-bubble{max-width:78%;align-self:flex-start;padding:10px 13px;border-radius:16px 16px 16px 4px;background:#292330;color:#f3eaf5;overflow-wrap:anywhere}
 .chat-bubble.own{align-self:flex-end;background:linear-gradient(120deg,#a63e83,#7049ad);border-radius:16px 16px 4px 16px}
-.chat-bubble p{margin:0;font-size:13px;line-height:1.5;white-space:pre-wrap}.chat-bubble time{display:block;margin-top:5px;text-align:right;font-size:9px;color:#e3cce0}
+.chat-bubble p{margin:0;font-size:13px;line-height:1.5;white-space:pre-wrap}.chat-bubble time{display:block;margin-top:5px;text-align:right;font-size:9px;color:#e3cce0}.message-ticks{display:inline-block;margin-left:5px;font-size:12px;font-weight:800;letter-spacing:-2px;color:#c8c0ca}.message-ticks.is-delivered{color:#e4dce8}.message-ticks.is-read{color:#54c7ff}
 .chat-compose{display:flex;gap:9px;padding:13px;border-top:1px solid #ffffff15}
 .chat-compose input{flex:1;min-width:0;border-radius:999px;padding:0 16px}
 .chat-compose button{width:46px;height:46px;flex:0 0 46px;border:0;border-radius:50%;background:linear-gradient(120deg,#df579f,#9258dc);color:white;cursor:pointer}
