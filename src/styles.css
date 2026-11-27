@@ -146,7 +146,7 @@
 .chat-bubble{max-width:78%;align-self:flex-start;padding:10px 13px;border-radius:16px 16px 16px 4px;background:#292330;color:#f3eaf5;overflow-wrap:anywhere}
 .chat-bubble.own{align-self:flex-end;background:linear-gradient(120deg,#a63e83,#7049ad);border-radius:16px 16px 4px 16px}
 .chat-bubble p{margin:0;font-size:13px;line-height:1.5;white-space:pre-wrap}.chat-bubble time{display:block;margin-top:5px;text-align:right;font-size:9px;color:#e3cce0}.message-ticks{display:inline-block;margin-left:5px;font-size:12px;font-weight:800;letter-spacing:-2px;color:#c8c0ca}.message-ticks.is-delivered{color:#e4dce8}.message-ticks.is-read{color:#54c7ff}
-.chat-compose{display:flex;gap:9px;padding:13px;border-top:1px solid #ffffff15}
+.chat-compose{display:flex;align-items:center;gap:9px;padding:13px;border-top:1px solid #ffffff15}
 .chat-compose input{flex:1;min-width:0;border-radius:999px;padding:0 16px}
 .chat-compose button{width:46px;height:46px;flex:0 0 46px;border:0;border-radius:50%;background:linear-gradient(120deg,#df579f,#9258dc);color:white;cursor:pointer}
 .chat-compose button:disabled{opacity:.5}
@@ -161,7 +161,7 @@
 
 
 /* Fotos privadas en mensajes */
-.chat-image-upload{width:44px;height:44px;flex:0 0 44px;display:flex;align-items:center;justify-content:center;border:1px solid #ffffff20;border-radius:50%;color:#e9a2d2;cursor:pointer}
+.chat-image-upload{box-sizing:border-box;width:46px;height:46px;min-width:46px;flex:0 0 46px;align-self:center;display:flex;align-items:center;justify-content:center;border:1px solid #ffffff20;border-radius:50%;color:#e9a2d2;cursor:pointer;margin:0;padding:0;line-height:1}
 .chat-image-upload input{display:none}
 .chat-image-upload:has(input:disabled){opacity:.5;pointer-events:none}
 .chat-image-protected{position:relative;max-width:min( min(100%, 360px), 65vw);overflow:hidden;border-radius:12px;user-select:none;-webkit-user-select:none}
@@ -326,3 +326,5 @@
 .zuno-map-canvas{width:100%;height:min(62vh,620px);min-height:340px;border:1px solid var(--border,#ddd);border-radius:18px;overflow:hidden;background:#e9edf2;z-index:0}
 .map-empty-hint{padding:14px 16px;text-align:center;color:var(--muted,#777)}
 @media(max-width:650px){.map-page{width:calc(100% - 24px);margin:28px auto 48px}.map-privacy-panel{align-items:stretch}.map-privacy-panel>button{width:100%;justify-content:center}.map-results-heading{align-items:flex-start;flex-direction:column}.zuno-map-canvas{min-height:380px}}
+
+.chat-compose-control{align-self:center;box-sizing:border-box}.chat-typing-indicator{align-self:flex-start;display:flex;align-items:center;gap:4px;margin:0 0 3px 4px;padding:9px 12px;border-radius:14px;background:#292330;color:#cbbdce;font-size:11px}.chat-typing-indicator span{width:5px;height:5px;border-radius:50%;background:#e9a2d2;animation:zunoTyping 1s infinite ease-in-out}.chat-typing-indicator span:nth-child(2){animation-delay:.15s}.chat-typing-indicator span:nth-child(3){animation-delay:.3s}@keyframes zunoTyping{0%,60%,100%{opacity:.35;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}.private-album-detail{padding:18px;border:1px solid #d85a9b40;border-radius:16px;background:#d85a9b0a}.private-album-request-btn{margin-top:12px;min-height:46px}
