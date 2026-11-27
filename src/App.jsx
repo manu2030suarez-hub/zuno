@@ -1269,7 +1269,7 @@ export default function App() {
         </div>
       </section>
       {reportTarget && <div className="security-modal-backdrop" role="presentation"><form className="security-modal" onSubmit={submitUserReport}><div className="security-modal-heading"><h2>Denunciar perfil</h2><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)} aria-label="Cerrar"><X size={17}/></button></div><p>Tu denuncia sobre {reportTarget.display_name || 'este usuario'} será privada y revisada por el equipo de ZUNO.</p><label>Motivo<select value={reportReason} onChange={event=>setReportReason(event.target.value)}><option value="fake_profile">Perfil falso o suplantación</option><option value="harassment">Acoso o amenazas</option><option value="inappropriate_content">Contenido inapropiado</option><option value="spam">Spam</option><option value="underage">Posible menor de edad</option><option value="scam">Estafa o fraude</option><option value="other">Otro motivo</option></select></label><label>Detalles (opcional)<textarea rows="4" maxLength="2000" value={reportDetails} onChange={event=>setReportDetails(event.target.value)} placeholder="Contanos qué pasó…"/></label><div className="security-modal-actions"><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)}>Cancelar</button><button type="submit" className="submit-btn" disabled={reportBusy}>{reportBusy ? 'Enviando…' : 'Enviar denuncia'}</button></div></form></div>}
-      <footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+      <ZunoBottomNav view={view} setView={setView} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
   )
 
@@ -1288,7 +1288,7 @@ export default function App() {
         {showLocationMenu && <div className="chat-location-menu"><strong>Compartir ubicación</strong><button type="button" onClick={sendCurrentLocation} disabled={chatMediaBusy}><MapPin size={17}/> Enviar ubicación actual</button><button type="button" onClick={()=>startLiveLocation(30)} disabled={chatMediaBusy || !!liveSharing}><Navigation size={17}/> En tiempo real · 30 minutos</button><button type="button" onClick={()=>startLiveLocation(60)} disabled={chatMediaBusy || !!liveSharing}><Navigation size={17}/> En tiempo real · 1 hora</button><small>Podés detener la ubicación en cualquier momento.</small></div>}
         <form className="chat-compose" onSubmit={sendChatMessage}><label className="chat-image-upload chat-compose-control" title="Subir fotos"><ImagePlus size={19}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={event=>{addChatImages(event.target.files);event.target.value=''}} disabled={chatDraftImages.length>=5}/></label><button type="button" className={`chat-gallery-toggle ${showChatGallery?'active':''}`} title="Reutilizar fotos anteriores" aria-label="Reutilizar fotos anteriores" disabled={!chatGallery.length} onClick={()=>setShowChatGallery(value=>!value)}><Images size={19}/></button><input value={chatDraft} onChange={event=>handleChatDraftChange(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="button" className="chat-gallery-toggle" title="Compartir ubicación" aria-label="Compartir ubicación" onClick={()=>setShowLocationMenu(value=>!value)}><MapPin size={19}/></button><button type="button" className={`chat-mic-button ${isRecording?'recording':''}`} title={isRecording?'Soltá para terminar':'Mantené presionado para grabar'} aria-label="Mantener presionado para grabar audio" disabled={!!audioDraft||chatMediaBusy} onPointerDown={startChatRecording} onPointerUp={stopChatRecording} onPointerCancel={stopChatRecording} onContextMenu={event=>event.preventDefault()}><Mic size={19}/></button><button type="submit" disabled={chatBusy||!chatDraft.trim()}><Send size={18}/></button></form>
         {isRecording && <div className="chat-recording-hint">Grabando… soltá el micrófono para terminar.</div>}
-      </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+      </section><ZunoBottomNav view={view} setView={setView} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
   )
 
@@ -1309,7 +1309,7 @@ export default function App() {
         {!mapVisible && <p className="map-empty-hint">Activá tu visibilidad y actualizá tu ubicación para ver personas cercanas.</p>}
         {mapVisible && mapUsers.length === 0 && <p className="map-empty-hint">Todavía no hay otros usuarios visibles en tu zona. Podés volver a actualizar más tarde.</p>}
       </section>
-      <footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+      <ZunoBottomNav view={view} setView={setView} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
   )
 
@@ -1318,7 +1318,7 @@ export default function App() {
       <section className="chat-page"><div className="home-heading"><div><div className="eyebrow"><span/> MENSAJES PRIVADOS</div><h1>Tus <span>chats.</span></h1><p>Podés hablar con cualquier persona, sin conexión previa.</p></div><button className="refresh-btn" onClick={()=>setView('home')}>Descubrir personas</button></div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         <div className="chat-list">{conversations.length ? conversations.map(item=><button className="chat-list-item" key={item.id} onClick={()=>openChat({...item.person,id:item.member_one===session.user.id?item.member_two:item.member_one})}><span className="chat-list-avatar">{item.person?.avatar_url?<img src={item.person.avatar_url} alt=""/>:(item.person?.display_name||'Z').slice(0,1)}</span><span className="chat-list-name"><strong>{item.person?.display_name||'Miembro de ZUNO'}</strong><small>{item.lastMessage ? (item.lastMessage.message_type==='image'?'📷 Foto':item.lastMessage.message_type==='audio'?'🎤 Audio':item.lastMessage.message_type==='location'?'📍 Ubicación':(item.lastMessage.body||'Mensaje').slice(0,90)) : 'Todavía no hay mensajes' }{item.lastMessage?.sender_id===session.user.id && <span className={'message-ticks '+(item.lastReceipt?.read_at?'is-read':item.lastReceipt?.delivered_at?'is-delivered':'')}>{item.lastReceipt?.delivered_at?'✓✓':'✓'}</span>}</small></span>{(unreadCounts[item.id]||0)>0 && <span className="chat-unread-count">{unreadCounts[item.id]}</span>}<MessageCircle size={18}/></button>) : <div className="connections-empty">Todavía no tenés conversaciones. Iniciá un chat desde cualquier perfil.</div>}</div>
-      </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer></main>
+      </section><ZunoBottomNav view={view} setView={setView} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer></main>
   )
   if (session?.user && ['home', 'favorites', 'connections'].includes(view)) return (
     <main className="app-shell">
@@ -1383,7 +1383,7 @@ export default function App() {
           {view === 'favorites' && !peopleLoading && !people.some(person => favoriteIds.includes(person.id)) && <div className="empty-state"><div className="empty-icon"><Heart size={24}/></div><h2>Todavía no guardaste favoritos</h2><p>Cuando encuentres un perfil que te interese, tocá el corazón para guardarlo acá.</p><button className="submit-btn home-refresh" onClick={()=>setView('home')}>Explorar perfiles <span>→</span></button></div>}
           </>
         )}
-      </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+      </section><ZunoBottomNav view={view} setView={setView} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
   )
 
@@ -1409,7 +1409,7 @@ export default function App() {
           </form>
           <p className="legal">Tu perfil podrá ampliarse más adelante con fotos, intereses y preferencias de privacidad.</p>
         </div>
-      </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+      </section><ZunoBottomNav view={view} setView={setView} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
   )
 
@@ -1433,6 +1433,19 @@ export default function App() {
         </div><div className="under-card"><ShieldCheck size={15}/> Tus datos y tu privacidad importan.</div></div>
       </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
+  )
+}
+
+
+function ZunoBottomNav({ view, setView, unreadCount }) {
+  const active = view === 'chat' ? 'chats' : ['detail','favorites','connections'].includes(view) ? (view==='favorites'?'favorites':'home') : view
+  return (
+    <nav className="zuno-bottom-nav" aria-label="Navegación principal">
+      <button type="button" className={active==='home'?'active':''} onClick={()=>setView('home')}><Compass size={21}/><span>Descubrir</span></button>
+      <button type="button" className={active==='chats'?'active':''} onClick={()=>setView('chats')}><span className="zuno-nav-icon"><MessageCircle size={21}/>{unreadCount>0&&<i>{unreadCount>99?'99+':unreadCount}</i>}</span><span>Chats</span></button>
+      <button type="button" className={active==='map'?'active':''} onClick={()=>setView('map')}><MapPin size={21}/><span>Mapa</span></button>
+      <button type="button" className={active==='profile'?'active':''} onClick={()=>setView('profile')}><UserRound size={21}/><span>Perfil</span></button>
+    </nav>
   )
 }
 
