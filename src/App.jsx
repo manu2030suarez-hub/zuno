@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
-import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, StopCircle, Ban, Flag } from 'lucide-react'
+import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, StopCircle, Ban, Flag, SlidersHorizontal } from 'lucide-react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -96,6 +96,7 @@ export default function App() {
   const [discoveryVerifiedOnly, setDiscoveryVerifiedOnly] = useState(false)
   const [discoveryWithPhotos, setDiscoveryWithPhotos] = useState(false)
   const [discoverySort, setDiscoverySort] = useState('recent')
+  const [showDiscoveryFilters, setShowDiscoveryFilters] = useState(false)
   const [peopleError, setPeopleError] = useState('')
   const [blockedUsers, setBlockedUsers] = useState([])
   const [blockBusy, setBlockBusy] = useState('')
@@ -1322,7 +1323,7 @@ export default function App() {
   )
   if (session?.user && ['home', 'favorites', 'connections'].includes(view)) return (
     <main className="app-shell">
-      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span><button className="logout-btn" onClick={()=>setView('connections')}><Users size={15}/> Conexiones ({connectionRows.filter(row=>row.status==='accepted').length})</button><button className="logout-btn" onClick={()=>setView('favorites')}><Heart size={15}/> Favoritos ({favoriteIds.length})</button></div></header>
+      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span><button className="logout-btn" onClick={()=>setView('connections')}><Users size={15}/> Conexiones ({connectionRows.filter(row=>row.status==='accepted').length})</button><button className="logout-btn" onClick={()=>setView('favorites')}><Heart size={15}/> Favoritos ({favoriteIds.length})</button>{view === 'home' && <button type="button" className="discovery-filter-trigger" onClick={()=>setShowDiscoveryFilters(true)}><SlidersHorizontal size={16}/> Filtros{discoveryFiltersActive && <span className="filter-active-dot" aria-label="Filtros activos"/>}</button>}</div></header>
       <section className="home-content">
         <div className="home-heading"><div><div className="eyebrow"><span/> {view === 'favorites' ? 'TUS PERSONAS GUARDADAS' : view === 'connections' ? 'TUS CONEXIONES' : 'DESCUBRÍ ZUNO'}</div><h1>{view === 'favorites' ? <>Tus <span>favoritos.</span></> : view === 'connections' ? <>Tus <span>conexiones.</span></> : <>Hola, <span>{profile?.display_name || displayName || 'bienvenido'}.</span></>}</h1><p>{view === 'favorites' ? 'Perfiles que guardaste para volver a encontrarlos.' : view === 'connections' ? 'Solicitudes recibidas, enviadas y conexiones aceptadas.' : 'Estas son algunas de las personas de la comunidad. ¡Tu próxima conexión puede empezar acá!'}</p></div><div className="home-actions"><button className="refresh-btn" onClick={()=>setView('map')}><MapPin size={16}/> Mapa</button>{view !== 'home' && <button className="refresh-btn" onClick={()=>setView('home')}><Compass size={16}/> Descubrir</button>}<button className="refresh-btn" onClick={()=>setPeopleRefresh(value=>value+1)}><RefreshCw size={16}/> Actualizar</button></div></div>
         {view === 'home' && <nav className="home-shortcuts" aria-label="Secciones de descubrir">
@@ -1333,10 +1334,10 @@ export default function App() {
         {peopleError && <div className="notice error">{peopleError}</div>}
         {peopleLoading ? <div className="empty-state">Buscando perfiles…</div> : (
           <>
-          {view === 'home' && <section className="discovery-filters">
-            <div className="discovery-filter-heading"><div><strong><Compass size={17}/> Encontrá personas</strong><small>{discoveryPeople.length} perfiles encontrados entre los cargados</small></div>{discoveryFiltersActive && <button type="button" className="filter-clear-btn" onClick={()=>{setDiscoverySearch('');setDiscoveryCity('');setDiscoveryInterest('');setDiscoveryLookingFor('');setDiscoveryVerifiedOnly(false);setDiscoveryWithPhotos(false);setDiscoverySort('recent')}}>Limpiar filtros</button>}</div>
+          {view === 'home' && showDiscoveryFilters && <div className="discovery-modal-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setShowDiscoveryFilters(false)}}><section className="discovery-filter-modal" role="dialog" aria-modal="true" aria-labelledby="discovery-filter-title">
+            <div className="discovery-modal-heading"><div><span className="discovery-modal-icon"><SlidersHorizontal size={20}/></span><div><h2 id="discovery-filter-title">Filtros de búsqueda</h2><small>{discoveryPeople.length} perfiles coinciden con tu búsqueda</small></div></div><button type="button" className="discovery-modal-close" onClick={()=>setShowDiscoveryFilters(false)} aria-label="Cerrar filtros"><X size={21}/></button></div>
             <div className="discovery-filter-grid">
-              <label className="discovery-search-field"><span>Buscar</span><input type="search" value={discoverySearch} onChange={event=>setDiscoverySearch(event.target.value)} placeholder="Nombre, usuario, bio o intereses…"/></label>
+              <label className="discovery-search-field"><span>Buscar personas</span><input type="search" value={discoverySearch} onChange={event=>setDiscoverySearch(event.target.value)} placeholder="Nombre, usuario, bio o intereses…"/></label>
               <label><span>Ciudad o región</span><input type="search" value={discoveryCity} onChange={event=>setDiscoveryCity(event.target.value)} placeholder="Ej. Montevideo"/></label>
               <label><span>Interés</span><select value={discoveryInterest} onChange={event=>setDiscoveryInterest(event.target.value)}><option value="">Todos los intereses</option>{['Música','Cine','Deportes','Viajes','Gastronomía','Videojuegos','Arte','Naturaleza','Fitness','Lectura','Series','Tecnología'].map(item=><option key={item} value={item}>{item}</option>)}</select></label>
               <label><span>Qué busca</span><select value={discoveryLookingFor} onChange={event=>setDiscoveryLookingFor(event.target.value)}><option value="">Cualquier preferencia</option>{['Amistad','Citas','Relación seria','Conocer personas','Charlar'].map(item=><option key={item} value={item}>{item}</option>)}</select></label>
@@ -1346,7 +1347,8 @@ export default function App() {
               <label><input type="checkbox" checked={discoveryVerifiedOnly} onChange={event=>setDiscoveryVerifiedOnly(event.target.checked)}/> Solo cuentas verificadas</label>
               <label><input type="checkbox" checked={discoveryWithPhotos} onChange={event=>setDiscoveryWithPhotos(event.target.checked)}/> Con fotos</label>
             </div>
-          </section>}
+            <div className="discovery-modal-actions"><button type="button" className="filter-clear-btn" onClick={()=>{setDiscoverySearch('');setDiscoveryCity('');setDiscoveryInterest('');setDiscoveryLookingFor('');setDiscoveryVerifiedOnly(false);setDiscoveryWithPhotos(false);setDiscoverySort('recent')}}>Limpiar filtros</button><button type="button" className="submit-btn" onClick={()=>setShowDiscoveryFilters(false)}>Aplicar filtros <span>→</span></button></div>
+          </section></div>}
           <div className="people-grid">
           {view === 'home' && <article className="person-card own-person-card person-card-clickable" key={session.user.id} role="button" tabIndex={0} onClick={()=>openMemberProfile({...profile,photos,visibleCity:profile?.show_location?[profile?.city,profile?.region].filter(Boolean).join(', '):''},true)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openMemberProfile({...profile,photos,visibleCity:profile?.show_location?[profile?.city,profile?.region].filter(Boolean).join(', '):''},true)}}}>
             <div className="person-card-gallery">
