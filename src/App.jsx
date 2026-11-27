@@ -535,11 +535,11 @@ export default function App() {
         if (!enableError && active) setMapVisible(true)
         else if (enableError) console.warn('No se pudo activar la preferencia de visibilidad:', enableError.message)
       } else setMapVisible(Boolean(data.map_visible))
-      if (active && locationTermsAccepted) refreshMyMapLocation()
+      if (active && locationTermsAccepted && (mapVisible || privacy.show_distance)) refreshMyMapLocation()
     }
     initializeMapVisibility()
     return () => { active = false }
-  }, [session?.user?.id, Boolean(profile), locationTermsAccepted])
+  }, [session?.user?.id, Boolean(profile), locationTermsAccepted, mapVisible, privacy.show_distance])
 
   useEffect(() => {
     if (!session?.user || view !== 'home') return
@@ -841,10 +841,10 @@ export default function App() {
       const hasServerFilters = true
       if (hasServerFilters) {
         if (discoveryDistanceKm) {
-          const {data:myLocation,error:locationError}=await supabase.from('user_map_locations').select('map_visible,updated_at').eq('user_id',session.user.id).maybeSingle()
-          if (locationError || !myLocation?.map_visible || !myLocation?.updated_at || new Date(myLocation.updated_at).getTime()<Date.now()-86400000) {
+          const [{data:myLocation,error:locationError},{data:myPrivacy,error:privacyError}]=await Promise.all([supabase.from('user_map_locations').select('updated_at').eq('user_id',session.user.id).maybeSingle(),supabase.from('profiles').select('show_distance,location_terms_accepted').eq('id',session.user.id).maybeSingle()])
+          if (locationError || privacyError || !myPrivacy?.show_distance || !myPrivacy?.location_terms_accepted || !myLocation?.updated_at || new Date(myLocation.updated_at).getTime()<Date.now()-86400000) {
             if (!active) return
-            setPeopleError('Para filtrar por distancia aproximada, activá tu visibilidad en el mapa y actualizá tu ubicación. Solo se consideran personas que también eligieron aparecer en el mapa.')
+            setPeopleError('Para filtrar por distancia, activá “Mostrar distancia en perfiles” y actualizá tu ubicación. Solo se consideran personas que también habilitaron mostrar su distancia.')
             setPeople([]);setPeopleLoading(false);return
           }
         }
