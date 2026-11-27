@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
-import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Trash2 } from 'lucide-react'
+import { Heart, Eye, EyeOff, ShieldCheck, Users, MessageCircle, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Trash2, UserPlus, Check, X } from 'lucide-react'
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -11,6 +11,8 @@ export default function App() {
   const [people, setPeople] = useState([])
   const [favoriteIds, setFavoriteIds] = useState([])
   const [favoriteBusy, setFavoriteBusy] = useState('')
+  const [connectionRows, setConnectionRows] = useState([])
+  const [connectionBusy, setConnectionBusy] = useState('')
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [peopleLoading, setPeopleLoading] = useState(false)
   const [peopleRefresh, setPeopleRefresh] = useState(0)
@@ -94,7 +96,7 @@ export default function App() {
   }, [session])
 
   useEffect(() => {
-    if (!session?.user || !['home', 'favorites'].includes(view)) return
+    if (!session?.user || !['home', 'favorites', 'connections'].includes(view)) return
     let active = true
     setPeopleLoading(true); setPeopleError('')
     supabase.from('profiles').select('id, display_name, username, bio, avatar_url, zuno_verified, city, region, interests, looking_for, show_location, created_at').neq('id', session.user.id).order('created_at', { ascending: false }).limit(40)
@@ -143,6 +145,46 @@ export default function App() {
     setFavoriteBusy('')
     if (result.error) { setPeopleError('No pudimos actualizar favoritos. ' + result.error.message); return }
     setFavoriteIds(current => isFavorite ? current.filter(id => id !== personId) : [...current, personId])
+  }
+
+  useEffect(() => {
+    if (!session?.user) { setConnectionRows([]); return }
+    let active = true
+    supabase.from('connection_requests').select('id,sender_id,receiver_id,status,created_at,updated_at')
+      .or(`sender_id.eq.${session.user.id},receiver_id.eq.${session.user.id}`)
+      .order('created_at', { ascending: false })
+      .then(({ data, error: connectionError }) => {
+        if (!active) return
+        if (connectionError) setPeopleError('No pudimos cargar tus conexiones. ' + connectionError.message)
+        else setConnectionRows(data || [])
+      })
+    return () => { active = false }
+  }, [session])
+
+  async function sendConnectionRequest(personId) {
+    if (!session?.user || connectionBusy) return
+    setConnectionBusy(personId); setPeopleError('')
+    const { data, error: requestError } = await supabase.from('connection_requests')
+      .insert({ sender_id: session.user.id, receiver_id: personId })
+      .select('id,sender_id,receiver_id,status,created_at,updated_at').single()
+    setConnectionBusy('')
+    if (requestError) {
+      setPeopleError(requestError.code === '23505' ? 'Ya existe una solicitud entre ustedes.' : 'No pudimos enviar la solicitud. ' + requestError.message)
+      return
+    }
+    setConnectionRows(current => [data, ...current])
+  }
+
+  async function respondToConnection(requestId, status) {
+    if (!session?.user || connectionBusy) return
+    setConnectionBusy(requestId); setPeopleError('')
+    const { data, error: responseError } = await supabase.from('connection_requests')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', requestId).eq('receiver_id', session.user.id)
+      .select('id,sender_id,receiver_id,status,created_at,updated_at').single()
+    setConnectionBusy('')
+    if (responseError) { setPeopleError('No pudimos actualizar la solicitud. ' + responseError.message); return }
+    setConnectionRows(current => current.map(row => row.id === requestId ? data : row))
   }
 
   async function handleSubmit(event) {
@@ -259,11 +301,11 @@ export default function App() {
     </main>
   )
 
-  if (session?.user && ['home', 'favorites'].includes(view)) return (
+  if (session?.user && ['home', 'favorites', 'connections'].includes(view)) return (
     <main className="app-shell">
-      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span><button className="logout-btn" onClick={()=>setView('favorites')}><Heart size={15}/> Favoritos ({favoriteIds.length})</button><button className="logout-btn" onClick={()=>setView('profile')}><Pencil size={15}/> Editar perfil</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
+      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span><button className="logout-btn" onClick={()=>setView('connections')}><Users size={15}/> Conexiones ({connectionRows.filter(row=>row.status==='accepted').length})</button><button className="logout-btn" onClick={()=>setView('favorites')}><Heart size={15}/> Favoritos ({favoriteIds.length})</button><button className="logout-btn" onClick={()=>setView('profile')}><Pencil size={15}/> Editar perfil</button><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
       <section className="home-content">
-        <div className="home-heading"><div><div className="eyebrow"><span/> {view === 'favorites' ? 'TUS PERSONAS GUARDADAS' : 'DESCUBRÍ ZUNO'}</div><h1>{view === 'favorites' ? <>Tus <span>favoritos.</span></> : <>Hola, <span>{profile?.display_name || displayName || 'bienvenido'}.</span></>}</h1><p>{view === 'favorites' ? 'Perfiles que guardaste para volver a encontrarlos.' : 'Estas son algunas de las personas de la comunidad. ¡Tu próxima conexión puede empezar acá!'}</p></div><div className="home-actions">{view === 'favorites' && <button className="refresh-btn" onClick={()=>setView('home')}><Compass size={16}/> Descubrir</button>}<button className="refresh-btn" onClick={()=>setPeopleRefresh(value=>value+1)}><RefreshCw size={16}/> Actualizar</button></div></div>
+        <div className="home-heading"><div><div className="eyebrow"><span/> {view === 'favorites' ? 'TUS PERSONAS GUARDADAS' : view === 'connections' ? 'TUS CONEXIONES' : 'DESCUBRÍ ZUNO'}</div><h1>{view === 'favorites' ? <>Tus <span>favoritos.</span></> : view === 'connections' ? <>Tus <span>conexiones.</span></> : <>Hola, <span>{profile?.display_name || displayName || 'bienvenido'}.</span></>}</h1><p>{view === 'favorites' ? 'Perfiles que guardaste para volver a encontrarlos.' : view === 'connections' ? 'Solicitudes recibidas, enviadas y conexiones aceptadas.' : 'Estas son algunas de las personas de la comunidad. ¡Tu próxima conexión puede empezar acá!'}</p></div><div className="home-actions">{view !== 'home' && <button className="refresh-btn" onClick={()=>setView('home')}><Compass size={16}/> Descubrir</button>}<button className="refresh-btn" onClick={()=>setPeopleRefresh(value=>value+1)}><RefreshCw size={16}/> Actualizar</button></div></div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         {peopleLoading ? <div className="empty-state">Buscando perfiles…</div> : (
           <>
@@ -293,8 +335,17 @@ export default function App() {
               {person.bio && <p className="person-bio">{person.bio}</p>}
               {person.interests?.length > 0 && <div className="person-tags">{person.interests.slice(0,5).map(tag=><span key={tag}>{tag}</span>)}</div>}
               {person.looking_for?.length > 0 && <p className="person-looking"><strong>Busca:</strong> {person.looking_for.join(' · ')}</p>}
+              <ConnectionAction personId={person.id} currentUserId={session.user.id} rows={connectionRows} busy={connectionBusy} onSend={sendConnectionRequest} onRespond={respondToConnection}/>
             </div>
           </article>)}</div>
+          {view === 'connections' && !peopleLoading && <section className="connections-panel">
+            <h2>Solicitudes recibidas</h2>
+            {connectionRows.filter(row=>row.receiver_id===session.user.id && row.status==='pending').length ? connectionRows.filter(row=>row.receiver_id===session.user.id && row.status==='pending').map(row=>{const person=people.find(item=>item.id===row.sender_id);return <div className="connection-row" key={row.id}><div><strong>{person?.display_name || 'Miembro de ZUNO'}</strong><span>{person?.username ? '@'+person.username : 'Quiere conectar con vos'}</span></div><div className="connection-actions"><button className="accept-btn" disabled={connectionBusy===row.id} onClick={()=>respondToConnection(row.id,'accepted')}><Check size={15}/> Aceptar</button><button className="reject-btn" disabled={connectionBusy===row.id} onClick={()=>respondToConnection(row.id,'rejected')}><X size={15}/> Rechazar</button></div></div>}) : <p className="connections-empty">No tenés solicitudes nuevas.</p>}
+            <h2>Solicitudes enviadas</h2>
+            {connectionRows.filter(row=>row.sender_id===session.user.id && row.status==='pending').length ? connectionRows.filter(row=>row.sender_id===session.user.id && row.status==='pending').map(row=>{const person=people.find(item=>item.id===row.receiver_id);return <div className="connection-row" key={row.id}><div><strong>{person?.display_name || 'Miembro de ZUNO'}</strong><span>Solicitud pendiente</span></div></div>}) : <p className="connections-empty">No tenés solicitudes pendientes.</p>}
+            <h2>Conexiones aceptadas</h2>
+            {connectionRows.filter(row=>row.status==='accepted').length ? connectionRows.filter(row=>row.status==='accepted').map(row=>{const otherId=row.sender_id===session.user.id?row.receiver_id:row.sender_id;const person=people.find(item=>item.id===otherId);return <div className="connection-row" key={row.id}><div><strong>{person?.display_name || 'Miembro de ZUNO'}</strong><span>{person?.username ? '@'+person.username : 'Conexión aceptada'}</span></div><span className="connected-label"><Check size={14}/> Conectados</span></div>}) : <p className="connections-empty">Todavía no tenés conexiones aceptadas.</p>}
+          </section>}
           {view === 'favorites' && !peopleLoading && !people.some(person => favoriteIds.includes(person.id)) && <div className="empty-state"><div className="empty-icon"><Heart size={24}/></div><h2>Todavía no guardaste favoritos</h2><p>Cuando encuentres un perfil que te interese, tocá el corazón para guardarlo acá.</p><button className="submit-btn home-refresh" onClick={()=>setView('home')}>Explorar perfiles <span>→</span></button></div>}
           </>
         )}
@@ -347,4 +398,14 @@ export default function App() {
       </section><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
   )
+}
+
+
+function ConnectionAction({ personId, currentUserId, rows, busy, onSend, onRespond }) {
+  const relation = rows.find(row => (row.sender_id === currentUserId && row.receiver_id === personId) || (row.sender_id === personId && row.receiver_id === currentUserId))
+  if (!relation) return <button type="button" className="connect-btn" disabled={busy===personId} onClick={event=>{event.stopPropagation();onSend(personId)}}><UserPlus size={15}/> {busy===personId?'Enviando…':'Conectar'}</button>
+  if (relation.status === 'accepted') return <span className="connected-label"><Check size={14}/> Conectados</span>
+  if (relation.status === 'rejected') return <span className="connection-status">Solicitud rechazada</span>
+  if (relation.sender_id === currentUserId) return <span className="connection-status">Solicitud enviada</span>
+  return <div className="connection-actions"><button type="button" className="accept-btn" disabled={busy===relation.id} onClick={event=>{event.stopPropagation();onRespond(relation.id,'accepted')}}><Check size={15}/> Aceptar</button><button type="button" className="reject-btn" disabled={busy===relation.id} onClick={event=>{event.stopPropagation();onRespond(relation.id,'rejected')}}><X size={15}/> Rechazar</button></div>
 }
