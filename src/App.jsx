@@ -307,7 +307,7 @@ export default function App() {
       let discoveryIds = null
       let distanceByUser = {}
       let onlineRecentlyByUser = {}
-      const hasServerFilters = Boolean(discoveryAgeMin || discoveryAgeMax || discoveryDistanceKm || discoveryOnlineRecently)
+      const hasServerFilters = true
       if (hasServerFilters) {
         if (discoveryDistanceKm) {
           const {data:myLocation,error:locationError}=await supabase.from('user_map_locations').select('map_visible,updated_at').eq('user_id',session.user.id).maybeSingle()
@@ -1557,12 +1557,12 @@ export default function App() {
           {(view === 'home' ? discoveryPeople : view === 'favorites' ? people.filter(person => favoriteIds.includes(person.id)) : people).map(person => <article className="person-card person-card-clickable" key={person.id} role="button" tabIndex={0} onClick={()=>openMemberProfile(person,false)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openMemberProfile(person,false)}}}>
             <div className="person-card-gallery">
               {person.photos?.length ? <img src={person.photos[0].url} alt={`Foto de ${person.display_name || 'usuario'}`}/> : <div className="person-avatar">{person.avatar_url ? <img src={person.avatar_url} alt=""/> : <span>{(person.display_name || person.username || '?').slice(0,1).toUpperCase()}</span>}</div>}
+              {person.approximateDistanceKm!==null && person.approximateDistanceKm!==undefined && <span className="photo-distance-badge">{person.approximateDistanceKm===0?'A menos de 2.500 m':`≈ ${(person.approximateDistanceKm*1000).toLocaleString('es-UY')} m`}</span>}
             </div>
             <div className="person-info">
               <div className="person-title-row"><h3>{person.display_name || 'Usuario ZUNO'} {person.zuno_verified && <span className="verified-dot" title="Cuenta verificada">✓</span>}</h3><button type="button" className={`favorite-btn ${favoriteIds.includes(person.id) ? 'is-favorite' : ''}`} aria-label={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} title={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} disabled={favoriteBusy === person.id} onClick={event=>{event.stopPropagation();toggleFavorite(person.id)}}><Heart size={18} fill={favoriteIds.includes(person.id) ? 'currentColor' : 'none'}/></button></div>
               {person.username && <p className="person-username">@{person.username}</p>}
               {person.show_online && person.onlineRecently && <p className="person-online-label"><span/> En línea recientemente</p>}
-              {person.approximateDistanceKm!==null && person.approximateDistanceKm!==undefined && <p className="person-distance-label">Aprox. {person.approximateDistanceKm} km</p>}
               {person.visibleCity && <p className="person-location"><Compass size={13}/>{person.visibleCity}</p>}
               {person.bio && <p className="person-bio">{person.bio}</p>}
               {person.interests?.length > 0 && <div className="person-tags">{person.interests.slice(0,5).map(tag=><span key={tag}>{tag}</span>)}</div>}
