@@ -846,3 +846,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 @media(max-width:900px){.app-shell{padding-left:28px;padding-right:28px}.auth-landing{grid-template-columns:minmax(0,1fr) minmax(330px,430px);gap:28px}.auth-brand-panel{padding-left:0}.auth-wordmark{font-size:70px}}
 @media(max-width:700px){.app-shell{padding-left:18px;padding-right:18px}.topbar{height:72px}.auth-landing{display:flex;flex-direction:column;gap:22px;min-height:calc(100vh - 130px);padding:28px 0 38px;overflow:visible}.auth-brand-panel{min-height:0;width:100%;align-items:center;text-align:center;padding:18px 0 8px}.auth-heart-mark{width:58px;height:58px;border-radius:18px;margin-bottom:8px}.auth-heart-mark svg{width:34px;height:34px}.auth-wordmark{font-size:62px;letter-spacing:-4px}.auth-divider{margin:18px 0 13px}.auth-brand-panel>p{font-size:16px}.auth-feature-pills{justify-content:center;margin-top:17px}.auth-wrap{max-width:480px;margin:0 auto}.auth-card-neon{padding:23px 20px}.auth-card-neon h2{font-size:22px}.auth-landing:after{left:-45%;top:4%;width:100%;height:45%}}
 @media(max-width:390px){.auth-card-neon{padding:20px 16px}.auth-card-neon .mode-switch button{font-size:11px}.auth-feature-pills span{font-size:11px;padding:8px 10px}}
+
+/* Profile quick menu anchored above the Profile tab */
+.zuno-profile-nav-wrap{position:relative;display:flex;align-items:center;justify-content:center;flex:1;min-width:0}
+.zuno-profile-nav-wrap>button{width:100%}
+.zuno-profile-menu{position:absolute;bottom:calc(100% + 15px);right:50%;transform:translateX(50%);width:190px;padding:8px;border:1px solid #d946ef66;border-radius:17px;background:linear-gradient(145deg,#21122cfa,#100b19fa);box-shadow:0 12px 40px #000b,0 0 24px #b000ff35;backdrop-filter:blur(18px);display:grid;gap:6px;z-index:1002;animation:zuno-menu-in .16s ease-out}
+.zuno-profile-menu:after{content:"";position:absolute;bottom:-6px;right:calc(50% - 6px);width:11px;height:11px;background:#160d20;border-right:1px solid #d946ef66;border-bottom:1px solid #d946ef66;transform:rotate(45deg)}
+.zuno-profile-menu button{position:relative;z-index:1;display:flex;align-items:center;gap:11px;width:100%;padding:12px;border:1px solid #ffffff10;border-radius:11px;background:#ffffff08;color:#f8efff;font:600 12px 'DM Sans',sans-serif;text-align:left;cursor:pointer;transition:background .16s,border-color .16s}
+.zuno-profile-menu button:hover{background:#b72bce30;border-color:#e34bff70}
+.zuno-profile-menu button svg{color:#f45bd3;filter:drop-shadow(0 0 6px #d000ff70)}
+@keyframes zuno-menu-in{from{opacity:0;transform:translate(50%,7px) scale(.96)}to{opacity:1;transform:translate(50%,0) scale(1)}}
+@media(max-width:420px){.zuno-profile-menu{right:0;transform:none}.zuno-profile-menu:after{right:22px}@keyframes zuno-menu-in{from{opacity:0;transform:translateY(7px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}}
