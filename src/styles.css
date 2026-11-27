@@ -1328,3 +1328,13 @@ button{touch-action:manipulation}
 .profile-stage-caption{max-width:100%}
 .profile-stage-top-actions button[aria-label="Abrir chat"]{background:#ffffff20}
 @media(max-width:480px){.profile-quick-message{width:100%;max-width:100%;margin-top:10px}.profile-stage-name-row{gap:8px}}
+
+/* Tap enviado: gris por defecto, naranja durante las 24 h de espera. */
+.profile-name-fire{background:#343943cc!important;border-color:#ffffff35!important;color:#aeb4bf!important;box-shadow:none!important}
+.profile-name-fire.is-active{background:#ff941f!important;border-color:#ffb347!important;color:#fff!important;box-shadow:0 0 18px #ff941f66!important}
+.profile-name-fire:disabled{opacity:1;cursor:not-allowed}
+.story-progress-track{gap:4px;background:transparent;overflow:visible}
+.story-progress-track span{flex:1;min-width:0;width:auto;background:#ffffff55;overflow:hidden;position:relative}
+.story-progress-track span.completed{background:#fff;transform:none;animation:none}
+.story-progress-track span.current{background:#ffffff55}
+.story-progress-track span.current::after{content:"";position:absolute;inset:0;background:#fff;transform:scaleX(0);transform-origin:left;animation:story-progress linear forwards;animation-duration:inherit;animation-play-state:inherit}
