@@ -26,7 +26,7 @@ export default function App() {
   useEffect(() => {
     if (!session?.user) { setProfile(null); return }
     let active = true
-    supabase.from('profiles').select('display_name, username, bio, avatar_url').eq('id', session.user.id).maybeSingle()
+    supabase.from('profiles').select('display_name, username, bio, avatar_url, zuno_verified').eq('id', session.user.id).maybeSingle()
       .then(({ data, error: profileError }) => {
         if (!active) return
         if (profileError) setError('No pudimos cargar tu perfil. ' + profileError.message)
@@ -54,8 +54,8 @@ export default function App() {
       : await supabase.auth.signInWithPassword({ email, password })
     setBusy(false)
     if (result.error) setError(result.error.message)
-    else if (mode === 'signup' && !result.data.session) setMessage('¡Cuenta creada! Revisá tu correo para confirmar el registro y después iniciá sesión.')
-    else setMessage(mode === 'signup' ? '¡Cuenta creada! Bienvenido a ZUNO.' : '¡Sesión iniciada!')
+    else if (mode === 'signup' && !result.data.session) setMessage('¡Cuenta creada! Para entrar directamente, hay que desactivar la confirmación de correo en Supabase. Tu estado de verificación de ZUNO seguirá siendo independiente.')
+    else setMessage(mode === 'signup' ? '¡Cuenta creada! Bienvenido a ZUNO. Tu cuenta todavía no está verificada.' : '¡Sesión iniciada!')
   }
 
   async function saveProfile(event) {
@@ -63,7 +63,7 @@ export default function App() {
     setBusy(true); setError(''); setMessage('')
     const { data, error: saveError } = await supabase.from('profiles').update({
       display_name: displayName.trim(), username: username.trim().toLowerCase() || null, bio: bio.trim()
-    }).eq('id', session.user.id).select('display_name, username, bio, avatar_url').single()
+    }).eq('id', session.user.id).select('display_name, username, bio, avatar_url, zuno_verified').single()
     setBusy(false)
     if (saveError) setError(saveError.code === '23505' ? 'Ese nombre de usuario ya está ocupado. Probá con otro.' : saveError.message)
     else { setProfile(data); setMessage('¡Perfil guardado correctamente!') }
@@ -73,7 +73,7 @@ export default function App() {
 
   if (session?.user) return (
     <main className="app-shell">
-      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></header>
+      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span><button className="logout-btn" onClick={logout}><LogOut size={16}/> Cerrar sesión</button></div></header>
       <section className="account-layout">
         <div className="account-intro"><div className="eyebrow"><span/> TU ESPACIO EN ZUNO</div><h1>Hola,<br/><span>{displayName || 'bienvenido' }.</span></h1><p>Tu cuenta ya está activa. Ahora podés completar tu perfil para que otras personas te conozcan.</p><div className="feature-row"><span><ShieldCheck size={17}/> Cuenta protegida</span><span><Users size={17}/> Comunidad ZUNO</span></div></div>
         <div className="auth-card profile-card"><div className="card-icon"><UserRound size={21}/></div><h2>Completá tu perfil</h2><p className="card-sub">Estos datos ayudan a presentar quién sos.</p>
