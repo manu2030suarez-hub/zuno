@@ -1133,3 +1133,12 @@ button{touch-action:manipulation}
  .chat-fullscreen .chat-call-button{flex-basis:34px;width:34px;height:34px}
  .chat-fullscreen .ephemeral-settings>.logout-btn{max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;padding:7px}
 }
+
+
+/* Avatares de respaldo: inicial con color estable o icono genérico */
+.zuno-avatar{display:inline-flex;align-items:center;justify-content:center;flex:0 0 42px;width:42px;height:42px;overflow:hidden;border-radius:50%;background:#24152f;color:#f5e8ff;font-weight:850;line-height:1}
+.zuno-avatar img{display:block;width:100%;height:100%;object-fit:cover;border-radius:50%}
+.zuno-avatar-initial{background:linear-gradient(145deg,hsl(var(--avatar-hue) 72% 42%),hsl(calc(var(--avatar-hue) + 42) 75% 24%));border:1px solid #ffffff40;color:#fff;font-size:19px;text-shadow:0 1px 3px #0008}
+.zuno-avatar-empty{background:linear-gradient(145deg,#33253f,#17111f);border:1px solid #ffffff24;color:#cbb8d9}
+.person-card-gallery>.zuno-avatar{width:100%;height:100%;min-height:180px;flex-basis:auto;border-radius:0;font-size:clamp(44px,8vw,72px)}
+.chat-list-avatar>.zuno-avatar{width:100%;height:100%;flex-basis:100%;font-size:19px}
