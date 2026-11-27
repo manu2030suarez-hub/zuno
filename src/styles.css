@@ -158,3 +158,12 @@
 .nav-unread-count{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 6px;border-radius:999px;background:#e63e55;color:#fff;font-size:10px;font-weight:800;line-height:1}
 .chat-list-item{position:relative;padding-right:48px}
 .chat-unread-count{position:absolute;right:15px;top:12px;display:flex;align-items:center;justify-content:center;min-width:23px;height:23px;padding:0 6px;border-radius:50%;background:#e63e55;color:#fff;font-size:11px;font-weight:800;box-shadow:0 0 0 3px #15121b}
+
+
+/* Fotos privadas en mensajes */
+.chat-image-upload{width:44px;height:44px;flex:0 0 44px;display:flex;align-items:center;justify-content:center;border:1px solid #ffffff20;border-radius:50%;color:#e9a2d2;cursor:pointer}
+.chat-image-upload input{display:none}
+.chat-image-upload:has(input:disabled){opacity:.5;pointer-events:none}
+.chat-image-protected{position:relative;max-width:min( min(100%, 360px), 65vw);overflow:hidden;border-radius:12px;user-select:none;-webkit-user-select:none}
+.chat-image-protected img{display:block;width:100%;max-height:420px;object-fit:contain;pointer-events:none;-webkit-user-drag:none}
+.chat-image-watermark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff9;font-size:clamp(15px,3vw,25px);font-weight:800;letter-spacing:2px;text-shadow:0 2px 5px #000,0 0 10px #000;transform:rotate(-25deg);pointer-events:none;user-select:none;white-space:nowrap}
