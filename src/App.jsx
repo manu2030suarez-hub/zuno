@@ -551,6 +551,27 @@ export default function App() {
     return () => window.clearTimeout(timer)
   }, [storyViewer?.id, storyViewer?.media_type, storyPaused, storyRemainingMs])
 
+  async function loadStoryPeople(ids) {
+    if (!ids.length) return {}
+    const [{ data: profiles }, { data: photos }] = await Promise.all([
+      supabase.from('profiles').select('id,display_name,username,avatar_url').in('id', ids),
+      supabase.from('profile_photos').select('user_id,storage_path,sort_order').in('user_id', ids).order('sort_order', { ascending: true })
+    ])
+    const firstPhotoByUser = {}
+    for (const photo of photos || []) {
+      if (!firstPhotoByUser[photo.user_id]) firstPhotoByUser[photo.user_id] = photo
+    }
+    const signedPhotos = await Promise.all(Object.entries(firstPhotoByUser).map(async ([userId, photo]) => {
+      const { data } = await supabase.storage.from('zuno-profile-photos').createSignedUrl(photo.storage_path, 3600)
+      return [userId, data?.signedUrl || '']
+    }))
+    const photoUrls = Object.fromEntries(signedPhotos)
+    return Object.fromEntries((profiles || []).map(person => [person.id, {
+      ...person,
+      avatar_url: photoUrls[person.id] || person.avatar_url || ''
+    }]))
+  }
+
   async function openStory(story) {
     setStoryViewer(story)
     setStoryRemainingMs(7000); setStoryPaused(false); setShowStoryMenu(false)
@@ -565,8 +586,7 @@ export default function App() {
       setStoryLiked((likes || []).some(item => item.user_id === session.user.id))
       if (story.user_id === session.user.id) {
         const ids = (likes || []).map(item => item.user_id)
-        const { data: likers } = ids.length ? await supabase.from('profiles').select('id,display_name,username,avatar_url').in('id', ids) : { data: [] }
-        const byId = Object.fromEntries((likers || []).map(person => [person.id, person]))
+        const byId = await loadStoryPeople(ids)
         setStoryLikes((likes || []).map(item => ({ ...item, person: byId[item.user_id] || null })))
       }
     }
@@ -579,8 +599,7 @@ export default function App() {
       if (viewsError) setStoryMessage('No se pudieron cargar las visualizaciones: ' + viewsError.message)
       else {
         const ids = [...new Set((views || []).map(row => row.viewer_id))]
-        const { data: viewers } = ids.length ? await supabase.from('profiles').select('id,display_name,username,avatar_url').in('id', ids) : { data: [] }
-        const byId = Object.fromEntries((viewers || []).map(person => [person.id, person]))
+        const byId = await loadStoryPeople(ids)
         setStoryViewers((views || []).map(row => ({ ...row, person: byId[row.viewer_id] || null })))
       }
     }
