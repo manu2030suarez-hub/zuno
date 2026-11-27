@@ -115,6 +115,11 @@ export default function App() {
   const [distanceKm, setDistanceKm] = useState('50')
   const [privacy, setPrivacy] = useState({show_online:true,show_distance:false,show_age:true,show_location:true})
   const [photos, setPhotos] = useState([])
+  const [privateAlbumPhotos, setPrivateAlbumPhotos] = useState([])
+  const [privateAlbumRequests, setPrivateAlbumRequests] = useState([])
+  const [privateAlbumRequestStatus, setPrivateAlbumRequestStatus] = useState('')
+  const [privateAlbumBusy, setPrivateAlbumBusy] = useState(false)
+  const [privateAlbumMessage, setPrivateAlbumMessage] = useState('')
   const [photoBusy, setPhotoBusy] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -163,6 +168,11 @@ export default function App() {
       })
     return () => { active = false }
   }, [session])
+
+  useEffect(() => {
+    if (!session?.user) { setPrivateAlbumPhotos([]); setPrivateAlbumRequests([]); return }
+    if (view === 'profile') loadPrivateAlbumOwnerData()
+  }, [session, view])
 
   useEffect(() => {
     if (!session?.user) { setFavoriteIds([]); return }
@@ -1102,6 +1112,70 @@ export default function App() {
     setPhotoBusy(true);const {error:delError}=await supabase.from('profile_photos').delete().eq('id',photo.id).eq('user_id',session.user.id)
     if(!delError){await supabase.storage.from('zuno-profile-photos').remove([photo.storage_path]);setPhotos(current=>current.filter(p=>p.id!==photo.id))}else setError(delError.message);setPhotoBusy(false)
   }
+  async function loadPrivateAlbumOwnerData() {
+    if (!session?.user) return
+    const [{data:photoRows,error:photoError},{data:requestRows,error:requestError}] = await Promise.all([
+      supabase.from('private_album_photos').select('id,owner_id,storage_path,sort_order').eq('owner_id',session.user.id).order('sort_order'),
+      supabase.from('private_album_access_requests').select('id,requester_id,owner_id,status,created_at').eq('owner_id',session.user.id).order('created_at',{ascending:false})
+    ])
+    if (photoError) setPrivateAlbumMessage('No pudimos cargar el álbum: '+photoError.message)
+    else {
+      const signed = await Promise.all((photoRows||[]).map(async p=>{const {data}=await supabase.storage.from('zuno-private-albums').createSignedUrl(p.storage_path,300);return {...p,url:data?.signedUrl||''}}))
+      setPrivateAlbumPhotos(signed)
+    }
+    if (requestError) setPrivateAlbumMessage('No pudimos cargar las solicitudes: '+requestError.message)
+    else setPrivateAlbumRequests(requestRows||[])
+  }
+  async function uploadPrivateAlbumPhotos(event) {
+    const files=Array.from(event.target.files||[]);event.target.value='';if(!files.length)return
+    if(privateAlbumPhotos.length+files.length>20){setPrivateAlbumMessage('El álbum privado admite hasta 20 fotos.');return}
+    setPrivateAlbumBusy(true);setPrivateAlbumMessage('')
+    for(const file of files){
+      if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>10485760){setPrivateAlbumMessage('Usá JPG, PNG o WEBP de hasta 10 MB.');continue}
+      const path=session.user.id+'/'+crypto.randomUUID()+'.'+file.name.split('.').pop().toLowerCase()
+      const {error:upError}=await supabase.storage.from('zuno-private-albums').upload(path,file)
+      if(upError){setPrivateAlbumMessage(upError.message);continue}
+      const {data:row,error:rowError}=await supabase.from('private_album_photos').insert({owner_id:session.user.id,storage_path:path,sort_order:privateAlbumPhotos.length}).select('id,owner_id,storage_path,sort_order').single()
+      if(rowError){await supabase.storage.from('zuno-private-albums').remove([path]);setPrivateAlbumMessage(rowError.message);continue}
+      const {data:signed}=await supabase.storage.from('zuno-private-albums').createSignedUrl(path,300)
+      setPrivateAlbumPhotos(current=>[...current,{...row,url:signed?.signedUrl||''}])
+    }
+    setPrivateAlbumBusy(false)
+  }
+  async function deletePrivateAlbumPhoto(photo) {
+    setPrivateAlbumBusy(true)
+    const {error:delError}=await supabase.from('private_album_photos').delete().eq('id',photo.id).eq('owner_id',session.user.id)
+    if(!delError){await supabase.storage.from('zuno-private-albums').remove([photo.storage_path]);setPrivateAlbumPhotos(current=>current.filter(p=>p.id!==photo.id))}else setPrivateAlbumMessage(delError.message)
+    setPrivateAlbumBusy(false)
+  }
+  async function decidePrivateAlbumRequest(requestId,status) {
+    setPrivateAlbumBusy(true);setPrivateAlbumMessage('')
+    const {error:decisionError}=await supabase.from('private_album_access_requests').update({status,updated_at:new Date().toISOString()}).eq('id',requestId).eq('owner_id',session.user.id).eq('status','pending')
+    if(decisionError)setPrivateAlbumMessage(decisionError.message)
+    else await loadPrivateAlbumOwnerData()
+    setPrivateAlbumBusy(false)
+  }
+  async function openMemberProfile(person,isOwn=false) {
+    const selected={...person,isOwn}
+    setPrivateAlbumRequestStatus('')
+    if(!isOwn && session?.user){
+      const {data:request,error:requestError}=await supabase.from('private_album_access_requests').select('id,status').eq('requester_id',session.user.id).eq('owner_id',person.id).maybeSingle()
+      if(!requestError)setPrivateAlbumRequestStatus(request?.status||'')
+      if(request?.status==='approved'){
+        const {data:rows}=await supabase.from('private_album_photos').select('id,owner_id,storage_path,sort_order').eq('owner_id',person.id).order('sort_order')
+        const signed=await Promise.all((rows||[]).map(async p=>{const {data}=await supabase.storage.from('zuno-private-albums').createSignedUrl(p.storage_path,300);return {...p,url:data?.signedUrl||''}}))
+        selected.privateAlbumPhotos=signed.filter(p=>p.url)
+      }
+    }
+    setSelectedProfile(selected);setView('detail')
+  }
+  async function requestPrivateAlbumAccess(ownerId) {
+    setPrivateAlbumBusy(true);setPrivateAlbumMessage('')
+    const {error:requestError}=await supabase.from('private_album_access_requests').insert({requester_id:session.user.id,owner_id:ownerId,status:'pending'})
+    if(requestError)setPrivateAlbumMessage(requestError.code==='23505'?'Ya enviaste una solicitud a esta persona.':requestError.message)
+    else {setPrivateAlbumRequestStatus('pending');setPrivateAlbumMessage('Solicitud enviada. El dueño del álbum decidirá si te da acceso.')}
+    setPrivateAlbumBusy(false)
+  }
   const interestOptions=['Música','Cine','Deportes','Viajes','Gastronomía','Videojuegos','Arte','Naturaleza','Fitness','Lectura','Series','Tecnología']
   const lookingOptions=['Amistad','Citas','Relación seria','Conocer personas','Charlar']
 
@@ -1141,7 +1215,7 @@ export default function App() {
           {selectedProfile.interests?.length > 0 && <section className="detail-section"><h2>Intereses y gustos</h2><div className="person-tags">{selectedProfile.interests.map(tag=><span key={tag}>{tag}</span>)}</div></section>}
           {selectedProfile.looking_for?.length > 0 && <section className="detail-section"><h2>¿Qué busca?</h2><div className="person-tags">{selectedProfile.looking_for.map(item=><span key={item}>{item}</span>)}</div></section>}
           {!selectedProfile.bio && !selectedProfile.interests?.length && !selectedProfile.looking_for?.length && !selectedProfile.visibleCity && <p className="detail-private-note">Esta persona todavía no agregó información pública a su perfil.</p>}
-          {selectedProfile.isOwn ? <p className="detail-private-note">Este es tu perfil. Podés modificar la información y la privacidad cuando quieras.</p> : <><button type="button" className={`favorite-detail-btn ${favoriteIds.includes(selectedProfile.id) ? 'is-favorite' : ''}`} disabled={favoriteBusy === selectedProfile.id} onClick={()=>toggleFavorite(selectedProfile.id)}><Heart size={17} fill={favoriteIds.includes(selectedProfile.id) ? 'currentColor' : 'none'}/>{favoriteIds.includes(selectedProfile.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}</button><div className="profile-safety-actions"><button type="button" className="logout-btn" disabled={blockBusy===selectedProfile.id} onClick={()=>blockUser(selectedProfile)}><Ban size={15}/> {blockBusy===selectedProfile.id ? 'Bloqueando…' : 'Bloquear usuario'}</button><button type="button" className="logout-btn" onClick={()=>{setReportTarget(selectedProfile);setReportReason('harassment');setReportDetails('')}}><Flag size={15}/> Denunciar perfil</button></div><p className="detail-private-note">Solo mostramos la información que esta persona decidió compartir.</p></>}
+          {selectedProfile.isOwn ? <><section className="detail-section"><h2>Tu álbum privado</h2><p>Estas fotos solo las ven las personas a quienes les apruebes el acceso.</p><div className="detail-gallery">{(privateAlbumPhotos||[]).map(photo=><img key={photo.id} src={photo.url} alt="Foto de tu álbum privado"/>)}</div><p className="detail-private-note">{privateAlbumPhotos.length} de 20 fotos</p></section><p className="detail-private-note">Este es tu perfil. Podés modificar la información y la privacidad cuando quieras.</p></> : <><section className="detail-section"><h2>Álbum privado</h2>{selectedProfile.privateAlbumPhotos?.length ? <div className="detail-gallery">{selectedProfile.privateAlbumPhotos.map(photo=><img key={photo.id} src={photo.url} alt="Foto del álbum privado"/>)}</div> : <p>Este usuario tiene un álbum privado. Solicitá acceso para ver sus fotos.</p>}{privateAlbumRequestStatus==='approved' ? <p className="detail-private-note">Tenés acceso a este álbum.</p> : privateAlbumRequestStatus==='pending' ? <p className="detail-private-note">Tu solicitud está pendiente de aprobación.</p> : privateAlbumRequestStatus==='rejected' ? <p className="detail-private-note">Tu solicitud fue rechazada.</p> : <button type="button" className="favorite-detail-btn" disabled={privateAlbumBusy} onClick={()=>requestPrivateAlbumAccess(selectedProfile.id)}>Solicitar acceso al álbum</button>}{privateAlbumMessage&&<p className="detail-private-note">{privateAlbumMessage}</p>}</section><button type="button" className={`favorite-detail-btn ${favoriteIds.includes(selectedProfile.id) ? 'is-favorite' : ''}`} disabled={favoriteBusy === selectedProfile.id} onClick={()=>toggleFavorite(selectedProfile.id)}><Heart size={17} fill={favoriteIds.includes(selectedProfile.id) ? 'currentColor' : 'none'}/>{favoriteIds.includes(selectedProfile.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}</button><div className="profile-safety-actions"><button type="button" className="logout-btn" disabled={blockBusy===selectedProfile.id} onClick={()=>blockUser(selectedProfile)}><Ban size={15}/> {blockBusy===selectedProfile.id ? 'Bloqueando…' : 'Bloquear usuario'}</button><button type="button" className="logout-btn" onClick={()=>{setReportTarget(selectedProfile);setReportReason('harassment');setReportDetails('')}}><Flag size={15}/> Denunciar perfil</button></div><p className="detail-private-note">Solo mostramos la información que esta persona decidió compartir.</p></>}
         </div>
       </section>
       {reportTarget && <div className="security-modal-backdrop" role="presentation"><form className="security-modal" onSubmit={submitUserReport}><div className="security-modal-heading"><h2>Denunciar perfil</h2><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)} aria-label="Cerrar"><X size={17}/></button></div><p>Tu denuncia sobre {reportTarget.display_name || 'este usuario'} será privada y revisada por el equipo de ZUNO.</p><label>Motivo<select value={reportReason} onChange={event=>setReportReason(event.target.value)}><option value="fake_profile">Perfil falso o suplantación</option><option value="harassment">Acoso o amenazas</option><option value="inappropriate_content">Contenido inapropiado</option><option value="spam">Spam</option><option value="underage">Posible menor de edad</option><option value="scam">Estafa o fraude</option><option value="other">Otro motivo</option></select></label><label>Detalles (opcional)<textarea rows="4" maxLength="2000" value={reportDetails} onChange={event=>setReportDetails(event.target.value)} placeholder="Contanos qué pasó…"/></label><div className="security-modal-actions"><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)}>Cancelar</button><button type="submit" className="submit-btn" disabled={reportBusy}>{reportBusy ? 'Enviando…' : 'Enviar denuncia'}</button></div></form></div>}
@@ -1219,7 +1293,7 @@ export default function App() {
             </div>
           </section>}
           <div className="people-grid">
-          {view === 'home' && <article className="person-card own-person-card person-card-clickable" key={session.user.id} role="button" tabIndex={0} onClick={()=>{setSelectedProfile({...profile,photos,visibleCity:profile?.show_location?[profile?.city,profile?.region].filter(Boolean).join(', '):'',isOwn:true});setView('detail')}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelectedProfile({...profile,photos,visibleCity:profile?.show_location?[profile?.city,profile?.region].filter(Boolean).join(', '):'',isOwn:true});setView('detail')}}}>
+          {view === 'home' && <article className="person-card own-person-card person-card-clickable" key={session.user.id} role="button" tabIndex={0} onClick={()=>openMemberProfile({...profile,photos,visibleCity:profile?.show_location?[profile?.city,profile?.region].filter(Boolean).join(', '):''},true)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openMemberProfile({...profile,photos,visibleCity:profile?.show_location?[profile?.city,profile?.region].filter(Boolean).join(', '):''},true)}}}>
             <div className="person-card-gallery">
               {photos.length ? <img src={photos[0].url} alt="Tu foto de perfil"/> : <div className="person-avatar">{profile?.avatar_url ? <img src={profile.avatar_url} alt=""/> : <span>{(profile?.display_name || displayName || '?').slice(0,1).toUpperCase()}</span>}</div>}
             </div>
@@ -1233,7 +1307,7 @@ export default function App() {
               <p className="person-username">Este es tu perfil</p>
             </div>
           </article>}
-          {(view === 'home' ? discoveryPeople : view === 'favorites' ? people.filter(person => favoriteIds.includes(person.id)) : people).map(person => <article className="person-card person-card-clickable" key={person.id} role="button" tabIndex={0} onClick={()=>{setSelectedProfile({...person,isOwn:false});setView('detail')}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelectedProfile({...person,isOwn:false});setView('detail')}}}>
+          {(view === 'home' ? discoveryPeople : view === 'favorites' ? people.filter(person => favoriteIds.includes(person.id)) : people).map(person => <article className="person-card person-card-clickable" key={person.id} role="button" tabIndex={0} onClick={()=>openMemberProfile(person,false)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openMemberProfile(person,false)}}}>
             <div className="person-card-gallery">
               {person.photos?.length ? <img src={person.photos[0].url} alt={`Foto de ${person.display_name || 'usuario'}`}/> : <div className="person-avatar">{person.avatar_url ? <img src={person.avatar_url} alt=""/> : <span>{(person.display_name || person.username || '?').slice(0,1).toUpperCase()}</span>}</div>}
             </div>
@@ -1274,6 +1348,7 @@ export default function App() {
             <label htmlFor="username">Nombre de usuario</label><input id="username" value={username} onChange={e=>setUsername(e.target.value.replace(/[^a-zA-Z0-9_.]/g,''))} placeholder="ej. manu_uy" minLength={3} maxLength={24}/><p className="field-hint">3 a 24 caracteres. Letras, números, puntos y guion bajo.</p>
             <label htmlFor="bio">Sobre vos</label><textarea id="bio" value={bio} onChange={e=>setBio(e.target.value)} placeholder="Contá algo sobre vos…" maxLength={300} rows={4}/><div className="char-count">{bio.length}/300</div>
             <div className="profile-section"><h3><ImagePlus size={17}/> Fotos y galería</h3><p className="field-hint">Hasta 6 fotos. JPG, PNG o WEBP de hasta 10 MB.</p><div className="photo-gallery">{photos.map(photo=><div className="photo-thumb" key={photo.id}>{photo.url&&<img src={photo.url} alt="Foto de perfil"/>}<button type="button" onClick={()=>deletePhoto(photo)} disabled={photoBusy} aria-label="Eliminar foto"><Trash2 size={15}/></button></div>)}<label className="photo-add"><ImagePlus size={22}/><span>{photoBusy?'Procesando…':'Agregar fotos'}</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={uploadPhotos} disabled={photoBusy||photos.length>=6}/></label></div></div>
+            <div className="profile-section"><h3><Images size={17}/> Álbum privado</h3><p className="field-hint">Hasta 20 fotos. Solo las personas a quienes apruebes podrán verlas. Las solicitudes las decidís vos.</p><div className="photo-gallery">{privateAlbumPhotos.map(photo=><div className="photo-thumb" key={photo.id}>{photo.url&&<img src={photo.url} alt="Foto privada"/>}<button type="button" onClick={()=>deletePrivateAlbumPhoto(photo)} disabled={privateAlbumBusy} aria-label="Eliminar foto privada"><Trash2 size={15}/></button></div>)}<label className="photo-add"><Images size={22}/><span>{privateAlbumBusy?'Procesando…':'Agregar al álbum privado'}</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={uploadPrivateAlbumPhotos} disabled={privateAlbumBusy||privateAlbumPhotos.length>=20}/></label></div>{privateAlbumMessage&&<div className="notice">{privateAlbumMessage}</div>}<h4>Solicitudes recibidas</h4>{privateAlbumRequests.filter(r=>r.status==='pending').length ? <div className="blocked-users-list">{privateAlbumRequests.filter(r=>r.status==='pending').map(request=><div className="blocked-user-row" key={request.id}><span><strong>Solicitud de acceso</strong><small>{new Date(request.created_at).toLocaleString()}</small></span><button type="button" className="submit-btn" disabled={privateAlbumBusy} onClick={()=>decidePrivateAlbumRequest(request.id,'approved')}>Aceptar</button><button type="button" className="logout-btn" disabled={privateAlbumBusy} onClick={()=>decidePrivateAlbumRequest(request.id,'rejected')}>Rechazar</button></div>)}</div>:<p className="detail-private-note">No tenés solicitudes pendientes.</p>}</div>
             <div className="profile-section"><h3>Datos personales</h3><label htmlFor="birthDate">Fecha de nacimiento (privada)</label><input id="birthDate" type="date" value={birthDate} max={new Date().toISOString().slice(0,10)} onChange={e=>setBirthDate(e.target.value)}/><p className="field-hint">Tu fecha completa no se muestra públicamente. ZUNO es solo para mayores de 18 años.</p><label htmlFor="city">Ciudad o localidad aproximada</label><input id="city" value={city} onChange={e=>setCity(e.target.value)} placeholder="Ej. Montevideo"/><label htmlFor="region">Departamento / región</label><input id="region" value={region} onChange={e=>setRegion(e.target.value)} placeholder="Ej. Montevideo"/></div>
             <div className="profile-section"><h3>Intereses y gustos</h3><div className="choice-chips">{interestOptions.map(item=><button type="button" key={item} className={interests.includes(item)?'selected':''} onClick={()=>setInterests(cur=>cur.includes(item)?cur.filter(x=>x!==item):[...cur,item])}>{item}</button>)}</div></div>
             <div className="profile-section"><h3>¿Qué estás buscando?</h3><div className="choice-chips">{lookingOptions.map(item=><button type="button" key={item} className={lookingFor.includes(item)?'selected':''} onClick={()=>setLookingFor(cur=>cur.includes(item)?cur.filter(x=>x!==item):[...cur,item])}>{item}</button>)}</div><label htmlFor="ageMin">Edad mínima</label><input id="ageMin" type="number" min="18" max="99" value={ageMin} onChange={e=>setAgeMin(e.target.value)}/><label htmlFor="ageMax">Edad máxima</label><input id="ageMax" type="number" min="18" max="99" value={ageMax} onChange={e=>setAgeMax(e.target.value)}/><label htmlFor="distanceKm">Distancia máxima aproximada (km)</label><input id="distanceKm" type="number" min="1" max="500" value={distanceKm} onChange={e=>setDistanceKm(e.target.value)}/></div>
