@@ -242,3 +242,17 @@
 .chat-message-menu button:hover{background:#ffffff12}
 .chat-message-menu button:last-child{color:#ff8b9b}
 @media(hover:none){.chat-message-menu-trigger{opacity:1}}
+
+
+/* Modal de confirmación propio de ZUNO y menú táctil */
+.zuno-modal-backdrop{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;background:#08060dcc;backdrop-filter:blur(5px)}
+.zuno-modal{width:min(100%,420px);padding:23px;border:1px solid #ffffff25;border-radius:18px;background:#1b1521;box-shadow:0 24px 80px #000b;color:#f5edf7}
+.zuno-modal h2{margin:0 0 10px;font:800 20px Manrope,sans-serif}
+.zuno-modal p{margin:0;color:#bdb1c3;font-size:13px;line-height:1.65}
+.zuno-modal>div{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin-top:22px}
+.zuno-modal-danger{border:0;border-radius:10px;padding:10px 14px;background:#b73557;color:#fff;font:700 12px 'DM Sans';cursor:pointer}
+.zuno-modal button:disabled{opacity:.55;cursor:wait}
+.chat-list-name small{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-list-name small .message-ticks{flex:0 0 auto}
+.chat-bubble{touch-action:pan-y}
+@media(hover:none){.chat-message-menu-trigger{opacity:1}.chat-message-menu{position:absolute;right:0;top:29px;z-index:20}}
