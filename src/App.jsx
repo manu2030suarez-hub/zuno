@@ -160,6 +160,7 @@ export default function App() {
   const remoteVideoRef = useRef(null)
   const localVideoRef = useRef(null)
   const remoteAudioRef = useRef(null)
+  const ringtoneContextRef = useRef(null)
 
 
   function closeCallMedia() {
@@ -214,7 +215,7 @@ export default function App() {
       if (createError) throw createError
       callIdRef.current = created.id
       for (const candidate of localIceQueueRef.current.splice(0)) await sendCallIce(created.id, candidate)
-      setCallSession(created)
+      setCallSession({ ...created, _person: activeConversation.person })
       setCallError('')
     } catch (callStartError) {
       closeCallMedia()
@@ -300,6 +301,7 @@ export default function App() {
       if (active) setIncomingCall({ ...data, _conversation: conversation, _caller: person })
     }
     loadIncoming()
+    const inboxPoll = window.setInterval(loadIncoming, 2500)
     const channel = supabase.channel('zuno-call-inbox-' + session.user.id)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'call_sessions', filter: 'callee_id=eq.' + session.user.id }, payload => {
         if (payload.new.status === 'ringing') {
@@ -317,8 +319,44 @@ export default function App() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'call_sessions', filter: 'callee_id=eq.' + session.user.id }, payload => {
         if (payload.new.status !== 'ringing') setIncomingCall(current => current?.id === payload.new.id ? null : current)
       }).subscribe()
-    return () => { active = false; supabase.removeChannel(channel) }
+    return () => { active = false; window.clearInterval(inboxPoll); supabase.removeChannel(channel) }
   }, [session?.user?.id])
+
+  useEffect(() => {
+    const ringing = Boolean(incomingCall || callSession?.status === 'ringing')
+    if (!ringing) {
+      if (ringtoneContextRef.current) { try { ringtoneContextRef.current.close() } catch {} ringtoneContextRef.current = null }
+      return
+    }
+    let stopped = false
+    const playTone = async () => {
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext
+        if (!AudioContextClass) return
+        const context = ringtoneContextRef.current || new AudioContextClass()
+        ringtoneContextRef.current = context
+        if (context.state === 'suspended') await context.resume()
+        if (stopped || context.state !== 'running') return
+        const oscillator = context.createOscillator()
+        const gain = context.createGain()
+        oscillator.type = 'sine'
+        oscillator.frequency.value = incomingCall ? 880 : 660
+        gain.gain.setValueAtTime(0.0001, context.currentTime)
+        gain.gain.exponentialRampToValueAtTime(0.12, context.currentTime + 0.04)
+        gain.gain.setValueAtTime(0.12, context.currentTime + 0.28)
+        gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.42)
+        oscillator.connect(gain); gain.connect(context.destination)
+        oscillator.start(); oscillator.stop(context.currentTime + 0.44)
+      } catch (ringError) { console.warn('El navegador bloqueó el tono de llamada:', ringError?.message || ringError) }
+    }
+    playTone()
+    const timer = window.setInterval(playTone, 1500)
+    return () => {
+      stopped = true
+      window.clearInterval(timer)
+      if (ringtoneContextRef.current) { try { ringtoneContextRef.current.close() } catch {} ringtoneContextRef.current = null }
+    }
+  }, [incomingCall?.id, callSession?.id, callSession?.status])
 
   useEffect(() => {
     if (!callSession?.id) return
