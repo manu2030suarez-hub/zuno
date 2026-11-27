@@ -1124,7 +1124,16 @@ export default function App() {
       setPrivateAlbumPhotos(signed)
     }
     if (requestError) setPrivateAlbumMessage('No pudimos cargar las solicitudes: '+requestError.message)
-    else setPrivateAlbumRequests(requestRows||[])
+    else {
+      const rows=requestRows||[]
+      const requesterIds=[...new Set(rows.map(r=>r.requester_id))]
+      let names={}
+      if(requesterIds.length){
+        const {data:peopleRows}=await supabase.from('profiles').select('id,display_name,username').in('id',requesterIds)
+        names=(peopleRows||[]).reduce((acc,p)=>{acc[p.id]=p;return acc},{})
+      }
+      setPrivateAlbumRequests(rows.map(r=>({...r,requester:names[r.requester_id]||null})))
+    }
   }
   async function uploadPrivateAlbumPhotos(event) {
     const files=Array.from(event.target.files||[]);event.target.value='';if(!files.length)return
