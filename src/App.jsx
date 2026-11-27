@@ -125,18 +125,40 @@ export default function App() {
     if (!isSupabaseConfigured) { setError('La conexión con Supabase todavía no está configurada.'); return }
     if (password.length < 8) { setError('La contraseña debe tener al menos 8 caracteres.'); return }
     if (mode === 'signup' && !displayName.trim()) { setError('Escribí cómo querés que te llamemos.'); return }
+    const identifier = email.trim()
+    if (!identifier) { setError(mode === 'signup' ? 'Ingresá tu correo electrónico.' : 'Ingresá tu correo o nombre de usuario.'); return }
     setBusy(true)
-    const result = mode === 'signup'
-      ? await supabase.auth.signUp({ email, password, options: { data: { display_name: displayName.trim() } } })
-      : await supabase.auth.signInWithPassword({ email, password })
+    if (mode === 'signup') {
+      const result = await supabase.auth.signUp({ email: identifier, password, options: { data: { display_name: displayName.trim() } } })
+      setBusy(false)
+      if (result.error) {
+        setError(result.error.message)
+      } else if (!result.data.session) {
+        setVerificationEmail(identifier)
+        setMessage('Te enviamos un correo para confirmar tu dirección. Abrí el enlace que recibiste y después iniciá sesión.')
+      } else setMessage('¡Cuenta creada! Bienvenido a ZUNO.')
+      return
+    }
+    const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)
+    if (looksLikeEmail) {
+      const result = await supabase.auth.signInWithPassword({ email: identifier, password })
+      setBusy(false)
+      if (result.error) {
+        setError(result.error.code === 'email_not_confirmed' ? 'Primero confirmá tu correo electrónico.' : 'No pudimos iniciar sesión. Revisá tus datos e intentá nuevamente.')
+        if (result.error.code === 'email_not_confirmed') setVerificationEmail(identifier)
+      } else setMessage('¡Sesión iniciada!')
+      return
+    }
+    const { data, error: loginError } = await supabase.functions.invoke('username-login', { body: { username: identifier.toLowerCase(), password } })
+    if (loginError || !data?.session?.access_token || !data?.session?.refresh_token) {
+      setBusy(false)
+      setError(data?.error || 'No pudimos iniciar sesión. Revisá tu nombre de usuario y contraseña.')
+      return
+    }
+    const { error: sessionError } = await supabase.auth.setSession({ access_token: data.session.access_token, refresh_token: data.session.refresh_token })
     setBusy(false)
-    if (result.error) {
-      setError(result.error.message)
-      if (result.error.code === 'email_not_confirmed') setVerificationEmail(email.trim())
-    } else if (mode === 'signup' && !result.data.session) {
-      setVerificationEmail(email.trim())
-      setMessage('Te enviamos un correo para confirmar tu dirección. Abrí el enlace que recibiste y después iniciá sesión.')
-    } else setMessage(mode === 'signup' ? '¡Cuenta creada! Bienvenido a ZUNO.' : '¡Sesión iniciada!')
+    if (sessionError) setError('No pudimos completar el inicio de sesión. Intentá nuevamente.')
+    else setMessage('¡Sesión iniciada!')
   }
 
   async function resendVerification(targetEmail = verificationEmail) {
@@ -300,7 +322,7 @@ export default function App() {
           <div className="mode-switch"><button type="button" className={mode === 'signup' ? 'active' : ''} onClick={()=>{setMode('signup');setError('');setMessage('')}}>Crear cuenta</button><button type="button" className={mode === 'login' ? 'active' : ''} onClick={()=>{setMode('login');setError('');setMessage('')}}>Iniciar sesión</button></div>
           <form onSubmit={handleSubmit}>
             {mode === 'signup' && <><label htmlFor="displayName">¿Cómo querés que te llamemos?</label><input id="displayName" value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="Tu nombre para mostrar" required maxLength={40}/></>}
-            <label htmlFor="email">Correo electrónico</label><input id="email" type="email" autoComplete="email" placeholder="tu@email.com" value={email} onChange={e=>setEmail(e.target.value)} required/>
+            <label htmlFor="email">{mode === 'signup' ? 'Correo electrónico' : 'Correo o nombre de usuario'}</label><input id="email" type={mode === 'signup' ? 'email' : 'text'} autoComplete={mode === 'signup' ? 'email' : 'username'} placeholder={mode === 'signup' ? 'tu@email.com' : 'tu@email.com o manu.german'} value={email} onChange={e=>setEmail(e.target.value)} required/>
             <label htmlFor="password">Contraseña</label><div className="password-field"><input id="password" type={showPassword?'text':'password'} autoComplete={mode==='signup'?'new-password':'current-password'} placeholder="Mínimo 8 caracteres" value={password} onChange={e=>setPassword(e.target.value)} required minLength={8}/><button type="button" aria-label="Mostrar contraseña" onClick={()=>setShowPassword(!showPassword)}>{showPassword?<EyeOff size={18}/>:<Eye size={18}/>}</button></div>
             {error && <div className="notice error">{error}</div>}{message && <div className="notice success">{message}</div>}
             <button className="submit-btn" type="submit" disabled={busy}>{busy?'Un momento…':mode==='signup'?'Crear mi cuenta':'Entrar'} <span>→</span></button>
