@@ -1700,3 +1700,50 @@ html body .zuno-admin-shell .zuno-admin-workspace{border-radius:21px!important;b
  html body .zuno-admin-shell .admin-welcome-art{width:72px!important;height:72px!important;border-radius:21px!important}
  html body .zuno-admin-shell .zuno-admin-stats article{min-height:90px!important}
 }
+
+
+/* ZUNO ADMIN · user directory */
+html body .zuno-admin-shell .admin-users-workspace{min-width:0;padding:23px;border:1px solid #ffffff16;border-radius:21px;background:linear-gradient(145deg,#191522,#100e16);box-shadow:0 18px 50px #0003}
+html body .zuno-admin-shell .admin-users-toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:22px}
+html body .zuno-admin-shell .admin-users-toolbar h2{margin:7px 0 5px;color:#fff;font-size:22px;font-weight:850;letter-spacing:-.6px}
+html body .zuno-admin-shell .admin-users-toolbar p{margin:0;color:#968b9f;font-size:11px;line-height:1.6}
+html body .zuno-admin-shell .admin-users-search{display:flex;align-items:center;gap:11px;min-height:51px;padding:6px 7px 6px 15px;margin-bottom:17px;border:1px solid #ffffff19;border-radius:13px;background:#0d0b13;color:#a99db3}
+html body .zuno-admin-shell .admin-users-search:focus-within{border-color:#c77ce477;box-shadow:0 0 0 3px #b45bd51a}
+html body .zuno-admin-shell .admin-users-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:#f7effb;font:inherit;font-size:12px}
+html body .zuno-admin-shell .admin-users-search input::placeholder{color:#72697c}
+html body .zuno-admin-shell .admin-users-search button{padding:10px 16px;border:0;border-radius:9px;background:linear-gradient(110deg,#a94bd5,#7446ad);color:#fff;font-size:11px;font-weight:800;cursor:pointer}
+html body .zuno-admin-shell .admin-users-list{display:grid;gap:8px}
+html body .zuno-admin-shell .admin-user-row{display:flex;align-items:center;gap:13px;width:100%;min-width:0;padding:12px 14px;border:1px solid #ffffff12;border-radius:13px;background:#ffffff05;color:#cfc5d7;text-align:left;cursor:pointer;transition:.18s}
+html body .zuno-admin-shell .admin-user-row:hover{border-color:#bd70e766;background:#b44bd510;transform:translateY(-1px)}
+html body .zuno-admin-shell .admin-user-row-avatar{width:43px!important;height:43px!important;min-width:43px!important;flex:0 0 43px!important;border:1px solid #ffffff20}
+html body .zuno-admin-shell .admin-user-row-copy{display:grid;gap:5px;flex:1;min-width:0}
+html body .zuno-admin-shell .admin-user-row-copy strong{overflow:hidden;color:#f5edf8;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+html body .zuno-admin-shell .admin-user-row-copy small{overflow:hidden;color:#8f8499;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+html body .zuno-admin-shell .admin-user-verified{display:inline-flex;align-items:center;gap:5px;color:#82d7b0;font-size:9px;white-space:nowrap}
+html body .zuno-admin-shell .admin-users-empty{display:flex;min-height:180px;flex-direction:column;align-items:center;justify-content:center;gap:9px;color:#93889d;font-size:11px}
+html body .zuno-admin-shell .admin-users-empty strong{color:#e9dfef;font-size:13px}
+html body .zuno-admin-shell .admin-users-error{display:flex;align-items:center;gap:9px;margin:12px 0;padding:13px;border:1px solid #f0787844;border-radius:11px;background:#b7353515;color:#ffaaaa;font-size:11px}
+html body .zuno-admin-shell .admin-user-detail{display:grid;gap:18px}
+html body .zuno-admin-shell .admin-user-back{display:inline-flex;align-items:center;gap:6px;width:max-content;padding:8px 11px;border:1px solid #ffffff18;border-radius:9px;background:#ffffff08;color:#d8c9e1;font-size:10px;cursor:pointer}
+html body .zuno-admin-shell .admin-user-detail-head{display:flex;align-items:center;gap:15px;padding:19px;border:1px solid #ffffff14;border-radius:15px;background:linear-gradient(110deg,#b44bd516,#ffffff04)}
+html body .zuno-admin-shell .admin-user-avatar{width:64px!important;height:64px!important;min-width:64px!important;flex:0 0 64px!important;font-size:22px}
+html body .zuno-admin-shell .admin-user-detail-head h3{margin:0 0 4px;color:#fff;font-size:18px}
+html body .zuno-admin-shell .admin-user-detail-head p{margin:0 0 5px;color:#d5a7e8;font-size:11px}
+html body .zuno-admin-shell .admin-user-detail-head small{color:#8f8499;font-size:9px}
+html body .zuno-admin-shell .admin-user-detail-grid{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+html body .zuno-admin-shell .admin-user-detail-grid article,.zuno-admin-shell .admin-user-detail-bio{min-width:0;padding:14px;border:1px solid #ffffff12;border-radius:12px;background:#ffffff05}
+html body .zuno-admin-shell .admin-user-detail-grid small{display:block;margin-bottom:7px;color:#94899f;font-size:9px}
+html body .zuno-admin-shell .admin-user-detail-grid strong{display:block;overflow-wrap:anywhere;color:#e9dfee;font-size:10px}
+html body .zuno-admin-shell .admin-user-detail-bio strong{color:#eee4f2;font-size:11px}
+html body .zuno-admin-shell .admin-user-detail-bio p{margin:7px 0 0;color:#a99fb2;font-size:11px;line-height:1.6;white-space:pre-wrap}
+html body .zuno-admin-shell .admin-users-placeholder{display:flex;align-items:flex-start;gap:12px;padding:15px;border:1px solid #d8a85b38;border-radius:13px;background:#a8762614;color:#e6c98e}
+html body .zuno-admin-shell .admin-users-placeholder strong{display:block;margin-bottom:5px;font-size:11px}
+html body .zuno-admin-shell .admin-users-placeholder p{margin:0;color:#b8a98e;font-size:10px;line-height:1.6}
+@media(max-width:650px){
+ html body .zuno-admin-shell .admin-users-workspace{padding:15px;border-radius:16px}
+ html body .zuno-admin-shell .admin-users-toolbar{align-items:flex-start;flex-direction:column}
+ html body .zuno-admin-shell .admin-user-detail-grid{grid-template-columns:1fr}
+ html body .zuno-admin-shell .admin-user-verified{display:none}
+ html body .zuno-admin-shell .admin-user-row{gap:9px;padding:10px}
+ html body .zuno-admin-shell .admin-user-row-avatar{width:38px!important;height:38px!important;min-width:38px!important;flex-basis:38px!important}
+}
