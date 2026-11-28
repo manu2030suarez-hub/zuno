@@ -1404,3 +1404,12 @@ button{touch-action:manipulation}
 .notifications-heading{align-items:center}
 .notifications-heading h1{margin:0}
 @media(max-width:520px){.chat-list-item{gap:8px;padding:11px 9px}.chat-list-avatar{width:42px;height:42px;flex:0 0 42px}.chat-row-actions{gap:3px}.chat-row-actions button{width:32px;height:34px}.chat-list-name strong{font-size:13px}.chat-list-name small{font-size:10px}}
+
+
+/* Mensajes y chats archivados, navegación estilo WhatsApp */
+.chat-list-tabs{display:flex;align-items:center;gap:8px;margin:2px 0 18px;padding:5px;border:1px solid #ffffff12;border-radius:15px;background:#111018}
+.chat-list-tabs button{display:flex;align-items:center;justify-content:center;gap:8px;flex:1;min-width:0;padding:11px 14px;border:0;border-radius:11px;background:transparent;color:#aaa2b4;font:700 13px 'DM Sans',sans-serif;cursor:pointer;transition:background .18s,color .18s}
+.chat-list-tabs button.active{background:#30233a;color:#fff;box-shadow:inset 0 0 0 1px #c65bd144}
+.chat-list-tabs button>span{display:grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:99px;background:#ffffff12;color:#e5d9ed;font-size:10px}
+.chat-list-tabs button.active>span{background:#bd55d733;color:#f3c8ff}
+@media(max-width:520px){.chat-list-tabs{margin-bottom:13px}.chat-list-tabs button{padding:10px 8px;font-size:12px}}
