@@ -1481,9 +1481,10 @@ export default function App() {
     if (!request || mapInviteBusy) return
     setMapInviteBusy(true)
     const {error}=await supabase.from('map_meetup_requests').update({status,updated_at:new Date().toISOString()}).eq('id',request.id).eq('receiver_id',session.user.id)
-    if(error)setMapStatus('No pudimos responder: '+error.message)
-    else {setMapInvites(current=>current.map(item=>item.id===request.id?{...item,status}:item));setMapStatus(status==='accepted'?'Aceptaste. Calculando la ruta aproximada…':'Invitación rechazada.');if(status==='accepted'){setSelectedMapPerson(null);setPeopleRefresh(value=>value+1)}}
+    if(error){setMapStatus('No pudimos responder: '+error.message);setMapInviteBusy(false);return false}
+    setMapInvites(current=>current.map(item=>item.id===request.id?{...item,status}:item));setMapStatus(status==='accepted'?'Aceptaste. Calculando la ruta aproximada…':'Invitación rechazada.');if(status==='accepted'){setSelectedMapPerson(null);setPeopleRefresh(value=>value+1)}
     setMapInviteBusy(false)
+    return true
   }
 
   async function refreshMyMapLocation() {
@@ -2311,7 +2312,7 @@ export default function App() {
 
   if (session?.user && view === 'map') return (
     <main className="app-shell zuno-map-fullscreen">{callOverlay}
-      <div className="zuno-map-topbar"><button type="button" onClick={()=>setView('home')} aria-label="Volver"><ChevronLeft size={22}/></button><div><strong>ZUNO <span>MAPA</span></strong><small>{mapUsers.length} personas cerca · hasta 50 km</small></div><button type="button" onClick={refreshMyMapLocation} disabled={mapBusy} aria-label="Actualizar ubicación"><Navigation size={19}/></button></div>
+      <div className="zuno-map-topbar"><button type="button" onClick={()=>setView('home')} aria-label="Volver"><ChevronLeft size={22}/></button><div><strong>ZUNO <span>MAPA</span></strong><small>{mapUsers.length + (mapVisible && mapOrigin ? 1 : 0)} perfiles · hasta 50 km</small></div><button type="button" onClick={refreshMyMapLocation} disabled={mapBusy} aria-label="Actualizar ubicación"><Navigation size={19}/></button></div>
       <div ref={mapContainerRef} className="zuno-map-canvas zuno-map-canvas-full" aria-label="Mapa de personas cercanas"/>
       <div className="zuno-map-floating-actions"><button type="button" onClick={()=>setMyMapVisibility(!mapVisible)} disabled={mapBusy}><MapPin size={16}/>{mapVisible?'Aparecés en el mapa':'Estás oculto'}</button><button type="button" onClick={refreshMyMapLocation} disabled={mapBusy}><LocateFixed size={17}/></button></div>
       {mapStatus && <div className="zuno-map-toast">{mapStatus}</div>}
@@ -2339,7 +2340,7 @@ export default function App() {
               {!item.read_at && <i className="notification-unread-dot"/>}
             </button>
 
-            {item.notification_type==='map_meetup_request' && <div className="notification-actions"><button type="button" className="accept-btn" disabled={mapInviteBusy} onClick={()=>{respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status:'pending'},'accepted').then(()=>markNotificationRead(item.id))}}><Check size={15}/> Aceptar</button><button type="button" className="reject-btn" disabled={mapInviteBusy} onClick={()=>{respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status:'pending'},'rejected').then(()=>markNotificationRead(item.id))}}><X size={15}/> Rechazar</button></div>}
+            {item.notification_type==='map_meetup_request' && <div className="notification-actions"><button type="button" className="accept-btn" disabled={mapInviteBusy} onClick={()=>{respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status:'pending'},'accepted').then(ok=>{if(ok)markNotificationRead(item.id)})}}><Check size={15}/> Aceptar</button><button type="button" className="reject-btn" disabled={mapInviteBusy} onClick={()=>{respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status:'pending'},'rejected').then(ok=>{if(ok)markNotificationRead(item.id)})}}><X size={15}/> Rechazar</button></div>}
             {item.notification_type==='album_access_request' && <div className="notification-actions"><button type="button" className="accept-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'approved')}><Check size={15}/> {notificationBusy===item.id?'Guardando…':'Permitir'}</button><button type="button" className="reject-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'rejected')}><X size={15}/> Rechazar</button><button type="button" className="later-btn" disabled={notificationBusy===item.id} onClick={()=>markNotificationRead(item.id)}>Más tarde</button></div>}
             <button type="button" className="notification-delete" aria-label="Eliminar notificación" onClick={()=>deleteNotification(item.id)}><Trash2 size={15}/></button>
           </article>}) : <div className="empty-state"><Bell size={28}/><h3>Todo al día</h3><p>Cuando alguien te dé un tap, solicite acceso a tu álbum o quiera encontrarse con vos, aparecerá acá.</p></div>}
