@@ -69,6 +69,12 @@ export default function App() {
   const [adminUserMedia, setAdminUserMedia] = useState([])
   const [adminUserMediaLoading, setAdminUserMediaLoading] = useState(false)
   const [adminUserMediaError, setAdminUserMediaError] = useState('')
+  const [adminSanctionDuration, setAdminSanctionDuration] = useState('7')
+  const [adminSanctionReason, setAdminSanctionReason] = useState('')
+  const [adminSanctionBusy, setAdminSanctionBusy] = useState(false)
+  const [adminSanctionMessage, setAdminSanctionMessage] = useState('')
+  const [adminSanctionHistory, setAdminSanctionHistory] = useState([])
+  const [accountStatus, setAccountStatus] = useState({ loading: true, blocked: false, permanent: false, reason: '', expires_at: null })
   const [adminReports, setAdminReports] = useState([])
   const [adminReportsLoading, setAdminReportsLoading] = useState(false)
   const [adminReportsError, setAdminReportsError] = useState('')
@@ -237,6 +243,24 @@ export default function App() {
     setAdminReportReplyBusy('')
   }
 
+  async function applyAdminSanction() {
+    if (!adminSelectedUser?.id || !adminSanctionReason.trim() || adminSanctionBusy) return
+    setAdminSanctionBusy(true); setAdminSanctionMessage('')
+    const { error: sanctionError } = await supabase.rpc('admin_apply_user_sanction', { p_user_id: adminSelectedUser.id, p_duration_days: adminSanctionDuration === 'permanent' ? null : Number(adminSanctionDuration), p_permanent: adminSanctionDuration === 'permanent', p_reason: adminSanctionReason.trim() })
+    if (sanctionError) setAdminSanctionMessage('No se pudo aplicar la medida: '+sanctionError.message)
+    else { setAdminSanctionMessage('Medida aplicada y notificación enviada al usuario.'); setAdminSanctionReason(''); const { data } = await supabase.rpc('admin_list_user_sanctions', { p_user_id: adminSelectedUser.id }); setAdminSanctionHistory(Array.isArray(data)?data:[]) }
+    setAdminSanctionBusy(false)
+  }
+
+  async function revokeAdminSanction(sanctionId) {
+    if (!sanctionId || adminSanctionBusy) return
+    setAdminSanctionBusy(true); setAdminSanctionMessage('')
+    const { error: revokeError } = await supabase.rpc('admin_revoke_user_sanction', { p_sanction_id: sanctionId })
+    if (revokeError) setAdminSanctionMessage('No se pudo levantar la medida: '+revokeError.message)
+    else { setAdminSanctionMessage('Medida levantada. El usuario podrá volver a entrar si no tiene otra restricción activa.'); const { data } = await supabase.rpc('admin_list_user_sanctions', { p_user_id: adminSelectedUser.id }); setAdminSanctionHistory(Array.isArray(data)?data:[]) }
+    setAdminSanctionBusy(false)
+  }
+
   async function updateAdminReport(reportId, nextStatus) {
     if (!reportId || adminReportBusy) return
     setAdminReportBusy(reportId)
@@ -249,6 +273,21 @@ export default function App() {
     else setAdminReportsRefresh(value => value + 1)
     setAdminReportBusy('')
   }
+
+  useEffect(() => {
+    let active = true
+    async function checkMyAccountStatus() {
+      if (!session?.user) { setAccountStatus({ loading: false, blocked: false, permanent: false, reason: '', expires_at: null }); return }
+      setAccountStatus(current => ({ ...current, loading: true }))
+      const { data, error: statusError } = await supabase.rpc('zuno_get_my_account_status')
+      if (!active) return
+      if (statusError) { setAccountStatus({ loading: false, blocked: true, permanent: false, reason: 'No pudimos verificar el estado de tu cuenta. Cerrá sesión y volvé a intentar. Si el problema continúa, contactá soporte.', expires_at: null, error: true }); return }
+      const status = Array.isArray(data) ? data[0] : data
+      setAccountStatus({ loading: false, blocked: Boolean(status?.is_blocked), permanent: Boolean(status?.is_permanent), reason: status?.reason || '', expires_at: status?.expires_at || null })
+    }
+    checkMyAccountStatus()
+    return () => { active = false }
+  }, [session?.user?.id])
 
   useEffect(() => {
     let active = true
@@ -2518,6 +2557,7 @@ export default function App() {
 
   const callOverlay = session?.user ? (
     <>
+      {accountStatus.blocked && <div className="zuno-policy-gate" role="dialog" aria-modal="true"><section className="zuno-policy-card"><div className="zuno-policy-mark"><ShieldAlert size={24}/></div><span className="eyebrow">ZUNO · ESTADO DE CUENTA</span><h2>{accountStatus.permanent ? 'Cuenta desactivada' : 'Cuenta suspendida'}</h2><p>{accountStatus.reason || 'Tu cuenta tiene una restricción administrativa activa.'}</p><p>{accountStatus.permanent ? 'No podés continuar usando ZUNO. Si creés que se trata de un error, contactá al equipo de soporte.' : 'La suspensión estará vigente hasta '+new Date(accountStatus.expires_at).toLocaleString('es-UY')+'.'}</p><button type="button" className="submit-btn" onClick={logout}>Cerrar sesión</button></section></div>}
       {session?.user && emailConfirmed && (policyStatus === 'required' || policyStatus === 'error') && <div className="zuno-policy-gate" role="dialog" aria-modal="true" aria-labelledby="zuno-policy-title">
         <section className="zuno-policy-card">
           <div className="zuno-policy-mark"><ShieldCheck size={24}/></div>
@@ -2830,6 +2870,7 @@ export default function App() {
                     <div><strong>{item.media_kind==='story'?'Historia':'Foto de perfil'}</strong><small>{item.created_at ? new Date(item.created_at).toLocaleString('es-UY') : 'Fecha no disponible'}</small>{item.caption && <p>{item.caption}</p>}</div>
                   </article>)}</div> : <div className="admin-users-empty"><Image size={24}/><strong>Sin fotos ni historias disponibles</strong><span>Este usuario no tiene contenido registrado para mostrar.</span></div>}
                 </section>
+                <section className="admin-sanction-panel"><div><span className="admin-welcome-kicker">MEDIDAS DE MODERACIÓN</span><h3>Estado y sanciones de la cuenta</h3><p>Las medidas quedan registradas y se notifican al usuario.</p></div><label>Duración<select value={adminSanctionDuration} onChange={event=>setAdminSanctionDuration(event.target.value)}><option value="1">24 horas</option><option value="7">7 días</option><option value="30">30 días</option><option value="permanent">Permanente</option></select></label><label>Motivo<textarea value={adminSanctionReason} onChange={event=>setAdminSanctionReason(event.target.value)} placeholder="Explicá el motivo de la suspensión o expulsión..." maxLength={1000}/></label><button type="button" className="admin-sanction-submit" onClick={applyAdminSanction} disabled={adminSanctionBusy || !adminSanctionReason.trim()}>{adminSanctionBusy?'Procesando...':adminSanctionDuration==='permanent'?'Desactivar cuenta permanentemente':'Suspender cuenta'}</button>{adminSanctionMessage && <p className="admin-sanction-feedback">{adminSanctionMessage}</p>}<button type="button" className="admin-sanction-history-load" onClick={async()=>{const {data,error}=await supabase.rpc('admin_list_user_sanctions',{p_user_id:adminSelectedUser.id});if(error)setAdminSanctionMessage(error.message);else setAdminSanctionHistory(Array.isArray(data)?data:[])}}>Ver historial de sanciones</button>{adminSanctionHistory.map(item=><article className="admin-sanction-history-item" key={item.id}><div><strong>{item.is_permanent?'Desactivación permanente':item.expires_at?'Suspensión temporal':'Medida administrativa'}</strong><small>{item.reason} · {new Date(item.created_at).toLocaleString('es-UY')}</small></div>{item.active && <button type="button" disabled={adminSanctionBusy} onClick={()=>revokeAdminSanction(item.id)}>Levantar medida</button>}</article>)}</section>
                 <div className="admin-users-placeholder"><ShieldAlert size={19}/><div><strong>Mensajes privados todavía protegidos</strong><p>Las conversaciones no se muestran desde esta ficha. Para revisarlas, primero conectaremos el acceso a contenido denunciado, con registro de auditoría y controles específicos. El material íntimo sospechoso o posiblemente relacionado con menores no se expondrá en una galería administrativa.</p></div></div>
               </div> : adminUsers.length ? <div className="admin-users-list">{adminUsers.map(user=><button type="button" key={user.id} className="admin-user-row" onClick={()=>setAdminSelectedUser(user)}><ProfileAvatar person={user} className="admin-user-row-avatar"/><span className="admin-user-row-copy"><strong>{user.display_name || 'Sin nombre'}</strong><small>@{user.username || 'sin-usuario'} · {user.created_at ? new Date(user.created_at).toLocaleDateString('es-UY') : 'Fecha no disponible'}</small></span>{user.zuno_verified && <span className="admin-user-verified"><CheckCircle2 size={14}/> Verificado</span>}<ChevronRight size={18}/></button>)}</div> : <div className="admin-users-empty"><Users size={24}/><strong>No se encontraron usuarios</strong><span>Probá con otro nombre o usuario.</span></div>}
             </section> : adminSection==='reports' ? <section className="admin-moderation-workspace">
