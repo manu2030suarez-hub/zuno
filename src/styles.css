@@ -1898,3 +1898,32 @@ html body .zuno-admin-shell .admin-stats-privacy-note{margin:11px 2px 0;color:#8
  html body .zuno-admin-shell .admin-stats-bars{gap:4px}
  html body .zuno-admin-shell .admin-stats-bar-column>small{font-size:7px}
 }
+
+
+/* ZUNO ADMIN · communications */
+.admin-communication-form{display:grid;gap:16px;padding:22px;border:1px solid var(--border-color,#e5e7eb);border-radius:18px;background:var(--card-bg,#fff);margin:18px 0 28px}
+.admin-communication-mode{display:flex;gap:18px;flex-wrap:wrap}
+.admin-communication-mode label{display:flex;align-items:center;gap:9px;font-weight:650;font-size:14px}
+.admin-communication-mode input{accent-color:var(--accent,#7c3aed);width:16px;height:16px}
+.admin-communication-field,.admin-communication-recipient{display:grid;gap:8px;font-size:13px;font-weight:650}
+.admin-communication-field input,.admin-communication-field textarea,.admin-communication-search input{width:100%;min-width:0;border:1px solid var(--border-color,#d8dce5);border-radius:11px;padding:12px 13px;background:var(--input-bg,#fff);color:inherit;font:inherit;font-weight:400;box-sizing:border-box}
+.admin-communication-field textarea{resize:vertical;min-height:110px}
+.admin-communication-search{display:flex;gap:8px}
+.admin-communication-search button,.admin-communication-selected button{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:0;border-radius:10px;padding:0 14px;background:var(--accent,#6d4aff);color:#fff;font-weight:700;cursor:pointer}
+.admin-communication-selected,.admin-communication-results button{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border-color,#e5e7eb);border-radius:12px}
+.admin-communication-selected span,.admin-communication-results button span{display:grid;gap:2px;flex:1;text-align:left}
+.admin-communication-selected small,.admin-communication-results small{opacity:.65}
+.admin-communication-results{display:grid;gap:6px;max-height:230px;overflow:auto}
+.admin-communication-results button{width:100%;background:transparent;color:inherit;cursor:pointer}
+.admin-communication-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.admin-communication-footer small{opacity:.65}
+.admin-communication-footer button{display:inline-flex;align-items:center;gap:8px;border:0;border-radius:11px;padding:12px 17px;background:var(--accent,#6d4aff);color:#fff;font-weight:750;cursor:pointer}
+.admin-communication-footer button:disabled{opacity:.5;cursor:not-allowed}
+.admin-communication-success{display:flex;align-items:center;gap:9px;padding:13px 15px;border:1px solid #86c9a0;border-radius:12px;color:#17683a;background:#effaf2;margin:12px 0}
+.admin-communication-history{margin-top:22px}
+.admin-communication-history-list{display:grid;gap:10px}
+.admin-communication-history-list article{padding:16px 18px;border:1px solid var(--border-color,#e5e7eb);border-radius:14px;background:var(--card-bg,#fff)}
+.admin-communication-history-list article>div{display:grid;gap:5px}
+.admin-communication-history-list small{font-size:12px;opacity:.65}
+.admin-communication-history-list p{margin:10px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:600px){.admin-communication-form{padding:15px}.admin-communication-search{flex-direction:column}.admin-communication-search button{min-height:42px}.admin-communication-footer{align-items:stretch}.admin-communication-footer button{justify-content:center}}
