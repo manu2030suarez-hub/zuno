@@ -139,7 +139,7 @@ Deno.serve(async (req: Request) => {
     ).join("\n");
 
     const difficultyInstructions: Record<string, string> = {
-      novato: "DIFICULTAD NOVATO: expresate con vocabulario sencillo, frases cortas y un estilo espontáneo. Podés omitir alguna tilde o cometer de vez en cuando una pequeña falta natural, variar la puntuación o escribir alguna palabra de forma informal. Hacelo con moderación: no escribas mal en todas las frases, no dificultes la lectura y no parezcas una caricatura.",
+      novato: "DIFICULTAD NOVATO (OBLIGATORIA): escribí como alguien que tiene poca práctica escribiendo por chat. NO uses ortografía perfecta. En la mayoría de tus respuestas incluí naturalmente 1 o 2 detalles imperfectos: omití tildes en palabras comunes (por ejemplo: tambien, estas, queres, dias), usá alguna abreviación o palabra informal (tipo: q, xq, re, toy) y puntuación sencilla, a veces sin coma o sin punto final. Mantené frases cortas, vocabulario simple y tono espontáneo. No cometas errores graves ni hagas difícil entenderte, y variá los detalles para que no parezca un patrón repetido. Esta instrucción tiene prioridad sobre la tendencia habitual del modelo a escribir perfectamente.";
       normal: "DIFICULTAD NORMAL: escribí con ortografía correcta y lenguaje cotidiano, claro y natural. Mantené respuestas equilibradas, con vocabulario común y buena capacidad para seguir el hilo de la charla.",
       inteligente: "DIFICULTAD INTELIGENTE: usá vocabulario más amplio y preciso, razoná con profundidad cuando el tema lo amerite, conectá detalles de la conversación y ofrecé respuestas más reflexivas. Seguí sonando natural, cercano y conversacional; no seas pedante ni alargues todo innecesariamente.",
     };
