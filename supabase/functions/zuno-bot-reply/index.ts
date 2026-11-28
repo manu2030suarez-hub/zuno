@@ -266,6 +266,13 @@ Deno.serve(async (req: Request) => {
         memory_summary: conversation.context_summary || "",
       };
     }
+    const lastUserText = String(lastMessage.body || "").toLowerCase();
+    const directAdultImageRequest = /(contenido\s+hot|algo\s+hot|fotos?\s+(hot|atrevidas|eroticas|adultas)|imagenes?\s+(hot|atrevidas|eroticas|adultas)|mostrame\s+(algo\s+)?(hot|atrevido)|pasame\s+(contenido\s+)?(hot|adulto)|manda(me)?\s+(una\s+)?foto)/i.test(lastUserText);
+    if (adultIntimacyAllowed && directAdultImageRequest) {
+      generated.image_search_query = lastUserText.includes("hot") ? "hot adult scene" : "adult scene";
+      const refusal = /no puedo ayudar con eso|no puedo ayudar|no puedo proporcionar/i.test(String(generated.reply || ""));
+      if (refusal) generated.reply = "Dale, voy a buscar algunas referencias para mostrarte 😉";
+    }
     const rawReply = String(generated.reply || "").trim().slice(0, 4000);
     const reply = (botDifficulty === "novato" ? applyNoviceWritingStyle(rawReply) : rawReply).slice(0, 4000);
     const memorySummary = String(generated.memory_summary || conversation.context_summary || "").trim().slice(0, 1800);
