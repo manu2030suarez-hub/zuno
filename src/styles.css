@@ -2205,3 +2205,7 @@ main.app-shell:has(> .zuno-stories) > .home-content > .empty-state{width:100%;ma
  .discovery-top-refresh svg{width:14px;height:14px}
  main.app-shell:has(> .zuno-stories) > .home-content{padding-left:0;padding-right:0}
 }
+
+
+/* Historias: permitir mantener pulsado sin que el navegador interrumpa el gesto */
+.story-viewer > img{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
