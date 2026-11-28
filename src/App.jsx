@@ -53,6 +53,10 @@ function ChatAudioPlayer({ src, error }) {
 export default function App() {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
+  const CURRENT_POLICY_VERSION = '2026-11-28-v2'
+  const [policyStatus, setPolicyStatus] = useState('loading')
+  const [policyBusy, setPolicyBusy] = useState(false)
+  const [policyError, setPolicyError] = useState('')
   const [view, setView] = useState('profile')
   const [adminSection, setAdminSection] = useState('overview')
   const [adminAuthorized, setAdminAuthorized] = useState(false)
@@ -143,6 +147,28 @@ export default function App() {
     loadAdminUsers()
     return () => { active = false }
   }, [view, adminAuthorized, adminSection, adminUsersRefresh])
+  useEffect(() => {
+    let active = true
+    async function checkPolicyAcceptance() {
+      if (!session?.user) { setPolicyStatus('loading'); setPolicyError(''); return }
+      setPolicyStatus('loading')
+      setPolicyError('')
+      const { data, error: readError } = await supabase.from('user_policy_acceptances').select('policy_version, accepted_at').eq('user_id', session.user.id).eq('policy_version', CURRENT_POLICY_VERSION).maybeSingle()
+      if (!active) return
+      if (readError) { setPolicyStatus('error'); setPolicyError(readError.message || 'No se pudo verificar la aceptación.'); return }
+      setPolicyStatus(data ? 'accepted' : 'required')
+    }
+    checkPolicyAcceptance()
+    return () => { active = false }
+  }, [session?.user?.id])
+
+  async function acceptCurrentPolicy() {
+    if (!session?.user || policyBusy) return
+    setPolicyBusy(true); setPolicyError('')
+    const { error: insertError } = await supabase.from('user_policy_acceptances').insert({ user_id: session.user.id, policy_version: CURRENT_POLICY_VERSION, policy_title: 'Términos y política de privacidad de ZUNO' })
+    if (insertError && insertError.code !== '23505') { setPolicyError(insertError.message || 'No se pudo guardar tu aceptación.'); setPolicyBusy(false); return }
+    setPolicyStatus('accepted'); setPolicyBusy(false)
+  }
   const [profileLoading, setProfileLoading] = useState(true)
   const [profileLoadError, setProfileLoadError] = useState('')
   const [people, setPeople] = useState([])
@@ -2379,6 +2405,31 @@ export default function App() {
 
   const callOverlay = session?.user ? (
     <>
+      {session?.user && emailConfirmed && policyStatus !== 'accepted' && <div className="zuno-policy-gate" role="dialog" aria-modal="true" aria-labelledby="zuno-policy-title">
+        <section className="zuno-policy-card">
+          <div className="zuno-policy-mark"><ShieldCheck size={24}/></div>
+          <span className="eyebrow">ZUNO · ACTUALIZACIÓN IMPORTANTE</span>
+          <h2 id="zuno-policy-title">Leé y aceptá las condiciones actualizadas</h2>
+          {policyStatus === 'loading' ? <p>Estamos verificando si ya aceptaste esta versión.</p> : policyStatus === 'error' ? <>
+            <p>No pudimos comprobar tu aceptación. Para proteger tu cuenta, el acceso queda pausado hasta verificarla.</p>
+            <p className="zuno-policy-error">{policyError}</p>
+            <button type="button" className="submit-btn" onClick={async()=>{setPolicyStatus('loading');setPolicyError('');const {data,error}=await supabase.from('user_policy_acceptances').select('policy_version').eq('user_id',session.user.id).eq('policy_version',CURRENT_POLICY_VERSION).maybeSingle();if(error){setPolicyError(error.message);setPolicyStatus('error')}else setPolicyStatus(data?'accepted':'required')}}>Reintentar verificación</button>
+            <button type="button" className="logout-btn" onClick={logout}>Cerrar sesión</button>
+          </> : <>
+            <div className="zuno-policy-scroll">
+              <p><strong>1. Requisitos de uso.</strong> ZUNO está destinada exclusivamente a personas mayores de 18 años.</p>
+              <p><strong>2. Ubicación y visibilidad.</strong> La ubicación precisa se utiliza para funciones de proximidad y mapa según tus permisos y opciones de privacidad. No se muestra públicamente como dirección exacta.</p>
+              <p><strong>3. Conducta y seguridad.</strong> No se permite el acoso, las amenazas, la suplantación, las actividades ilícitas, las solicitudes de dinero ni el contenido sexual que involucre a menores. Podés bloquear y denunciar cuentas.</p>
+              <p><strong>4. Mensajes, archivos y conservación.</strong> Los textos, fotos, videos, audios y adjuntos compartidos pueden almacenarse y procesarse para prestar el servicio, mantener la seguridad, prevenir abusos, atender denuncias, resolver conflictos y cumplir obligaciones legales o requerimientos válidos. Esto puede incluir contenido enviado mediante funciones efímeras: que deje de verse o expire en la aplicación no implica necesariamente el borrado inmediato de copias técnicas, registros o respaldos. Cuando corresponda, ZUNO podrá preservar contenido relevante para investigaciones, reclamos o procedimientos legales. El acceso estará restringido a personal autorizado y sujeto a controles. La conservación se limitará al tiempo necesario para las finalidades informadas o al plazo legal aplicable; no será indefinida por defecto.</p>
+              <p><strong>5. Privacidad y derechos.</strong> Podés solicitar acceso, rectificación o supresión de tus datos cuando corresponda. Algunas solicitudes pueden estar sujetas a excepciones legales o a la necesidad justificada de preservar evidencia.</p>
+              <p><strong>6. Aceptación y versión.</strong> Al aceptar, confirmás que leíste estas condiciones y la política de privacidad de ZUNO, versión {CURRENT_POLICY_VERSION}. Guardaremos la versión aceptada, la fecha y la cuenta asociada como constancia.</p>
+            </div>
+            <p className="zuno-policy-warning">Si no estás de acuerdo, podés cerrar sesión. No podrás continuar usando ZUNO sin aceptar esta versión.</p>
+            <button type="button" className="submit-btn" onClick={acceptCurrentPolicy} disabled={policyBusy}>{policyBusy?'Guardando aceptación…':'Acepto las condiciones actualizadas'}</button>
+            <button type="button" className="logout-btn" onClick={logout}>No acepto · Cerrar sesión</button>
+          </>}
+        </section>
+      </div>}
       {callError && <div className="call-feedback" role="status">{callError}<button type="button" onClick={()=>setCallError('')} aria-label="Cerrar aviso"><X size={15}/></button></div>}
       {incomingCall && !callSession && <div className="call-incoming-banner" role="alert"><div className="call-incoming-banner-icon"><Phone size={19}/></div><div className="call-incoming-banner-copy"><strong>{incomingCall._caller?.display_name || activeConversation?.person?.display_name || 'Llamada entrante'}</strong><span>{incomingCall.call_type === 'video' ? 'Videollamada entrante' : 'Llamada de voz entrante'}</span></div><button type="button" className="call-banner-decline" onClick={declineCall} disabled={callBusy} aria-label="Rechazar llamada"><PhoneOff size={18}/></button><button type="button" className="call-banner-accept" onClick={acceptCall} disabled={callBusy}><Phone size={17}/>{callBusy?'Conectando':'Aceptar'}</button></div>}
       {callSession && <div className="call-active-backdrop"><section className={'call-active-card '+(callSession.call_type==='video'?'is-video':'is-audio')}>
