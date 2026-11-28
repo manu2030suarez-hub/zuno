@@ -122,6 +122,8 @@ begin
 end;
 $function$;
 
+revoke all on function public.zuno_guard_new_auth_user() from public, anon, authenticated;
+
 drop trigger if exists zuno_registration_enabled_guard on auth.users;
 create trigger zuno_registration_enabled_guard
 before insert on auth.users
