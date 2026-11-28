@@ -1329,16 +1329,12 @@ export default function App() {
       conversation_id: reportTarget.conversationId || null,
       reported_content_type: reportTarget.contentType || 'profile'
     }
-    const { data: savedReport, error: reportError } = await supabase
+    const { error: reportError } = await supabase
       .from('user_reports')
       .insert(reportPayload)
-      .select('id')
-      .single()
     setReportBusy(false)
-    if (reportError || !savedReport?.id) {
-      const diagnostic = reportError
-        ? [reportError.message, reportError.code && 'Código: ' + reportError.code, reportError.details, reportError.hint].filter(Boolean).join(' · ')
-        : 'Supabase no confirmó el registro de la denuncia.'
+    if (reportError) {
+      const diagnostic = [reportError.message, reportError.code && 'Código: ' + reportError.code, reportError.details, reportError.hint].filter(Boolean).join(' · ')
       setPeopleError('No pudimos enviar la denuncia. ' + diagnostic)
       return
     }
