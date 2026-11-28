@@ -267,7 +267,7 @@ Deno.serve(async (req: Request) => {
       };
     }
     const lastUserText = String(lastMessage.body || "").toLowerCase();
-    const directAdultImageRequest = /(contenido\s+hot|algo\s+hot|fotos?\s+(hot|atrevidas|eroticas|adultas)|imagenes?\s+(hot|atrevidas|eroticas|adultas)|mostrame\s+(algo\s+)?(hot|atrevido)|pasame\s+(contenido\s+)?(hot|adulto)|manda(me)?\s+(una\s+)?foto)/i.test(lastUserText);
+    const directAdultImageRequest = /(contenido\s+hot|algo\s+hot|fotos?\s+(hot|atrevidas|eroticas|adultas)|imagenes?\s+(hot|atrevidas|eroticas|adultas)|mostrame\s+(algo\s+)?(hot|atrevido)|pasame\s+(una\s+)?(foto|imagen)\s+(hot|atrevida|erotica|adulta)|pasame\s+(contenido\s+)?(hot|adulto)|manda(me)?\s+(una\s+)?(foto|imagen))/i.test(lastUserText);
     if (adultIntimacyAllowed && directAdultImageRequest) {
       generated.image_search_query = lastUserText.includes("hot") ? "hot adult scene" : "adult scene";
       const refusal = /no puedo ayudar con eso|no puedo ayudar|no puedo proporcionar/i.test(String(generated.reply || ""));
