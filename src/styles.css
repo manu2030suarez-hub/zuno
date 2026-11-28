@@ -1781,3 +1781,45 @@ html body .zuno-admin-shell .admin-user-media-unavailable{display:flex;min-heigh
 .zuno-policy-card .logout-btn{width:100%;margin-top:9px}
 .zuno-policy-error{padding:10px 12px;border-radius:10px;background:#7f1d1d44;color:#fecaca!important;font-size:12px}
 @media(max-width:600px){.zuno-policy-gate{padding:12px;align-items:flex-end}.zuno-policy-card{padding:22px 18px;border-radius:24px 24px 16px 16px;max-height:94dvh}.zuno-policy-scroll{max-height:43dvh;padding:13px}.zuno-policy-scroll p{font-size:12px}}
+
+
+/* ZUNO ADMIN · denuncias y mensajes conservados */
+.admin-moderation-workspace{display:flex;flex-direction:column;gap:16px;min-width:0;padding:20px;border:1px solid #ffffff13;border-radius:18px;background:radial-gradient(ellipse at 85% 0%,#a34fc214,transparent 45%),#12111a}
+.admin-moderation-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:#aaa2b5;font-size:12px}
+.admin-moderation-filters label{font-weight:700;color:#e7ddec}
+.admin-moderation-filters select{min-width:170px;padding:9px 12px;border:1px solid #ffffff20;border-radius:9px;background:#1a1722;color:#f4edf8}
+.admin-moderation-filters span{margin-left:auto;color:#bca9c8}
+.admin-report-list,.admin-retained-list{display:grid;gap:12px}
+.admin-report-card,.admin-retained-card{padding:16px;border:1px solid #ffffff14;border-radius:14px;background:#17141f;min-width:0}
+.admin-report-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.admin-report-head>div{display:grid;gap:5px;min-width:0}
+.admin-report-head strong{color:#f5edf8;font-size:14px;text-transform:capitalize}
+.admin-report-head small{color:#958ba0;font-size:10px}
+.admin-report-status{display:inline-flex;align-items:center;justify-content:center;padding:6px 9px;border:1px solid #ffffff1c;border-radius:99px;background:#ffffff08;color:#c9b6d4;font-size:10px;white-space:nowrap}
+.admin-report-status.status-pending{border-color:#d8a34b55;background:#d8a34b12;color:#f0c77f}
+.admin-report-status.status-reviewed{border-color:#7c8fe255;background:#7c8fe212;color:#aabaff}
+.admin-report-status.status-resolved{border-color:#53bd8b55;background:#53bd8b12;color:#8fe0b6}
+.admin-report-status.status-dismissed{color:#aaa2b5}
+.admin-report-people{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0}
+.admin-report-people>div{display:grid;gap:5px;padding:11px;border:1px solid #ffffff0e;border-radius:10px;background:#ffffff04;min-width:0}
+.admin-report-people small{color:#9e94aa;font-size:10px}
+.admin-report-people strong{color:#eee5f3;font-size:12px;overflow-wrap:anywhere}
+.admin-report-people code,.admin-retained-meta code{color:#bca5ca;font-size:9px;overflow-wrap:anywhere;white-space:normal}
+.admin-report-details{margin:0;padding:12px;border-radius:10px;background:#0d0c12;color:#c9c1d0;font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.admin-report-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+.admin-report-actions button{padding:8px 11px;border:1px solid #b96bd45c;border-radius:8px;background:#a64ec21c;color:#e9c5f5;font-size:10px;font-weight:700;cursor:pointer}
+.admin-report-actions button.subtle{border-color:#ffffff20;background:#ffffff08;color:#b8afc1}
+.admin-report-actions button:disabled{opacity:.4;cursor:not-allowed}
+.admin-retention-notice{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid #7c8fe233;border-radius:11px;background:#7c8fe20c;color:#bfc8f4;font-size:11px;line-height:1.55}
+.admin-retention-notice svg{flex:0 0 auto}
+.admin-retained-body{margin:13px 0;padding:13px;border-radius:10px;background:#0d0c12;color:#eee6f2;font-size:13px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+.admin-retained-meta{display:grid;gap:6px;color:#958ba0;font-size:10px}
+.admin-retained-meta span{overflow-wrap:anywhere}
+@media(max-width:600px){
+ .admin-moderation-workspace{padding:13px}
+ .admin-report-people{grid-template-columns:1fr}
+ .admin-report-head{flex-direction:column}
+ .admin-moderation-filters{align-items:flex-start}
+ .admin-moderation-filters span{margin-left:0;width:100%}
+ .admin-report-actions button{flex:1 1 42%}
+}
