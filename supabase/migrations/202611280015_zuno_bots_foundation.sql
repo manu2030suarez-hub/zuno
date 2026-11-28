@@ -41,6 +41,8 @@ create table if not exists public.zuno_bot_personas (
 );
 alter table public.zuno_bot_personas enable row level security;
 revoke all on table public.zuno_bot_personas from public, anon, authenticated;
+grant select on table public.zuno_bots to service_role;
+grant all on table public.zuno_bot_personas to service_role;
 
 -- Bot chats are separate from conversations/messages because a bot is not an auth user.
 create table if not exists public.zuno_bot_conversations (
@@ -69,6 +71,7 @@ alter table public.zuno_bot_messages enable row level security;
 revoke all on table public.zuno_bot_conversations, public.zuno_bot_messages from anon, authenticated;
 grant select, insert on table public.zuno_bot_conversations to authenticated;
 grant select, insert on table public.zuno_bot_messages to authenticated;
+grant all on table public.zuno_bot_conversations, public.zuno_bot_messages to service_role;
 
 drop policy if exists "zuno_users_manage_own_bot_conversations" on public.zuno_bot_conversations;
 create policy "zuno_users_manage_own_bot_conversations"
