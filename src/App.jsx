@@ -2840,7 +2840,7 @@ export default function App() {
     </main>
   )
 
-  if (publicPlatformSettings?.maintenance_mode && !(session?.user && String(profile?.username||'').trim().toLowerCase()==='manu.german')) return (
+  if (publicPlatformSettings?.maintenance_mode && !(session?.user && (profileLoading || String(profile?.username||'').trim().toLowerCase()==='manu.german'))) return (
     <main className="app-shell zuno-maintenance-screen"><div className="zuno-maintenance-card"><span className="zuno-maintenance-icon"><Settings size={30}/></span><span className="admin-welcome-kicker">ZUNO · EN MANTENIMIENTO</span><h1>Volvemos enseguida.</h1><p>{publicPlatformSettings.maintenance_message || 'Estamos realizando mejoras. Volvé a intentarlo en unos minutos.'}</p></div></main>
   )
 
@@ -3377,10 +3377,10 @@ export default function App() {
         <div className="hero-copy auth-brand-panel">
           <div className="auth-brand-glow"/>
           <div className="auth-heart-mark"><Heart size={42} fill="currentColor"/></div>
-          <div className="auth-wordmark">ZUNO</div>
+          <div className="auth-wordmark">{publicPlatformSettings?.platform_name || 'ZUNO'}</div>
           <div className="auth-tagline">Conectar · Chatear · Descubrir</div>
           <div className="auth-divider"/>
-          <p>Encontrá personas cerca de vos.</p>
+          <p>{publicPlatformSettings?.platform_description || 'Encontrá personas cerca de vos.'}</p>
           <div className="auth-feature-pills"><span><Users size={15}/> Comunidad</span><span><MessageCircle size={15}/> Conversaciones</span></div>
           <div className="orb orb-one"/><div className="orb orb-two"/>
         </div>
