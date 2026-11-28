@@ -3380,7 +3380,8 @@ export default function App() {
       {id:'content',label:'Mensajes conservados',icon:MessageCircle},
       {id:'announcements',label:'Comunicaciones',icon:Megaphone},
       {id:'security',label:'Seguridad',icon:ShieldCheck},
-      {id:'bots',label:'Bots',icon:Sparkles},\n      {id:'settings',label:'Configuración',icon:Settings}
+      {id:'bots',label:'Bots',icon:Sparkles},
+      {id:'settings',label:'Configuración',icon:Settings}
     ]
     const adminTitles = {
       overview:['Centro de control','Una vista general del estado de ZUNO.'],
@@ -3398,7 +3399,8 @@ export default function App() {
       {id:'content',title:'Mensajes conservados',description:'Consultar mensajes archivados y sus datos de conservación.',icon:MessageCircle},
       {id:'announcements',title:'Comunicaciones',description:'Enviar avisos y novedades a la comunidad.',icon:Megaphone},
       {id:'security',title:'Seguridad',description:'Roles, accesos y registro de acciones.',icon:LockKeyhole},
-      {id:'bots',title:'Bots',description:'Crear personajes virtuales y configurar sus personalidades.',icon:Sparkles},\n      {id:'settings',title:'Configuración',description:'Gestionar parámetros y políticas de ZUNO.',icon:Settings}
+      {id:'bots',title:'Bots',description:'Crear personajes virtuales y configurar sus personalidades.',icon:Sparkles},
+      {id:'settings',title:'Configuración',description:'Gestionar parámetros y políticas de ZUNO.',icon:Settings}
     ]
     const AdminIcon = adminSections.find(item=>item.id===adminSection)?.icon || LayoutDashboard
     return (
