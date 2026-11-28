@@ -674,6 +674,7 @@ export default function App() {
   const [ephemeralBusy, setEphemeralBusy] = useState(false)
   const [chatMessages, setChatMessages] = useState([])
   const [activeBotConversation, setActiveBotConversation] = useState(null)
+  const activeBotConversationRef = useRef(null)
   const [botFavoriteIds, setBotFavoriteIds] = useState([])
   const [botBlockedIds, setBotBlockedIds] = useState([])
   const [botChatMessages, setBotChatMessages] = useState([])
@@ -2094,7 +2095,7 @@ export default function App() {
 
   async function openBotChat(bot) {
     if(!session?.user || !bot?.id?.startsWith('bot:')) return
-    setChatBusy(true);setPeopleError('');setBotChatMessages([]);setBotChatDraft('')
+    setChatBusy(true);setPeopleError('');setBotChatMessages([]);setBotChatDraft('');activeBotConversationRef.current=null
     const botId=bot.id.slice(4)
     const {data:conversation,error}=await supabase.from('zuno_bot_conversations')
       .upsert({user_id:session.user.id,bot_id:botId},{onConflict:'user_id,bot_id'}).select('id,bot_id').single()
@@ -2102,18 +2103,22 @@ export default function App() {
     const {data:messages,error:messagesError}=await supabase.from('zuno_bot_messages')
       .select('id,sender_type,body,created_at').eq('conversation_id',conversation.id).order('created_at')
     if(messagesError){setChatBusy(false);setPeopleError('No pudimos cargar el chat. '+messagesError.message);return}
-    setActiveBotConversation({...conversation,bot});setBotChatMessages(messages||[]);setChatBusy(false);setView('bot-chat')
+    setActiveBotConversation({...conversation,bot});activeBotConversationRef.current={...conversation,bot};setBotChatMessages(messages||[]);setChatBusy(false);setView('bot-chat')
   }
   async function sendBotChatMessage(event) {
     event?.preventDefault()
     if(!activeBotConversation || !botChatDraft.trim() || chatBusy) return
     const body=botChatDraft.trim()
-    setChatBusy(true)
+    const conversationId=activeBotConversation.id
+    setChatBusy(true);setPeopleError('')
     const {data,error}=await supabase.from('zuno_bot_messages').insert({
-      conversation_id:activeBotConversation.id,sender_type:'user',body
+      conversation_id:conversationId,sender_type:'user',body
     }).select('id,sender_type,body,created_at').single()
-    if(error){setPeopleError('No pudimos enviar el mensaje. '+error.message)}
-    else {setBotChatMessages(current=>[...current,data]);setBotChatDraft('')}
+    if(error){setPeopleError('No pudimos enviar el mensaje. '+error.message);setChatBusy(false);return}
+    if(activeBotConversationRef.current?.id===conversationId){setBotChatMessages(current=>[...current,data]);setBotChatDraft('')}
+    const {data:replyData,error:replyError}=await supabase.functions.invoke('zuno-bot-reply',{body:{conversation_id:conversationId}})
+    if(replyError || replyData?.error){setPeopleError('Tu mensaje quedó enviado, pero el bot no pudo responder. '+(replyData?.error||replyError?.message||'Intentá nuevamente.'))}
+    else if(replyData?.message && activeBotConversationRef.current?.id===conversationId){setBotChatMessages(current=>[...current,replyData.message])}
     setChatBusy(false)
   }
 
@@ -3292,7 +3297,7 @@ export default function App() {
       <header className="bot-chat-header"><button type="button" onClick={()=>setView('detail')} aria-label="Volver al perfil"><ChevronLeft size={20}/></button><div className="bot-chat-avatar">{bot.photos?.[0]?.url?<img src={bot.photos[0].url} alt=""/>:<UserRound size={22}/>}</div><div><strong>{bot.display_name}</strong><span><Sparkles size={12}/> Bot de ZUNO</span></div></header>
       <div className="bot-chat-messages">{botChatMessages.length?botChatMessages.map(message=><div key={message.id} className={'bot-chat-bubble '+(message.sender_type==='user'?'own':'')}>{message.body}<time>{new Date(message.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</time></div>):<div className="bot-chat-welcome">¡Hola! Este es el chat de prueba de {bot.display_name}. Ya podés escribirle.</div>}</div>
       <form className="bot-chat-composer" onSubmit={sendBotChatMessage}><input value={botChatDraft} onChange={event=>setBotChatDraft(event.target.value)} placeholder="Escribile un mensaje…" maxLength={4000}/><button type="submit" disabled={!botChatDraft.trim()||chatBusy}><Send size={18}/></button></form>
-      <p className="bot-chat-notice">Personaje virtual. Las respuestas automáticas todavía no están activadas.</p>
+      <p className="bot-chat-notice">Personaje virtual de ZUNO. Cada bot mantiene su propia memoria de conversación.</p>
     </main>
   }
 
