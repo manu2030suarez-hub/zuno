@@ -2111,11 +2111,13 @@ export default function App() {
       .upsert({user_id:session.user.id,bot_id:botId,deleted_at:null},{onConflict:'user_id,bot_id'}).select('id,bot_id,archived_at,deleted_at').single()
     if(error){setChatBusy(false);setPeopleError('No pudimos abrir el chat del bot. '+error.message);return}
     const {data:messages,error:messagesError}=await supabase.from('zuno_bot_messages')
-      .select('id,sender_type,body,created_at,message_type,media_path').eq('conversation_id',conversation.id).order('created_at')
+      .select('id,sender_type,body,created_at,message_type,media_path,external_media_url,media_source_url').eq('conversation_id',conversation.id).order('created_at')
     if(messagesError){setChatBusy(false);setPeopleError('No pudimos cargar el chat. '+messagesError.message);return}
 
     const displayMessages = await Promise.all((messages||[]).map(async message => {
-      if (message.message_type !== 'image' || !message.media_path) return message
+      if (message.message_type !== 'image') return message
+      if (message.external_media_url) return { ...message, media_url:message.external_media_url }
+      if (!message.media_path) return message
       const { data:signed } = await supabase.storage.from('zuno-chat-media').createSignedUrl(message.media_path,3600)
       return { ...message, media_url:signed?.signedUrl || '' }
     }))
@@ -3369,7 +3371,7 @@ export default function App() {
     const bot=activeBotConversation.bot
     return <main className="app-shell bot-chat-shell">{callOverlay}
       <header className="bot-chat-header"><button type="button" onClick={()=>setView('chats')} aria-label="Volver a mis chats"><ChevronLeft size={20}/></button><div className="bot-chat-avatar">{bot.photos?.[0]?.url?<img src={bot.photos[0].url} alt=""/>:<UserRound size={22}/>}</div><div className="bot-chat-header-person"><strong>{bot.display_name}</strong><span><Sparkles size={12}/> Bot de ZUNO</span></div><div className="bot-chat-call-actions"><button type="button" title="Llamada de voz" aria-label="Llamada de voz" onClick={()=>botUnavailableAction('Las llamadas de voz')}><Phone size={19}/></button><button type="button" title="Videollamada" aria-label="Videollamada" onClick={()=>botUnavailableAction('Las videollamadas')}><Video size={19}/></button></div></header>
-      <div className="bot-chat-messages" ref={botChatMessagesContainerRef}>{botChatMessages.length?botChatMessages.map(message=><div key={message.id} className={'bot-chat-bubble '+(message.sender_type==='user'?'own':'')}>{message.message_type==='image'&&message.media_url&&<img className="bot-chat-image" src={message.media_url} alt="Foto enviada"/>}{message.body&&<span>{message.body}</span>}<time>{new Date(message.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</time></div>):<div className="bot-chat-welcome">¡Hola! Ya podés escribirle a {bot.display_name}.</div>}</div>
+      <div className="bot-chat-messages" ref={botChatMessagesContainerRef}>{botChatMessages.length?botChatMessages.map(message=><div key={message.id} className={'bot-chat-bubble '+(message.sender_type==='user'?'own':'')}>{message.message_type==='image'&&message.media_url&&<img className="bot-chat-image" src={message.media_url} alt="Imagen de referencia"/>}{message.body&&<span>{message.body}</span>}{message.media_source_url&&<a className="bot-chat-source" href={message.media_source_url} target="_blank" rel="noreferrer">Ver fuente</a>}<time>{new Date(message.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</time></div>):<div className="bot-chat-welcome">¡Hola! Ya podés escribirle a {bot.display_name}.</div>}</div>
       <form className="bot-chat-composer" onSubmit={sendBotChatMessage}><label className="bot-chat-attach" title="Enviar foto"><ImagePlus size={20}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={sendBotChatImage} disabled={chatMediaBusy}/></label><input value={botChatDraft} onChange={event=>setBotChatDraft(event.target.value)} placeholder="Escribile un mensaje…" maxLength={4000}/><button type="submit" disabled={!botChatDraft.trim()||chatBusy}><Send size={18}/></button></form>
       <p className="bot-chat-notice">Personaje virtual de ZUNO. Cada bot mantiene su propia memoria de conversación.</p>
     </main>
