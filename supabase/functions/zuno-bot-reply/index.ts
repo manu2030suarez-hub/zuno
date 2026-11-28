@@ -253,7 +253,7 @@ Deno.serve(async (req: Request) => {
     const outputText = aiData?.choices?.[0]?.message?.content || "";
     let generated: { reply?: string; memory_summary?: string; image_search_query?: string };
     try {
-      const cleanedOutput = outputText.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "");
+      const cleanedOutput = outputText.trim().replace(/^`{3}(?:json)?\s*/i, "").replace(/\s*`{3}$/, "");
       const jsonStart = cleanedOutput.indexOf("{");
       const jsonEnd = cleanedOutput.lastIndexOf("}");
       if (jsonStart < 0 || jsonEnd <= jsonStart) throw new Error("JSON no encontrado");
