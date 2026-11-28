@@ -1827,3 +1827,15 @@ html body .zuno-admin-shell .admin-user-media-unavailable{display:flex;min-heigh
 
 /* Estado visual de mensajes denunciados */
 .chat-message-reported{display:flex;align-items:center;gap:7px;padding:9px 12px;color:#35b879;font-size:12px;font-weight:700;cursor:default;white-space:nowrap}.chat-message-reported svg{flex:0 0 auto}
+
+
+/* ZUNO ADMIN · respuestas privadas a denuncias */
+.admin-report-reply{display:grid;gap:9px;margin:16px 0;padding:14px;border:1px solid var(--border-color,rgba(148,163,184,.22));border-radius:14px;background:rgba(148,163,184,.045)}
+.admin-report-reply>label{font-size:13px;font-weight:750;color:var(--text-primary,#e5e7eb)}
+.admin-report-reply textarea{width:100%;min-height:84px;resize:vertical;box-sizing:border-box;padding:12px 13px;border:1px solid var(--border-color,rgba(148,163,184,.25));border-radius:10px;background:var(--surface,#101827);color:var(--text-primary,#f8fafc);font:inherit;font-size:13px;line-height:1.5;outline:none}
+.admin-report-reply textarea:focus{border-color:var(--accent,#8b5cf6);box-shadow:0 0 0 3px rgba(139,92,246,.12)}
+.admin-report-reply>div{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.admin-report-reply small{font-size:11px;color:var(--text-muted,#94a3b8)}
+.admin-report-reply button{border:0;border-radius:9px;padding:10px 14px;background:var(--accent,#7c3aed);color:white;font-weight:750;font-size:12px;cursor:pointer}
+.admin-report-reply button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:600px){.admin-report-reply>div{align-items:stretch;flex-direction:column}.admin-report-reply button{width:100%}}
