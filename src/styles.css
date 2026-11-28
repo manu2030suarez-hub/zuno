@@ -1765,3 +1765,19 @@ html body .zuno-admin-shell .admin-user-media-card>div small{color:#8f8499;font-
 html body .zuno-admin-shell .admin-user-media-card>div p{margin:2px 0 0;color:#b7aabe;font-size:9px;line-height:1.5;overflow-wrap:anywhere}
 html body .zuno-admin-shell .admin-user-media-unavailable{display:flex;min-height:140px;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#93889d;font-size:9px}
 @media(max-width:500px){html body .zuno-admin-shell .admin-user-media-grid{grid-template-columns:repeat(2,minmax(0,1fr))}html body .zuno-admin-shell .admin-user-media-card>img,html body .zuno-admin-shell .admin-user-media-card>video{height:150px}}
+
+
+/* ZUNO · mandatory policy acceptance */
+.zuno-policy-gate{position:fixed;inset:0;z-index:30000;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(5,5,12,.88);backdrop-filter:blur(18px);overflow-y:auto}
+.zuno-policy-card{width:min(100%,620px);max-height:min(90dvh,850px);overflow:auto;padding:30px;border:1px solid rgba(255,255,255,.13);border-radius:26px;background:linear-gradient(155deg,#1c1930,#101018 65%);box-shadow:0 30px 100px #000b;color:#fff}
+.zuno-policy-mark{width:52px;height:52px;display:grid;place-items:center;border-radius:17px;background:linear-gradient(135deg,#8b5cf6,#ec4899);margin-bottom:18px}
+.zuno-policy-card .eyebrow{font-size:10px;letter-spacing:2px;color:#c4b5fd;font-weight:800}
+.zuno-policy-card h2{font-size:clamp(23px,4vw,31px);line-height:1.12;margin:10px 0 18px}
+.zuno-policy-scroll{max-height:42dvh;overflow:auto;padding:16px 18px;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:#090912a8;scrollbar-width:thin}
+.zuno-policy-scroll p{font-size:13px;line-height:1.65;color:#d4d0e2;margin:0 0 13px}
+.zuno-policy-scroll p:last-child{margin-bottom:0}
+.zuno-policy-warning,.zuno-policy-card>p{font-size:12px;line-height:1.55;color:#c8c2d8}
+.zuno-policy-card .submit-btn{width:100%;margin-top:12px;min-height:48px}
+.zuno-policy-card .logout-btn{width:100%;margin-top:9px}
+.zuno-policy-error{padding:10px 12px;border-radius:10px;background:#7f1d1d44;color:#fecaca!important;font-size:12px}
+@media(max-width:600px){.zuno-policy-gate{padding:12px;align-items:flex-end}.zuno-policy-card{padding:22px 18px;border-radius:24px 24px 16px 16px;max-height:94dvh}.zuno-policy-scroll{max-height:43dvh;padding:13px}.zuno-policy-scroll p{font-size:12px}}
