@@ -2147,7 +2147,7 @@ export default function App() {
       setBotChatMessages(current=>[...current,{...data,media_url:signed.signedUrl}])
       const { data:replyData, error:replyError } = await supabase.functions.invoke('zuno-bot-reply',{body:{conversation_id:activeBotConversation.id}})
       if (replyError || replyData?.error) setPeopleError('La foto quedó enviada, pero el bot no pudo responder. '+(replyData?.error||replyError?.message||''))
-      else if (replyData?.message && activeBotConversationRef.current?.id===activeBotConversation.id) setBotChatMessages(current=>[...current,replyData.message])
+      else if (activeBotConversationRef.current?.id===activeBotConversation.id) setBotChatMessages(current=>[...current,...(replyData?.messages || [replyData?.message]).filter(Boolean)])
     } catch (error) { setPeopleError('No pudimos enviar la foto. '+(error?.message||'')) }
     setChatMediaBusy(false)
   }
@@ -2172,7 +2172,7 @@ export default function App() {
     if(activeBotConversationRef.current?.id===conversationId){setBotChatMessages(current=>[...current,data]);setBotChatDraft('')}
     const {data:replyData,error:replyError}=await supabase.functions.invoke('zuno-bot-reply',{body:{conversation_id:conversationId}})
     if(replyError || replyData?.error){setPeopleError('Tu mensaje quedó enviado, pero el bot no pudo responder. '+(replyData?.error||replyError?.message||'Intentá nuevamente.'))}
-    else if(replyData?.message && activeBotConversationRef.current?.id===conversationId){setBotChatMessages(current=>[...current,replyData.message])}
+    else if(activeBotConversationRef.current?.id===conversationId){setBotChatMessages(current=>[...current,...(replyData?.messages || [replyData?.message]).filter(Boolean)])}
     setChatBusy(false)
   }
 
