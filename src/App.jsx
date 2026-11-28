@@ -1383,12 +1383,10 @@ export default function App() {
 
   async function purgeExpiredMessages(conversationId) {
     if (!conversationId) return
-    const now = new Date().toISOString()
-    const { data: expiredRows } = await supabase.from('messages').select('id,media_path').eq('conversation_id', conversationId).not('expires_at', 'is', null).lte('expires_at', now)
-    const paths = (expiredRows || []).map(item => item.media_path).filter(Boolean)
-    if (paths.length) await supabase.storage.from('zuno-chat-media').remove(paths)
+    // Los mensajes vencidos se archivan en el servidor durante 90 días.
+    // No borrar sus archivos desde el cliente: la limpieza definitiva es tarea del proceso de retención.
     const { error } = await supabase.rpc('purge_expired_chat_messages', { p_conversation_id: conversationId })
-    if (error) console.error('No se pudieron limpiar mensajes vencidos:', error.message)
+    if (error) console.error('No se pudieron archivar mensajes vencidos:', error.message)
   }
 
   async function changeEphemeralDuration(minutes) {
@@ -1787,9 +1785,9 @@ export default function App() {
     const message = deleteConfirmMessage
     if (!message || message.sender_id !== session.user.id) return
     setChatMediaBusy(true); setPeopleError('')
-    const { error: deleteError } = await supabase.from('messages').delete().eq('id', message.id).eq('sender_id', session.user.id)
+    const { error: deleteError } = await supabase.rpc('archive_chat_message_for_all', { p_message_id: message.id })
     if (deleteError) { setPeopleError('No pudimos eliminar el mensaje para todos. ' + deleteError.message); setChatMediaBusy(false); return }
-    if (message.media_path) await supabase.storage.from('zuno-chat-media').remove([message.media_path])
+    // La copia de conservación queda inaccesible desde el chat y no se elimina el archivo aquí.
     setChatMessages(current => current.filter(item => item.id !== message.id))
     setMessageReceipts(current => { const next = { ...current }; delete next[message.id]; return next })
     setActiveMessageMenu(null); setChatMediaBusy(false); setDeleteConfirmMessage(null)
