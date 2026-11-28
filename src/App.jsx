@@ -1538,6 +1538,17 @@ export default function App() {
   }, [session])
 
   useEffect(() => {
+    if (!session?.user) return
+    let active = true
+    supabase.from('zuno_bot_taps').select('bot_id,created_at').eq('user_id', session.user.id).gte('created_at', new Date(Date.now() - 86400000).toISOString())
+      .then(({ data, error }) => {
+        if (!active || error) return
+        setActiveTapIds(current => [...new Set([...current, ...(data || []).map(row => 'bot:' + row.bot_id)])])
+      })
+    return () => { active = false }
+  }, [session])
+
+  useEffect(() => {
     if (!session?.user || view !== 'home') return
     let startY = 0
     let pulling = false
@@ -1672,20 +1683,32 @@ export default function App() {
   useEffect(() => {
     if (!session?.user) { setBlockedUsers([]); return }
     let active = true
-    supabase.from('user_blocks').select('id,blocked_id,created_at')
-      .eq('blocker_id', session.user.id).order('created_at', { ascending: false })
-      .then(async ({ data, error: blockError }) => {
-        if (!active) return
-        if (blockError) { setPeopleError('No pudimos cargar los bloqueos. ' + blockError.message); return }
-        const rows = data || []
-        const ids = rows.map(row => row.blocked_id)
-        let names = {}
-        if (ids.length) {
-          const { data: profiles } = await supabase.from('profiles').select('id,display_name,username').in('id', ids)
-          names = Object.fromEntries((profiles || []).map(item => [item.id, item]))
-        }
-        if (active) setBlockedUsers(rows.map(row => ({ ...row, person: names[row.blocked_id] || null })))
-      })
+    async function loadBlockedPeople() {
+      const [usersResult, botsResult] = await Promise.all([
+        supabase.from('user_blocks').select('id,blocked_id,created_at').eq('blocker_id', session.user.id).order('created_at', { ascending: false }),
+        supabase.from('zuno_bot_blocks').select('id,bot_id,created_at').eq('user_id', session.user.id).order('created_at', { ascending: false })
+      ])
+      if (!active) return
+      if (usersResult.error) { setPeopleError('No pudimos cargar los bloqueos. ' + usersResult.error.message); return }
+      if (botsResult.error) { setPeopleError('No pudimos cargar los bloqueos. ' + botsResult.error.message); return }
+      const userRows = usersResult.data || []
+      const botRows = botsResult.data || []
+      const ids = userRows.map(row => row.blocked_id)
+      const botIds = botRows.map(row => row.bot_id)
+      const [profilesResult, botsDataResult] = await Promise.all([
+        ids.length ? supabase.from('profiles').select('id,display_name,username').in('id', ids) : Promise.resolve({ data: [] }),
+        botIds.length ? supabase.from('zuno_bots').select('id,display_name,slug').in('id', botIds) : Promise.resolve({ data: [] })
+      ])
+      if (!active) return
+      const names = Object.fromEntries((profilesResult.data || []).map(item => [item.id, item]))
+      const botNames = Object.fromEntries((botsDataResult.data || []).map(item => [item.id, item]))
+      const combined = [
+        ...userRows.map(row => ({ ...row, blocked_id: row.blocked_id, person: names[row.blocked_id] || null })),
+        ...botRows.map(row => ({ ...row, id: 'bot-block:' + row.id, blocked_id: 'bot:' + row.bot_id, isBot: true, person: botNames[row.bot_id] ? { display_name: botNames[row.bot_id].display_name, username: botNames[row.bot_id].slug } : null }))
+      ].sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
+      setBlockedUsers(combined)
+    }
+    loadBlockedPeople()
     return () => { active = false }
   }, [session, peopleRefresh])
 
@@ -1709,11 +1732,14 @@ export default function App() {
   async function unblockUser(blockedId) {
     if (!session?.user || !blockedId || blockBusy) return
     setBlockBusy(blockedId)
-    const { error: unblockError } = await supabase.from('user_blocks').delete()
-      .eq('blocker_id', session.user.id).eq('blocked_id', blockedId)
+    const isBot = String(blockedId).startsWith('bot:')
+    const result = isBot
+      ? await supabase.from('zuno_bot_blocks').delete().eq('user_id', session.user.id).eq('bot_id', String(blockedId).slice(4))
+      : await supabase.from('user_blocks').delete().eq('blocker_id', session.user.id).eq('blocked_id', blockedId)
     setBlockBusy('')
-    if (unblockError) { setPeopleError('No pudimos desbloquear esta cuenta. ' + unblockError.message); return }
+    if (result.error) { setPeopleError('No pudimos desbloquear esta cuenta. ' + result.error.message); return }
     setBlockedUsers(current => current.filter(item => item.blocked_id !== blockedId))
+    if (isBot) setBotBlockedIds(current => current.filter(id => id !== blockedId))
     setPeopleRefresh(value => value + 1)
     setPeopleError('Cuenta desbloqueada.')
   }
@@ -1912,6 +1938,17 @@ export default function App() {
     })
     return () => { active = false }
   }, [session])
+
+  async function sendBotTap(bot) {
+    if (!session?.user || !bot?.id?.startsWith('bot:') || favoriteBusy || activeTapIds.includes(bot.id)) return
+    const botId = bot.id.slice(4)
+    setFavoriteBusy(bot.id); setPeopleError('')
+    const { error } = await supabase.from('zuno_bot_taps').insert({ user_id: session.user.id, bot_id: botId })
+    setFavoriteBusy('')
+    if (error) { setPeopleError(error.code === '23505' ? 'Ya le enviaste un tap a este perfil.' : 'No pudimos enviar el tap. ' + error.message); return }
+    setActiveTapIds(current => [...current, bot.id])
+    setPeopleError('¡Tap enviado! 🔥')
+  }
 
   async function toggleBotFavorite(bot) {
     if (!session?.user || !bot?.id?.startsWith('bot:') || favoriteBusy) return
@@ -3137,7 +3174,7 @@ export default function App() {
             {publicPhotos.length>1 && <div className="profile-photo-segments" aria-label="Fotos del perfil">{publicPhotos.map((photo,index)=><button key={photo.id||photo.url||index} type="button" className={index===profilePhotoIndex?'active':''} onClick={()=>setProfilePhotoIndex(index)} aria-label={`Ver foto ${index+1}`}/>)}</div>}
 
             <div className="profile-stage-caption">
-              <div className="profile-stage-name-row"><div className="profile-stage-name">{selectedProfile.display_name || 'Usuario ZUNO'}{selectedProfile.age ? <span> {selectedProfile.age}</span> : null}</div>{!selectedProfile.isOwn&&<button type="button" className={"profile-name-fire "+(activeTapIds.includes(selectedProfile.id)?"is-active":"")} disabled={favoriteBusy===selectedProfile.id||(!selectedProfile.isBot&&activeTapIds.includes(selectedProfile.id))} onClick={()=>selectedProfile.isBot?botUnavailableAction('Tap'):sendProfileTap(selectedProfile.id)} aria-label="Enviar tap de fuego" title="Enviar tap 🔥"><Flame size={24} fill="currentColor"/></button>}</div>
+              <div className="profile-stage-name-row"><div className="profile-stage-name">{selectedProfile.display_name || 'Usuario ZUNO'}{selectedProfile.age ? <span> {selectedProfile.age}</span> : null}</div>{!selectedProfile.isOwn&&<button type="button" className={"profile-name-fire "+(activeTapIds.includes(selectedProfile.id)?"is-active":"")} disabled={favoriteBusy===selectedProfile.id||activeTapIds.includes(selectedProfile.id)} onClick={()=>selectedProfile.isBot?sendBotTap(selectedProfile):sendProfileTap(selectedProfile.id)} aria-label="Enviar tap de fuego" title="Enviar tap 🔥"><Flame size={24} fill="currentColor"/></button>}</div>
               {selectedProfile.username && <div className="profile-stage-username">@{selectedProfile.username}</div>}
               {!selectedProfile.isOwn && !selectedProfile.isBot && <form className="profile-quick-message" onSubmit={sendProfileQuickMessage}><input aria-label="Escribir mensaje" value={profileMessageDraft} onChange={event=>setProfileMessageDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="submit" disabled={!profileMessageDraft.trim()||profileMessageBusy} aria-label="Enviar mensaje" title="Enviar mensaje">{profileMessageBusy?'…':<Send size={18}/>}</button></form>}
               {selectedProfile.visibleCity && <div className="profile-stage-city"><Compass size={14}/>{selectedProfile.visibleCity}</div>}
