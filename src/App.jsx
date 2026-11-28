@@ -2239,6 +2239,30 @@ export default function App() {
 
 
   useEffect(() => {
+    if (!botLocationPickerOpen || !botLocationMapContainerRef.current) return
+    const initial = botLocationDraft || (adminBotEditor?.latitude != null && adminBotEditor?.longitude != null ? {latitude:Number(adminBotEditor.latitude),longitude:Number(adminBotEditor.longitude)} : null)
+    const center = initial ? [initial.latitude,initial.longitude] : [-34.9011,-56.1645]
+    const map = L.map(botLocationMapContainerRef.current,{zoomControl:true}).setView(center,initial?15:12)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map)
+    botLocationMapRef.current = map
+    if (initial) botLocationMarkerRef.current = L.marker(center).addTo(map)
+    map.on('click',event=>setBotLocationDraft({latitude:Number(event.latlng.lat.toFixed(6)),longitude:Number(event.latlng.lng.toFixed(6))}))
+    window.setTimeout(()=>map.invalidateSize(),120)
+    return ()=>{map.remove();botLocationMapRef.current=null;botLocationMarkerRef.current=null}
+  },[botLocationPickerOpen])
+
+  useEffect(() => {
+    const map=botLocationMapRef.current
+    if(!botLocationPickerOpen || !map) return
+    if(botLocationMarkerRef.current) {map.removeLayer(botLocationMarkerRef.current);botLocationMarkerRef.current=null}
+    if(botLocationDraft) {
+      const point=[Number(botLocationDraft.latitude),Number(botLocationDraft.longitude)]
+      botLocationMarkerRef.current=L.marker(point).addTo(map)
+      map.setView(point,16)
+    }
+  },[botLocationPickerOpen,botLocationDraft])
+
+  useEffect(() => {
     if (!locationMapOpen || !locationMapContainerRef.current) return
     const initial = locationMapTarget || liveLocations.find(item => !item.ended_at && new Date(item.expires_at).getTime() > Date.now())
     const center = initial ? [Number(initial.latitude), Number(initial.longitude)] : [-34.9011, -56.1645]
