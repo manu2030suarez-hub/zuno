@@ -1927,3 +1927,13 @@ html body .zuno-admin-shell .admin-stats-privacy-note{margin:11px 2px 0;color:#8
 .admin-communication-history-list small{font-size:12px;opacity:.65}
 .admin-communication-history-list p{margin:10px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
 @media(max-width:600px){.admin-communication-form{padding:15px}.admin-communication-search{flex-direction:column}.admin-communication-search button{min-height:42px}.admin-communication-footer{align-items:stretch}.admin-communication-footer button{justify-content:center}}
+
+
+/* ZUNO ADMIN · retained chat attachments */
+.admin-retained-attachment{display:grid;gap:10px;margin:12px 0}
+.admin-retained-attachment>button{justify-self:start;border:1px solid var(--border-color,#d8dce5);border-radius:10px;padding:9px 13px;background:var(--card-bg,#fff);color:inherit;font-weight:700;cursor:pointer}
+.admin-retained-attachment>button:disabled{opacity:.55;cursor:wait}
+.admin-retained-media-preview{display:grid;gap:7px;max-width:min(100%,520px);padding:10px;border:1px solid var(--border-color,#e5e7eb);border-radius:13px;background:var(--card-bg,#fff)}
+.admin-retained-media-preview img,.admin-retained-media-preview video{display:block;max-width:100%;max-height:420px;object-fit:contain;border-radius:9px}
+.admin-retained-media-preview audio{width:100%}
+.admin-retained-media-preview small{font-size:11px;opacity:.65}
