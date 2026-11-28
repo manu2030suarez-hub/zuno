@@ -2168,3 +2168,24 @@ html body .zuno-admin-shell .admin-communication-success{
     max-width: 100% !important;
   }
 }
+
+
+/* Descubrir: filtro en la esquina superior derecha y accesos dentro del menú */
+.discovery-topbar{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:14px!important}
+.discovery-topbar-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;min-width:0}
+.discovery-top-filter{display:inline-flex!important;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 15px!important;margin-right:clamp(8px,2vw,22px)!important;border:1px solid #b65be777!important;border-radius:13px!important;background:linear-gradient(120deg,#30153f,#171126)!important;color:#fff!important;font-weight:700!important;white-space:nowrap}
+.discovery-modal-shortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:0 0 18px}
+.discovery-modal-shortcuts button{display:flex;align-items:center;justify-content:center;gap:8px;min-width:0;min-height:43px;padding:9px 10px;border:1px solid #ffffff20;border-radius:12px;background:#ffffff09;color:#f3eafa;font-size:12px;font-weight:700;cursor:pointer}
+.discovery-modal-shortcuts button.selected{border-color:#d85bbd88;background:linear-gradient(110deg,#8f2f9d33,#6536a633);color:#fff}
+.discovery-modal-shortcuts button:disabled{opacity:.5;cursor:wait}
+.discovery-modal-shortcuts button span{color:#d7a5e9}
+@media(max-width:600px){
+ .discovery-topbar{min-height:62px!important;padding-left:14px!important;padding-right:8px!important}
+ .discovery-topbar-actions{gap:6px}
+ .discovery-topbar .verification-badge{display:none!important}
+ .discovery-top-filter{min-height:39px;padding:0 13px!important;margin-right:8px!important}
+ .discovery-modal-shortcuts{gap:8px;margin-bottom:15px}
+}
+@media(max-width:380px){
+ .discovery-modal-shortcuts{grid-template-columns:1fr}
+}
