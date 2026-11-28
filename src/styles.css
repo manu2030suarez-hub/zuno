@@ -2105,3 +2105,35 @@ html body .zuno-admin-shell .admin-communication-success{
     padding-right: 20px !important;
   }
 }
+
+
+/* Historias: ocupar exactamente el ancho del viewport, independientemente
+   de los márgenes internos de app-shell y home-content. */
+@media (max-width: 760px) {
+  html body .app-shell:has(.zuno-bottom-nav) .home-content > section.zuno-stories {
+    position: relative !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    width: 100vw !important;
+    min-width: 100vw !important;
+    max-width: 100vw !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    box-sizing: border-box !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-radius: 0 !important;
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+}
+@media (max-width: 600px) {
+  html body .app-shell:has(.zuno-bottom-nav) .home-content > section.zuno-stories {
+    width: 100vw !important;
+    min-width: 100vw !important;
+    max-width: 100vw !important;
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+  }
+}
