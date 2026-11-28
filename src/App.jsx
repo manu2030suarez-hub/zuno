@@ -1320,7 +1320,7 @@ export default function App() {
     event.preventDefault()
     if (!session?.user || !reportTarget || reportBusy) return
     setReportBusy(true); setPeopleError('')
-    const { error: reportError } = await supabase.from('user_reports').insert({
+    const reportPayload = {
       reporter_id: session.user.id,
       reported_user_id: reportTarget.id,
       reason: reportReason,
@@ -1328,9 +1328,20 @@ export default function App() {
       message_id: reportTarget.messageId || null,
       conversation_id: reportTarget.conversationId || null,
       reported_content_type: reportTarget.contentType || 'profile'
-    })
+    }
+    const { data: savedReport, error: reportError } = await supabase
+      .from('user_reports')
+      .insert(reportPayload)
+      .select('id')
+      .single()
     setReportBusy(false)
-    if (reportError) { setPeopleError('No pudimos enviar la denuncia. ' + reportError.message); return }
+    if (reportError || !savedReport?.id) {
+      const diagnostic = reportError
+        ? [reportError.message, reportError.code && 'Código: ' + reportError.code, reportError.details, reportError.hint].filter(Boolean).join(' · ')
+        : 'Supabase no confirmó el registro de la denuncia.'
+      setPeopleError('No pudimos enviar la denuncia. ' + diagnostic)
+      return
+    }
     if (reportTarget.messageId) setReportedMessageIds(current => current.includes(reportTarget.messageId) ? current : [...current, reportTarget.messageId])
     setReportTarget(null); setReportDetails('')
     setPeopleError('Denuncia enviada de forma privada. Gracias por ayudar a mantener ZUNO seguro.')
