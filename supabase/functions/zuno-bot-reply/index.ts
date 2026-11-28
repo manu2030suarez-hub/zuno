@@ -19,12 +19,12 @@ function applyNoviceWritingStyle(value: string): string {
     // Novato: estilo de chat simple y visiblemente informal, sin cambiar el sentido.
     .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "")
     .replace(/[¿¡]/g, "")
-    .replace(/,\\s*/g, " ")
+    .replace(/,\s*/g, " ")
     .replace(/\\bpara\\b/gi, "pa")
     .replace(/\\bporque\\b/gi, "xq")
     .replace(/\\btambien\\b/gi, "tambien")
     .replace(/\\b(estas|estás)\\b/gi, "tas")
-    .replace(/\\s{2,}/g, " ")
+    .replace(/\s{2,}/g, " ")
     .trim();
 }
 
@@ -235,13 +235,13 @@ Deno.serve(async (req: Request) => {
       // Algunos modelos pueden devolver texto normal aunque se solicite JSON.
       // No interrumpimos el chat: usamos el texto como respuesta y conservamos la memoria previa.
       console.warn("Groq devolvió contenido no JSON; se utilizará como respuesta de texto.");
-      const replyMatch = outputText.match(/"reply"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"/s);
+      const replyMatch = outputText.match(/"reply"\s*:\s*"((?:\\.|[^"\\])*)"/s);
       let recoveredReply = "";
       if (replyMatch) {
         try { recoveredReply = JSON.parse('"'+replyMatch[1]+'"'); } catch { /* usar texto original */ }
       }
       generated = {
-        reply: recoveredReply || outputText.trim().replace(/^```(?:json)?\\s*/i, "").replace(/\\s*```$/, ""),
+        reply: recoveredReply || outputText.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""),
         memory_summary: conversation.context_summary || "",
       };
     }
