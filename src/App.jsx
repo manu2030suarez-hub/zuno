@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
-import { Heart, Flame, Ruler, ArrowDownRight, Clock3, Eye, EyeOff, MoreVertical, Archive, ArchiveRestore, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, ChevronLeft, LocateFixed, Route, StopCircle, Ban, Flag, SlidersHorizontal, Bell, Phone, PhoneOff, Video, MicOff, VideoOff } from 'lucide-react'
+import { Heart, Flame, Ruler, ArrowDownRight, Clock3, Eye, EyeOff, MoreVertical, Archive, ArchiveRestore, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, ChevronLeft, LocateFixed, Route, StopCircle, Ban, Flag, SlidersHorizontal, Bell, Phone, PhoneOff, Video, MicOff, VideoOff, LayoutDashboard, Search, UserCog, Megaphone, Settings, Activity, ChevronRight, ShieldAlert, ChartNoAxesCombined, Database, Clock, CheckCircle2, CircleAlert, FileWarning, Image, LockKeyhole, Menu } from 'lucide-react'
 import L from 'leaflet'
 
 function formatApproxDistance(km) {
@@ -54,6 +54,7 @@ export default function App() {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [view, setView] = useState('profile')
+  const [adminSection, setAdminSection] = useState('overview')
   const [profileLoading, setProfileLoading] = useState(true)
   const [profileLoadError, setProfileLoadError] = useState('')
   const [people, setPeople] = useState([])
@@ -2499,16 +2500,73 @@ export default function App() {
         <div className="chat-list">{conversations.filter(item=>chatListTab==='archived'?(item.member_one===session.user.id?item.archived_by_one:item.archived_by_two):!(item.member_one===session.user.id?item.archived_by_one:item.archived_by_two)).length ? conversations.filter(item=>chatListTab==='archived'?(item.member_one===session.user.id?item.archived_by_one:item.archived_by_two):!(item.member_one===session.user.id?item.archived_by_one:item.archived_by_two)).map(item=><div className="chat-list-item" key={item.id} role="button" tabIndex={0} onClick={()=>openChat({...item.person,id:item.member_one===session.user.id?item.member_two:item.member_one})} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openChat({...item.person,id:item.member_one===session.user.id?item.member_two:item.member_one})}}}><span className="chat-list-avatar"><ProfileAvatar person={item.person}/></span><span className="chat-list-name"><strong>{item.person?.display_name||'Miembro de ZUNO'}</strong><small>{item.lastMessage ? (item.lastMessage.message_type==='image'?'📷 Foto':item.lastMessage.message_type==='audio'?'🎤 Audio':item.lastMessage.message_type==='location'?'📍 Ubicación':(item.lastMessage.body||'Mensaje').slice(0,90)) : 'Todavía no hay mensajes' }{item.lastMessage?.sender_id===session.user.id && <span className={'message-ticks '+(item.lastReceipt?.read_at?'is-read':item.lastReceipt?.delivered_at?'is-delivered':'')}>{item.lastReceipt?.delivered_at?'✓✓':'✓'}</span>}</small></span>{(unreadCounts[item.id]||0)>0 && <span className="chat-unread-count">{unreadCounts[item.id]}</span>}<span className="chat-row-actions"><button type="button" title="Chatear" aria-label="Chatear" onClick={event=>{event.stopPropagation();openChat({...item.person,id:item.member_one===session.user.id?item.member_two:item.member_one})}}><MessageCircle size={18}/></button><button type="button" title={chatListTab==='archived'?'Restaurar chat':'Archivar chat'} aria-label={chatListTab==='archived'?'Restaurar chat':'Archivar chat'} onClick={async event=>{event.stopPropagation();const side=item.member_one===session.user.id?'one':'two';const {error}=await supabase.from('conversations').update({['archived_by_'+side]:chatListTab!=='archived'}).eq('id',item.id);if(error){setPeopleError('No se pudo actualizar el chat: '+error.message);return}setConversations(current=>current.map(chat=>chat.id===item.id?{...chat,['archived_by_'+side]:chatListTab!=='archived'}:chat))}}>{chatListTab==='archived'?<ArchiveRestore size={18}/>:<Archive size={18}/>}</button><button type="button" title="Borrar chat" aria-label="Borrar chat" onClick={async event=>{event.stopPropagation();const side=item.member_one===session.user.id?'one':'two';const {error}=await supabase.from('conversations').update({['deleted_by_'+side]:true}).eq('id',item.id);if(error){setPeopleError('No se pudo borrar: '+error.message);return}setConversations(current=>current.filter(chat=>chat.id!==item.id))}}><Trash2 size={18}/></button></span></div>) : <div className="connections-empty chat-empty-state"><strong>{chatListTab==='archived'?'No hay mensajes archivados':'No hay chats'}</strong><span>{chatListTab==='archived'?'Los chats que archives aparecerán acá.':'Cuando quieras, podés iniciar una conversación con cualquier persona.'}</span>{chatListTab==='messages' && <button type="button" className="refresh-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir personas</button>}</div>}</div>
       </section><ZunoBottomNav view={view} setView={setView} onLogout={logout} adminVisible={String(profile?.username||'').trim().toLowerCase()==='manu.german'} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer></main>
   )
-  if (session?.user && view === 'admin' && String(profile?.username||'').trim().toLowerCase() === 'manu.german') return (
-    <main className="app-shell">{callOverlay}
-      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
-      <section className="notifications-page">
-        <div className="home-heading"><div><div className="eyebrow"><ShieldCheck size={15}/> ACCESO PRIVADO</div><h1>Panel <span>Admin.</span></h1><p>Herramientas de administración de ZUNO.</p></div></div>
-        <div className="notice">El acceso de administrador está habilitado únicamente para la cuenta @manu.german. Próximamente vas a poder gestionar la plataforma desde acá.</div>
-      </section>
-      <ZunoBottomNav view={view} setView={setView} onLogout={logout} adminVisible unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/>
-    </main>
-  )
+  if (session?.user && view === 'admin' && String(profile?.username||'').trim().toLowerCase() === 'manu.german') {
+    const adminSections = [
+      {id:'overview',label:'Resumen',icon:LayoutDashboard},
+      {id:'users',label:'Usuarios',icon:UserCog},
+      {id:'reports',label:'Denuncias',icon:Flag},
+      {id:'content',label:'Contenido',icon:Image},
+      {id:'announcements',label:'Comunicaciones',icon:Megaphone},
+      {id:'security',label:'Seguridad',icon:ShieldCheck},
+      {id:'settings',label:'Configuración',icon:Settings}
+    ]
+    const adminTitles = {
+      overview:['Centro de control','Una vista general del estado de ZUNO.'],
+      users:['Gestión de usuarios','Buscá cuentas y administrá su estado.'],
+      reports:['Centro de denuncias','Revisá reportes y actuá sobre incumplimientos.'],
+      content:['Moderación de contenido','Historias, fotos y publicaciones reportadas.'],
+      announcements:['Comunicaciones','Prepará avisos para toda la comunidad.'],
+      security:['Seguridad y auditoría','Permisos, actividad administrativa y controles.'],
+      settings:['Configuración de ZUNO','Parámetros generales de la plataforma.']
+    }
+    const currentAdminTitle = adminTitles[adminSection] || adminTitles.overview
+    const adminModules = [
+      {id:'users',title:'Usuarios',description:'Buscar perfiles, revisar cuentas y aplicar medidas.',icon:Users},
+      {id:'reports',title:'Denuncias',description:'Priorizar reportes y registrar resoluciones.',icon:Flag},
+      {id:'content',title:'Contenido',description:'Moderar historias, fotos y material publicado.',icon:Image},
+      {id:'announcements',title:'Comunicaciones',description:'Enviar avisos y novedades a la comunidad.',icon:Megaphone},
+      {id:'security',title:'Seguridad',description:'Roles, accesos y registro de acciones.',icon:LockKeyhole},
+      {id:'settings',title:'Configuración',description:'Gestionar parámetros y políticas de ZUNO.',icon:Settings}
+    ]
+    const AdminIcon = adminSections.find(item=>item.id===adminSection)?.icon || LayoutDashboard
+    return (
+      <main className="app-shell zuno-admin-shell">{callOverlay}
+        <header className="topbar zuno-admin-topbar"><a className="brand" href="#" onClick={event=>{event.preventDefault();setView('home')}}><span className="brand-mark">z</span> zuno <span className="admin-brand-label">ADMIN</span></a><div className="account-actions"><span className="admin-account-pill"><span/> @manu.german</span><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Volver a ZUNO</button></div></header>
+        <section className="zuno-admin-layout">
+          <aside className="zuno-admin-sidebar">
+            <div className="zuno-admin-sidebar-heading"><span className="zuno-admin-shield"><ShieldCheck size={21}/></span><div><strong>Administración</strong><small>Panel de control</small></div></div>
+            <div className="zuno-admin-nav-label">PLATAFORMA</div>
+            <nav aria-label="Secciones de administración">{adminSections.map(item=>{const Icon=item.icon;return <button type="button" key={item.id} className={adminSection===item.id?'active':''} onClick={()=>setAdminSection(item.id)}><Icon size={18}/><span>{item.label}</span>{item.id==='reports'&&<i className="admin-nav-soon">—</i>}</button>})}</nav>
+            <div className="zuno-admin-sidebar-bottom"><span className="admin-online-dot"/> Sesión de administrador<div>Acceso visual restringido</div></div>
+          </aside>
+          <div className="zuno-admin-main">
+            <div className="zuno-admin-page-heading"><div><div className="eyebrow"><ShieldCheck size={14}/> ZUNO · ADMINISTRACIÓN</div><h1>{currentAdminTitle[0]}</h1><p>{currentAdminTitle[1]}</p></div><div className="admin-heading-actions"><span className="admin-secure-tag"><LockKeyhole size={13}/> Área privada</span><button type="button" className="admin-refresh" onClick={()=>setAdminSection('overview')}><RefreshCw size={15}/> Inicio</button></div></div>
+            <div className="zuno-admin-security-notice"><ShieldAlert size={18}/><div><strong>Panel en preparación segura</strong><span>La interfaz está diseñada. Las operaciones administrativas quedarán habilitadas cuando conectemos los permisos exclusivos del servidor; ocultar este panel no es una medida de seguridad suficiente.</span></div></div>
+            {adminSection==='overview' ? <>
+              <div className="zuno-admin-welcome"><div><span className="admin-welcome-kicker">CENTRO DE CONTROL</span><h2>Hola, administrador.</h2><p>Desde acá vas a poder supervisar la comunidad y mantener ZUNO seguro.</p></div><div className="admin-welcome-art"><ShieldCheck size={54}/><span/></div></div>
+              <div className="zuno-admin-section-title"><div><h2>Actividad de esta sesión</h2><p>Datos locales cargados en tu sesión actual; no representan totales de toda la plataforma.</p></div></div>
+              <div className="zuno-admin-stats">
+                <article><span className="admin-stat-icon purple"><Users size={19}/></span><div><small>Perfiles cargados</small><strong>{people.length.toLocaleString('es-UY')}</strong><em>En esta sesión</em></div></article>
+                <article><span className="admin-stat-icon pink"><MessageCircle size={19}/></span><div><small>Conversaciones</small><strong>{conversations.length.toLocaleString('es-UY')}</strong><em>Visibles para tu cuenta</em></div></article>
+                <article><span className="admin-stat-icon blue"><Bell size={19}/></span><div><small>Notificaciones</small><strong>{notifications.length.toLocaleString('es-UY')}</strong><em>De tu cuenta</em></div></article>
+                <article><span className="admin-stat-icon orange"><Activity size={19}/></span><div><small>Estado del panel</small><strong className="admin-stat-pending">Preparación</strong><em>Backend pendiente</em></div></article>
+              </div>
+              <div className="zuno-admin-section-title"><div><h2>Herramientas de administración</h2><p>Módulos previstos para gestionar la plataforma.</p></div></div>
+              <div className="zuno-admin-module-grid">{adminModules.map(item=>{const Icon=item.icon;return <button type="button" key={item.id} className="zuno-admin-module" onClick={()=>setAdminSection(item.id)}><span className="admin-module-icon"><Icon size={20}/></span><span className="admin-module-copy"><strong>{item.title}</strong><small>{item.description}</small></span><ChevronRight size={18}/></button>})}</div>
+              <div className="zuno-admin-bottom-grid"><article className="zuno-admin-info-card"><div><Database size={18}/><strong>Base de datos</strong></div><p>La gestión global se conectará a funciones seguras de Supabase, sin exponer datos privados desde el navegador.</p><span className="admin-status-pending"><CircleAlert size={13}/> Integración pendiente</span></article><article className="zuno-admin-info-card"><div><CheckCircle2 size={18}/><strong>Acceso actual</strong></div><p>El menú está visible para @manu.german. La autorización real deberá verificarse en el servidor.</p><span className="admin-status-pending"><ShieldAlert size={13}/> Falta rol protegido</span></article></div>
+            </> : <div className="zuno-admin-workspace">
+              <div className="zuno-admin-workspace-icon"><AdminIcon size={28}/></div>
+              <span className="admin-welcome-kicker">MÓDULO DE ADMINISTRACIÓN</span>
+              <h2>{currentAdminTitle[0]}</h2><p>{currentAdminTitle[1]}</p>
+              <div className="admin-workspace-checklist"><div><CheckCircle2 size={17}/><span>Diseño y navegación del módulo preparados.</span></div><div><ShieldAlert size={17}/><span>Falta conectar consultas y acciones protegidas en Supabase.</span></div><div><LockKeyhole size={17}/><span>No se habilitan acciones hasta validar el rol administrativo en el servidor.</span></div></div>
+              <button type="button" className="admin-back-overview" onClick={()=>setAdminSection('overview')}><ChevronRight size={16}/> Volver al resumen</button>
+            </div>}
+          </div>
+        </section>
+        <ZunoBottomNav view={view} setView={setView} onLogout={logout} adminVisible unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/>
+      </main>
+    )
+  }
 
   if (session?.user && ['home', 'favorites', 'connections'].includes(view)) return (
     <main className="app-shell">{callOverlay}
