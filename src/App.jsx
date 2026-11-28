@@ -1055,10 +1055,10 @@ export default function App() {
         .select('map_visible').eq('user_id', session.user.id).maybeSingle()
       if (!active) return
       if (visibilityReadError) { console.warn('No se pudo leer la visibilidad del mapa:', visibilityReadError.message); return }
+      // La visibilidad del mapa es voluntaria: una cuenta sin preferencia guardada
+      // comienza oculta. Solo el usuario puede activarla desde Privacidad.
       if (!data) {
-        const { error: enableError } = await supabase.rpc('set_my_map_visibility', { p_visible: true })
-        if (!enableError && active) setMapVisible(true)
-        else if (enableError) console.warn('No se pudo activar la preferencia de visibilidad:', enableError.message)
+        if (active) setMapVisible(false)
       } else setMapVisible(Boolean(data.map_visible))
     }
     initializeMapVisibility()
