@@ -580,6 +580,9 @@ export default function App() {
   const [showEphemeralMenu, setShowEphemeralMenu] = useState(false)
   const [ephemeralBusy, setEphemeralBusy] = useState(false)
   const [chatMessages, setChatMessages] = useState([])
+  const [activeBotConversation, setActiveBotConversation] = useState(null)
+  const [botChatMessages, setBotChatMessages] = useState([])
+  const [botChatDraft, setBotChatDraft] = useState('')
   const [otherUserTyping, setOtherUserTyping] = useState(false)
   const chatMessagesContainerRef = useRef(null)
   const chatChannelRef = useRef(null)
@@ -1891,6 +1894,31 @@ export default function App() {
     setEphemeralBusy(false); setShowEphemeralMenu(false)
   }
 
+  async function openBotChat(bot) {
+    if(!session?.user || !bot?.id?.startsWith('bot:')) return
+    setChatBusy(true);setPeopleError('');setBotChatMessages([]);setBotChatDraft('')
+    const botId=bot.id.slice(4)
+    const {data:conversation,error}=await supabase.from('zuno_bot_conversations')
+      .upsert({user_id:session.user.id,bot_id:botId},{onConflict:'user_id,bot_id'}).select('id,bot_id').single()
+    if(error){setChatBusy(false);setPeopleError('No pudimos abrir el chat del bot. '+error.message);return}
+    const {data:messages,error:messagesError}=await supabase.from('zuno_bot_messages')
+      .select('id,sender_type,body,created_at').eq('conversation_id',conversation.id).order('created_at')
+    if(messagesError){setChatBusy(false);setPeopleError('No pudimos cargar el chat. '+messagesError.message);return}
+    setActiveBotConversation({...conversation,bot});setBotChatMessages(messages||[]);setChatBusy(false);setView('bot-chat')
+  }
+  async function sendBotChatMessage(event) {
+    event?.preventDefault()
+    if(!activeBotConversation || !botChatDraft.trim() || chatBusy) return
+    const body=botChatDraft.trim()
+    setChatBusy(true)
+    const {data,error}=await supabase.from('zuno_bot_messages').insert({
+      conversation_id:activeBotConversation.id,sender_type:'user',body
+    }).select('id,sender_type,body,created_at').single()
+    if(error){setPeopleError('No pudimos enviar el mensaje. '+error.message)}
+    else {setBotChatMessages(current=>[...current,data]);setBotChatDraft('')}
+    setChatBusy(false)
+  }
+
   async function openChat(person) {
     if (!session?.user || !person?.id) return
     if (blockedUsers.some(item => item.blocked_id === person.id)) { setPeopleError('Esta cuenta está bloqueada. Desbloqueala antes de iniciar un chat.'); return }
@@ -2850,6 +2878,7 @@ export default function App() {
     setProfilePhotoIndex(0);setProfilePhotoFullscreen(false);setShowProfileAlbum(false);setProfileMessageDraft('')
     setPrivateAlbumRequestStatus('')
     setPrivateAlbumMessage('')
+    if(person.isBot){setSelectedProfile(selected);setView('detail');return}
     if(!isOwn && session?.user){
       const {data:request,error:requestError}=await supabase.from('private_album_access_requests').select('id,status').eq('requester_id',session.user.id).eq('owner_id',person.id).maybeSingle()
       if(!requestError)setPrivateAlbumRequestStatus(request?.status||'')
@@ -3001,6 +3030,16 @@ export default function App() {
     </main>
   )
 
+  if (session?.user && view === 'bot-chat' && activeBotConversation) {
+    const bot=activeBotConversation.bot
+    return <main className="app-shell bot-chat-shell">{callOverlay}
+      <header className="bot-chat-header"><button type="button" onClick={()=>setView('detail')} aria-label="Volver al perfil"><ArrowLeft size={20}/></button><div className="bot-chat-avatar">{bot.photos?.[0]?.url?<img src={bot.photos[0].url} alt=""/>:<UserRound size={22}/>}</div><div><strong>{bot.display_name}</strong><span><Sparkles size={12}/> Bot de ZUNO</span></div></header>
+      <div className="bot-chat-messages">{botChatMessages.length?botChatMessages.map(message=><div key={message.id} className={'bot-chat-bubble '+(message.sender_type==='user'?'own':'')}>{message.body}<time>{new Date(message.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</time></div>):<div className="bot-chat-welcome">¡Hola! Este es el chat de prueba de {bot.display_name}. Ya podés escribirle.</div>}</div>
+      <form className="bot-chat-composer" onSubmit={sendBotChatMessage}><input value={botChatDraft} onChange={event=>setBotChatDraft(event.target.value)} placeholder="Escribile un mensaje…" maxLength={4000}/><button type="submit" disabled={!botChatDraft.trim()||chatBusy}><Send size={18}/></button></form>
+      <p className="bot-chat-notice">Personaje virtual. Las respuestas automáticas todavía no están activadas.</p>
+    </main>
+  }
+
   if (session?.user && view === 'detail' && selectedProfile) {
     const publicPhotos=selectedProfile.photos || []
     const currentPhoto=publicPhotos[profilePhotoIndex]
@@ -3029,13 +3068,13 @@ export default function App() {
             <div className="profile-stage-top">
               <button type="button" className="profile-stage-back" onClick={()=>{setSelectedProfile(null);setView('home')}} aria-label="Volver a descubrir"><X size={23}/></button>
               <div className="profile-stage-top-actions profile-top-five-actions">
-                {!selectedProfile.isOwn && <>
+                {!selectedProfile.isOwn && (selectedProfile.isBot ? <button type="button" onClick={()=>openBotChat(selectedProfile)} aria-label="Chatear con el bot" title="Chatear"><MessageCircle size={19}/></button> : <>
                   <button type="button" onClick={()=>toggleFavorite(selectedProfile.id)} aria-label="Favorito" title="Favorito"><Heart size={19} fill={favoriteIds.includes(selectedProfile.id)?'currentColor':'none'}/></button>
                   <button type="button" onClick={()=>openChat(selectedProfile)} aria-label="Abrir chat" title="Chat"><MessageCircle size={19}/></button>
                   <button type="button" disabled={blockBusy===selectedProfile.id} onClick={()=>blockUser(selectedProfile)} aria-label="Bloquear" title="Bloquear"><Ban size={19}/></button>
                   <button type="button" onClick={()=>{setReportTarget(selectedProfile);setReportReason('harassment');setReportDetails('')}} aria-label="Denunciar" title="Denunciar"><Flag size={19}/></button>
                   <button type="button" onClick={()=>{setHiddenProfileIds(items=>items.includes(selectedProfile.id)?items:[...items,selectedProfile.id]);setSelectedProfile(null);setView('home')}} aria-label="Ocultar" title="Ocultar"><EyeOff size={19}/></button>
-                </>}
+                </>)}
                 <button type="button" onClick={()=>setShowProfileAlbum(true)} aria-label="Álbum privado" title="Álbum"><Images size={19}/></button>
               </div>
             </div>
@@ -3044,7 +3083,7 @@ export default function App() {
             <div className="profile-stage-caption">
               <div className="profile-stage-name-row"><div className="profile-stage-name">{selectedProfile.display_name || 'Usuario ZUNO'}{selectedProfile.age ? <span> {selectedProfile.age}</span> : null}</div>{!selectedProfile.isOwn&&<button type="button" className={"profile-name-fire "+(activeTapIds.includes(selectedProfile.id)?"is-active":"")} disabled={favoriteBusy===selectedProfile.id||activeTapIds.includes(selectedProfile.id)} onClick={()=>sendProfileTap(selectedProfile.id)} aria-label="Enviar tap de fuego" title="Enviar tap 🔥"><Flame size={24} fill="currentColor"/></button>}</div>
               {selectedProfile.username && <div className="profile-stage-username">@{selectedProfile.username}</div>}
-              {!selectedProfile.isOwn && <form className="profile-quick-message" onSubmit={sendProfileQuickMessage}><input aria-label="Escribir mensaje" value={profileMessageDraft} onChange={event=>setProfileMessageDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="submit" disabled={!profileMessageDraft.trim()||profileMessageBusy} aria-label="Enviar mensaje" title="Enviar mensaje">{profileMessageBusy?'…':<Send size={18}/>}</button></form>}
+              {!selectedProfile.isOwn && !selectedProfile.isBot && <form className="profile-quick-message" onSubmit={sendProfileQuickMessage}><input aria-label="Escribir mensaje" value={profileMessageDraft} onChange={event=>setProfileMessageDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="submit" disabled={!profileMessageDraft.trim()||profileMessageBusy} aria-label="Enviar mensaje" title="Enviar mensaje">{profileMessageBusy?'…':<Send size={18}/>}</button></form>}
               {selectedProfile.visibleCity && <div className="profile-stage-city"><Compass size={14}/>{selectedProfile.visibleCity}</div>}
             </div>
           </div>
@@ -3450,7 +3489,7 @@ export default function App() {
               {person.interests?.length > 0 && <div className="person-tags">{person.interests.slice(0,5).map(tag=><span key={tag}>{tag}</span>)}</div>}
               {person.looking_for?.length > 0 && <p className="person-looking"><strong>Busca:</strong> {person.looking_for.join(' · ')}</p>}
               {!person.isBot && <div className="person-card-actions"><button type="button" className="chat-start-btn" onClick={event=>{event.stopPropagation();openChat(person)}}><MessageCircle size={15}/> Chatear</button><ConnectionAction personId={person.id} currentUserId={session.user.id} rows={connectionRows} busy={connectionBusy} onSend={sendConnectionRequest} onRespond={respondToConnection}/></div>}
-              {person.isBot && <div className="person-bot-note"><Sparkles size={14}/> Personaje virtual de ZUNO</div>}
+              {person.isBot && <div className="person-card-actions"><button type="button" className="chat-start-btn" onClick={event=>{event.stopPropagation();openBotChat(person)}}><MessageCircle size={15}/> Chatear</button></div>}
             </div>
           </article>)}</div>
           {view === 'home' && !discoveryPeople.length && <div className="connections-empty">No encontramos perfiles con esos filtros. Probá cambiar alguno o limpiar la búsqueda.</div>}
