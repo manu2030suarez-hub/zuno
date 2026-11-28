@@ -20,7 +20,7 @@ begin
     raise exception 'Debés iniciar sesión para responder la solicitud.';
   end if;
 
-  if p_status not in ('approved', 'rejected') then
+  if p_status is null or p_status not in ('approved', 'rejected') then
     raise exception 'La respuesta no es válida.';
   end if;
 
