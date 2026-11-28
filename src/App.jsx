@@ -405,6 +405,9 @@ export default function App() {
     const saved=Array.isArray(data)?data[0]:data
     const {error:difficultyError}=await supabase.rpc('admin_set_bot_difficulty',{p_bot_id:saved.id,p_difficulty:adminBotEditor.difficulty||'normal'})
     if(difficultyError){setAdminBotsSaving(false);setAdminBotsError('El bot se guardó, pero no pudimos guardar su dificultad: '+difficultyError.message);return}
+    // admin_save_bot devuelve el registro antes de actualizar difficulty; sincronizamos
+    // el objeto local para que al reabrir el editor no reaparezca el valor anterior.
+    saved.difficulty=adminBotEditor.difficulty||'normal'
     const {error:locationError}=await supabase.rpc('admin_set_bot_location',{p_bot_id:saved.id,p_latitude:adminBotEditor.latitude ?? null,p_longitude:adminBotEditor.longitude ?? null,p_location_label:adminBotEditor.location_label ?? null})
     setAdminBotsSaving(false)
     if(locationError){setAdminBotsError('El bot se guardó, pero no pudimos guardar su ubicación: '+locationError.message);return}
