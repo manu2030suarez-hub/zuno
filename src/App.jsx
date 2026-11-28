@@ -3653,7 +3653,7 @@ export default function App() {
                   {[
                     ['personality','Personalidad','Describe su carácter, gustos y manera de pensar.'],
                     ['speaking_style','Forma de hablar','Tono, idioma, expresiones y longitud de mensajes.'],
-                    ['backstory','Historia personal','Datos ficticios que puede recordar y mencionar.'],
+                    ['backstory','Agregado','Información adicional para que la IA la combine con todos los campos. Ej.: Me llamo Alex y vivo cerca de la Escuela 156.'],
                     ['system_prompt','Instrucciones principales','Reglas detalladas para mantener una personalidad consistente.']
                   ].map(([key,label,placeholder])=><label className="admin-communication-field" key={key}>{label}<textarea rows={key==='system_prompt'?6:3} placeholder={placeholder} value={adminBotEditor.persona?.[key]||''} onChange={event=>setAdminBotEditor(current=>({...current,persona:{...(current.persona||{}),[key]:event.target.value}}))}/></label>)}
                   <label className="admin-communication-field">Reglas de seguridad (una por línea)<textarea rows={3} value={(adminBotEditor.persona?.safety_rules||[]).join('\n')} onChange={event=>setAdminBotEditor(current=>({...current,persona:{...(current.persona||{}),safety_rules:event.target.value.split('\n')}}))}/></label>
