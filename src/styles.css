@@ -1964,3 +1964,50 @@ html body .zuno-admin-shell .admin-security-event-list summary{cursor:pointer;fo
 html body .zuno-admin-shell .admin-security-event-list pre{max-width:100%;max-height:220px;overflow:auto;padding:10px;border:1px solid #ffffff10;border-radius:9px;background:#0d0c12;color:#d9cde0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px}
 @media(max-width:900px){.admin-security-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.admin-security-stats{grid-template-columns:1fr 1fr}.admin-security-admins,.admin-security-audit{padding:13px}.admin-security-filter{width:100%}.admin-security-admin-list article{align-items:flex-start;flex-wrap:wrap}.admin-security-admin-list time{width:100%;padding-left:50px}}
+
+/* ZUNO ADMIN · communications dark theme */
+html body .zuno-admin-shell .admin-communication-form,
+html body .zuno-admin-shell .admin-communication-history-list article{
+  background:linear-gradient(145deg,#191522,#100e16)!important;
+  border-color:#ffffff18!important;
+  color:#eee6f3!important;
+  box-shadow:0 12px 30px #0002;
+}
+html body .zuno-admin-shell .admin-communication-field,
+html body .zuno-admin-shell .admin-communication-recipient,
+html body .zuno-admin-shell .admin-communication-mode label{
+  color:#e9dfef!important;
+}
+html body .zuno-admin-shell .admin-communication-field input,
+html body .zuno-admin-shell .admin-communication-field textarea,
+html body .zuno-admin-shell .admin-communication-search input{
+  background:#0d0b13!important;
+  border-color:#ffffff20!important;
+  color:#f7effa!important;
+}
+html body .zuno-admin-shell .admin-communication-field input::placeholder,
+html body .zuno-admin-shell .admin-communication-field textarea::placeholder,
+html body .zuno-admin-shell .admin-communication-search input::placeholder{
+  color:#82788d!important;
+}
+html body .zuno-admin-shell .admin-communication-selected,
+html body .zuno-admin-shell .admin-communication-results button{
+  background:#ffffff06!important;
+  border-color:#ffffff18!important;
+  color:#eee6f3!important;
+}
+html body .zuno-admin-shell .admin-communication-history-list article strong{
+  color:#f7effa!important;
+}
+html body .zuno-admin-shell .admin-communication-history-list article small,
+html body .zuno-admin-shell .admin-communication-footer small{
+  color:#a79aaf!important;
+}
+html body .zuno-admin-shell .admin-communication-history-list article p{
+  color:#d0c5d8!important;
+}
+html body .zuno-admin-shell .admin-communication-success{
+  background:#123323!important;
+  border-color:#2d7951!important;
+  color:#b9f4d0!important;
+}
