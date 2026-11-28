@@ -686,7 +686,17 @@ export default function App() {
   }
 
   async function openStory(story, groupItems = null) {
-    const queue=(groupItems?.length?[...groupItems]:[story]).sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0)); setStoryQueue(queue)
+    const grouped = new Map()
+    const activeStories = [...(stories || [])].filter(item=>!item.archived_at)
+    for (const item of activeStories) {
+      if (!grouped.has(item.user_id)) grouped.set(item.user_id, [])
+      grouped.get(item.user_id).push(item)
+    }
+    const orderedGroups = [...grouped.entries()].sort(([userA],[userB]) => userA===session?.user?.id ? -1 : userB===session?.user?.id ? 1 : 0)
+    const queue = orderedGroups.flatMap(([,items])=>items.sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0)))
+    const storyIndex = queue.findIndex(item=>item.id===story.id)
+    const completeQueue = storyIndex>=0 ? queue : [...(groupItems?.length?[...groupItems]:[story])]
+    setStoryQueue(completeQueue)
     setStoryViewer(story)
     setStoryMessage('')
     setStoryRemainingMs(7000); setStoryPaused(false); setShowStoryMenu(false)
@@ -2338,15 +2348,24 @@ export default function App() {
     const publicPhotos=selectedProfile.photos || []
     const currentPhoto=publicPhotos[profilePhotoIndex]
     const albumPhotos=selectedProfile.isOwn ? privateAlbumPhotos : (selectedProfile.privateAlbumPhotos || [])
-    const filteredNavigationPeople = discoveryPeople.some(person=>person.id===selectedProfile.id)
+    const ownNavigationProfile = {
+      ...profile,
+      id: session.user.id,
+      display_name: profile?.display_name || displayName || 'Tu perfil',
+      photos: photos || [],
+      visibleCity: profile?.show_location ? [profile?.city,profile?.region].filter(Boolean).join(', ') : '',
+      isOwn: true
+    }
+    const availableOtherProfiles = discoveryPeople.some(person=>person.id===selectedProfile.id)
       ? discoveryPeople
       : people.filter(person=>!blockedIds.has(person.id)&&!hiddenProfileIds.includes(person.id))
+    const filteredNavigationPeople = [ownNavigationProfile,...availableOtherProfiles.filter(person=>person.id!==session.user.id)]
     return (
       <main className="app-shell profile-detail-shell">{callOverlay}
         <section className="member-detail profile-detail-screen">
           <div className="profile-photo-stage"
             onPointerDown={event=>{profileTouchStartX.current=event.clientX;profileTouchStartY.current=event.clientY;event.currentTarget.setPointerCapture?.(event.pointerId)}}
-            onPointerUp={event=>{const startX=profileTouchStartX.current;const startY=profileTouchStartY.current;const endX=event.clientX;const endY=event.clientY;profileTouchStartX.current=null;profileTouchStartY.current=null;if(startX!==null&&startY!==null){const deltaX=endX-startX;const deltaY=endY-startY;if(Math.abs(deltaY)>45&&Math.abs(deltaY)>Math.abs(deltaX)){setProfilePhotoIndex(index=>Math.max(0,Math.min(publicPhotos.length-1,index+(deltaY<0?1:-1))))}else if(Math.abs(deltaX)>45&&Math.abs(deltaX)>Math.abs(deltaY)){const currentIndex=filteredNavigationPeople.findIndex(person=>person.id===selectedProfile.id);const nextProfile=filteredNavigationPeople[currentIndex+(deltaX>0?1:-1)];if(currentIndex>=0&&nextProfile)openMemberProfile(nextProfile)}}}}
+            onPointerUp={event=>{const startX=profileTouchStartX.current;const startY=profileTouchStartY.current;const endX=event.clientX;const endY=event.clientY;profileTouchStartX.current=null;profileTouchStartY.current=null;if(startX!==null&&startY!==null){const deltaX=endX-startX;const deltaY=endY-startY;if(Math.abs(deltaY)>45&&Math.abs(deltaY)>Math.abs(deltaX)){setProfilePhotoIndex(index=>Math.max(0,Math.min(publicPhotos.length-1,index+(deltaY<0?1:-1))))}else if(Math.abs(deltaX)>45&&Math.abs(deltaX)>Math.abs(deltaY)){const currentIndex=filteredNavigationPeople.findIndex(person=>person.id===selectedProfile.id);const nextProfile=filteredNavigationPeople[currentIndex+(deltaX<0?1:-1)];if(currentIndex>=0&&nextProfile)openMemberProfile(nextProfile,Boolean(nextProfile.isOwn))}}}}
             onPointerCancel={()=>{profileTouchStartX.current=null;profileTouchStartY.current=null}}>
 
             {currentPhoto?.url ? <img key={currentPhoto.url || profilePhotoIndex} className="profile-stage-image" src={currentPhoto.url} alt={`Foto de ${selectedProfile.display_name || 'usuario'}`} onClick={()=>setProfilePhotoFullscreen(true)}/> : <div className="profile-stage-empty"><UserRound size={66}/><span>Sin fotos por ahora</span></div>}
