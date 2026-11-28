@@ -2257,3 +2257,16 @@ main.app-shell:has(> .zuno-stories) > .home-content > .empty-state{width:100%;ma
 .zuno-admin-shell .admin-bot-editor .admin-platform-settings-card{min-width:0}
 .zuno-admin-shell .admin-bot-editor .admin-communication-field textarea{resize:vertical;min-height:70px}
 @media(max-width:700px){.zuno-admin-shell .admin-bot-fields{grid-template-columns:1fr}.zuno-admin-shell .admin-bot-row{flex-wrap:wrap}.zuno-admin-shell .admin-bot-copy{flex-basis:calc(100% - 70px)}}
+
+
+/* Admin bot location selection */
+.zuno-admin-shell .admin-bot-location-control{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 15px;margin:14px 0;border:1px solid #ffffff18;border-radius:14px;background:#17121f}
+.zuno-admin-shell .admin-bot-location-control>div{display:grid;gap:5px;min-width:0}
+.zuno-admin-shell .admin-bot-location-control strong{display:flex;align-items:center;gap:7px;color:#fff;font-size:13px}
+.zuno-admin-shell .admin-bot-location-control small{color:#ad9fb8;font-size:11px;overflow-wrap:anywhere}
+.bot-location-picker-panel{width:min(760px,calc(100vw - 28px))!important}
+.bot-location-picker-canvas{height:min(62vh,560px)!important;min-height:320px}
+.bot-location-picker-panel>footer{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;background:#100d16;color:#cfc2d8}
+.bot-location-picker-panel>footer span{flex:1;min-width:150px;font-size:11px}
+.bot-location-picker-panel>footer button{min-height:38px}
+@media(max-width:600px){.zuno-admin-shell .admin-bot-location-control{align-items:stretch;flex-direction:column}.bot-location-picker-panel>footer{align-items:stretch;flex-direction:column}.bot-location-picker-panel>footer span{min-height:22px}}
