@@ -134,7 +134,8 @@ Deno.serve(async (req: Request) => {
             content: message.body,
           })),
         ],
-        text: { format: { type: "json_object" } },
+        // No forzamos json_object: algunos modelos/API rechazan el formato estructurado
+        // aunque las instrucciones ya soliciten explícitamente una respuesta JSON.
         max_output_tokens: 650,
       }),
     });
