@@ -2424,7 +2424,7 @@ export default function App() {
   )
 
   if (session?.user && view === 'map') return (
-    <main className="app-shell zuno-map-fullscreen">{callOverlay}
+    <main className="app-shell zuno-map-fullscreen" role="dialog" aria-modal="true" aria-label="Mapa de personas cercanas">{callOverlay}
       <div className="zuno-map-topbar"><button type="button" onClick={()=>setView('home')} aria-label="Cerrar mapa"><X size={22}/></button><div><strong>ZUNO <span>MAPA</span></strong><small>{mapUsers.length + (mapVisible && mapOrigin ? 1 : 0)} perfiles · hasta 50 km</small></div><button type="button" onClick={refreshMyMapLocation} disabled={mapBusy} aria-label="Actualizar ubicación"><Navigation size={19}/></button></div>
       <div ref={mapContainerRef} className="zuno-map-canvas zuno-map-canvas-full" aria-label="Mapa de personas cercanas"/>
       <div className="zuno-map-floating-actions"><button type="button" onClick={()=>setMyMapVisibility(!mapVisible)} disabled={mapBusy}><MapPin size={16}/>{mapVisible?'Aparecés en el mapa':'Estás oculto'}</button><button type="button" onClick={refreshMyMapLocation} disabled={mapBusy}><LocateFixed size={17}/></button></div>
