@@ -133,7 +133,7 @@ set search_path = ''
 as $$
 begin
   if not public.zuno_is_admin() then raise exception 'Admin access required'; end if;
-  delete from public.zuno_bots where id=p_bot_id;
+  delete from public.zuno_bot_conversations where bot_id=p_bot_id;\n  delete from public.zuno_bots where id=p_bot_id;
   if not found then raise exception 'No se encontró el bot'; end if;
 end;
 $$;
