@@ -1392,8 +1392,20 @@ export default function App() {
         .eq('recipient_id', session.user.id).in('notification_type',['favorite','tap','album_access_request','album_access_decision','map_meetup_request','report_response','admin_announcement']).order('created_at', { ascending: false }).limit(100)
       if (!active) return
       if (notificationError) { setPeopleError('No pudimos cargar las notificaciones. ' + notificationError.message); return }
-      setNotifications(data || [])
-      const actorIds = [...new Set((data || []).map(item => item.actor_id).filter(Boolean))]
+      let hydratedNotifications = data || []
+      const albumRequestIds = [...new Set(hydratedNotifications.filter(item => item.notification_type === 'album_access_request' && item.entity_id).map(item => item.entity_id))]
+      if (albumRequestIds.length) {
+        const { data: albumRows, error: albumStatusError } = await supabase.from('private_album_access_requests')
+          .select('id,status').eq('owner_id', session.user.id).in('id', albumRequestIds)
+        if (!albumStatusError) {
+          const albumStatuses = Object.fromEntries((albumRows || []).map(row => [row.id, row.status]))
+          hydratedNotifications = hydratedNotifications.map(item => item.notification_type === 'album_access_request'
+            ? { ...item, albumDecisionStatus: albumStatuses[item.entity_id] || 'missing' }
+            : item)
+        }
+      }
+      setNotifications(hydratedNotifications)
+      const actorIds = [...new Set(hydratedNotifications.map(item => item.actor_id).filter(Boolean))]
       if (actorIds.length) {
         const { data: actors } = await supabase.from('profiles')
           .select('id,display_name,username,avatar_url').in('id', actorIds)
@@ -1487,7 +1499,7 @@ export default function App() {
     setNotificationBusy(item.id)
     setPeopleError('')
     try {
-      const { error } = await supabase.rpc('zuno_respond_private_album_request', {
+      const { data: result, error } = await supabase.rpc('zuno_respond_private_album_request', {
         p_request_id: item.entity_id,
         p_status: status
       })
@@ -1495,6 +1507,8 @@ export default function App() {
         setPeopleError('No pudimos responder la solicitud del álbum. ' + error.message)
         return
       }
+      const finalStatus = result?.status || status
+      setNotifications(current => current.map(row => row.id === item.id ? { ...row, albumDecisionStatus: finalStatus, read_at: row.read_at || new Date().toISOString() } : row))
       await markNotificationRead(item.id)
     } catch (error) {
       setPeopleError('Ocurrió un error al responder la solicitud. ' + (error?.message || 'Intentá nuevamente.'))
@@ -3070,7 +3084,7 @@ export default function App() {
             {item.notification_type==='map_meetup_request' && (()=>{const request=mapInvites.find(row=>row.id===item.entity_id);const status=request?.status||'pending';return status==='pending'?<div className="notification-actions"><button type="button" className="accept-btn" disabled={mapInviteBusy} onClick={()=>respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status},'accepted')}><Check size={15}/> Aceptar</button><button type="button" className="reject-btn" disabled={mapInviteBusy} onClick={()=>respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status},'rejected')}><X size={15}/> Rechazar</button><button type="button" className="reject-btn" disabled={mapInviteBusy} onClick={()=>respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status},'ignored')}>Ignorar</button></div>:<div className="notification-resolution"><Check size={15}/><span>{status==='accepted'?'Solicitud aceptada':status==='rejected'?'Solicitud rechazada':status==='ignored'?'Solicitud ignorada':status==='cancelled'?'Encuentro finalizado':'Solicitud '+status}</span><time>{request?.updated_at?new Date(request.updated_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}):'Guardado en el historial'}</time></div>})()}
             {item.notification_type==='report_response' && <div className="notification-resolution"><ShieldCheck size={15}/><span>Respuesta del equipo de moderación sobre tu denuncia.</span></div>}
             {item.notification_type==='album_access_decision' && <div className="notification-resolution"><Check size={15}/><span>{item.body || 'La persona respondió tu solicitud de acceso al álbum privado.'}</span></div>}
-            {item.notification_type==='album_access_request' && <div className="notification-actions"><button type="button" className="accept-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'approved')}><Check size={15}/> {notificationBusy===item.id?'Guardando…':'Permitir'}</button><button type="button" className="reject-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'rejected')}><X size={15}/> Rechazar</button><button type="button" className="later-btn" disabled={notificationBusy===item.id} onClick={()=>markNotificationRead(item.id)}>Más tarde</button></div>}
+            {item.notification_type==='album_access_request' && (item.albumDecisionStatus==='approved' || item.albumDecisionStatus==='rejected' ? <div className="notification-resolution"><Check size={15}/><span>Decisión tomada: {item.albumDecisionStatus==='approved'?'permitiste el acceso al álbum privado.':'rechazaste la solicitud de acceso al álbum privado.'}</span></div> : item.albumDecisionStatus==='missing' ? <div className="notification-resolution"><Info size={15}/><span>Esta solicitud ya no está disponible.</span></div> : <div className="notification-actions"><button type="button" className="accept-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'approved')}><Check size={15}/> {notificationBusy===item.id?'Guardando…':'Permitir'}</button><button type="button" className="reject-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'rejected')}><X size={15}/> Rechazar</button><button type="button" className="later-btn" disabled={notificationBusy===item.id} onClick={()=>markNotificationRead(item.id)}>Más tarde</button></div>)}
             <button type="button" className="notification-delete" aria-label="Eliminar notificación" onClick={()=>deleteNotification(item.id)}><Trash2 size={15}/></button>
           </article>}) : <div className="empty-state"><Bell size={28}/><h3>Todo al día</h3><p>Cuando recibas una novedad, un tap, una solicitud o un aviso del equipo de ZUNO, aparecerá acá.</p></div>}
         </div>
