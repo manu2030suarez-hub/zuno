@@ -55,6 +55,54 @@ export default function App() {
   const [profile, setProfile] = useState(null)
   const [view, setView] = useState('profile')
   const [adminSection, setAdminSection] = useState('overview')
+  const [adminAuthorized, setAdminAuthorized] = useState(false)
+  const [adminUsers, setAdminUsers] = useState([])
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false)
+  const [adminUsersError, setAdminUsersError] = useState('')
+  const [adminSearch, setAdminSearch] = useState('')
+  const [adminUsersRefresh, setAdminUsersRefresh] = useState(0)
+  const [adminSelectedUser, setAdminSelectedUser] = useState(null)
+
+  useEffect(() => {
+    let active = true
+    async function verifyAdmin() {
+      if (view !== 'admin' || String(profile?.username || '').trim().toLowerCase() !== 'manu.german') {
+        if (active) setAdminAuthorized(false)
+        return
+      }
+      const { data, error: adminError } = await supabase.rpc('zuno_is_admin')
+      if (active) {
+        setAdminAuthorized(!adminError && data === true)
+        if (adminError) setAdminUsersError('No se pudo verificar el permiso administrativo.')
+      }
+    }
+    verifyAdmin()
+    return () => { active = false }
+  }, [view, profile?.username])
+
+  useEffect(() => {
+    let active = true
+    async function loadAdminUsers() {
+      if (view !== 'admin' || !adminAuthorized || adminSection !== 'users') return
+      setAdminUsersLoading(true)
+      setAdminUsersError('')
+      const { data, error: listError } = await supabase.rpc('admin_list_users', {
+        p_query: adminSearch.trim() || null,
+        p_limit: 100,
+        p_offset: 0
+      })
+      if (!active) return
+      if (listError) {
+        setAdminUsersError(listError.message || 'No se pudo cargar la lista de usuarios.')
+        setAdminUsers([])
+      } else {
+        setAdminUsers(Array.isArray(data) ? data : [])
+      }
+      setAdminUsersLoading(false)
+    }
+    loadAdminUsers()
+    return () => { active = false }
+  }, [view, adminAuthorized, adminSection, adminUsersRefresh])
   const [profileLoading, setProfileLoading] = useState(true)
   const [profileLoadError, setProfileLoadError] = useState('')
   const [people, setPeople] = useState([])
@@ -2500,7 +2548,7 @@ export default function App() {
         <div className="chat-list">{conversations.filter(item=>chatListTab==='archived'?(item.member_one===session.user.id?item.archived_by_one:item.archived_by_two):!(item.member_one===session.user.id?item.archived_by_one:item.archived_by_two)).length ? conversations.filter(item=>chatListTab==='archived'?(item.member_one===session.user.id?item.archived_by_one:item.archived_by_two):!(item.member_one===session.user.id?item.archived_by_one:item.archived_by_two)).map(item=><div className="chat-list-item" key={item.id} role="button" tabIndex={0} onClick={()=>openChat({...item.person,id:item.member_one===session.user.id?item.member_two:item.member_one})} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openChat({...item.person,id:item.member_one===session.user.id?item.member_two:item.member_one})}}}><span className="chat-list-avatar"><ProfileAvatar person={item.person}/></span><span className="chat-list-name"><strong>{item.person?.display_name||'Miembro de ZUNO'}</strong><small>{item.lastMessage ? (item.lastMessage.message_type==='image'?'📷 Foto':item.lastMessage.message_type==='audio'?'🎤 Audio':item.lastMessage.message_type==='location'?'📍 Ubicación':(item.lastMessage.body||'Mensaje').slice(0,90)) : 'Todavía no hay mensajes' }{item.lastMessage?.sender_id===session.user.id && <span className={'message-ticks '+(item.lastReceipt?.read_at?'is-read':item.lastReceipt?.delivered_at?'is-delivered':'')}>{item.lastReceipt?.delivered_at?'✓✓':'✓'}</span>}</small></span>{(unreadCounts[item.id]||0)>0 && <span className="chat-unread-count">{unreadCounts[item.id]}</span>}<span className="chat-row-actions"><button type="button" title="Chatear" aria-label="Chatear" onClick={event=>{event.stopPropagation();openChat({...item.person,id:item.member_one===session.user.id?item.member_two:item.member_one})}}><MessageCircle size={18}/></button><button type="button" title={chatListTab==='archived'?'Restaurar chat':'Archivar chat'} aria-label={chatListTab==='archived'?'Restaurar chat':'Archivar chat'} onClick={async event=>{event.stopPropagation();const side=item.member_one===session.user.id?'one':'two';const {error}=await supabase.from('conversations').update({['archived_by_'+side]:chatListTab!=='archived'}).eq('id',item.id);if(error){setPeopleError('No se pudo actualizar el chat: '+error.message);return}setConversations(current=>current.map(chat=>chat.id===item.id?{...chat,['archived_by_'+side]:chatListTab!=='archived'}:chat))}}>{chatListTab==='archived'?<ArchiveRestore size={18}/>:<Archive size={18}/>}</button><button type="button" title="Borrar chat" aria-label="Borrar chat" onClick={async event=>{event.stopPropagation();const side=item.member_one===session.user.id?'one':'two';const {error}=await supabase.from('conversations').update({['deleted_by_'+side]:true}).eq('id',item.id);if(error){setPeopleError('No se pudo borrar: '+error.message);return}setConversations(current=>current.filter(chat=>chat.id!==item.id))}}><Trash2 size={18}/></button></span></div>) : <div className="connections-empty chat-empty-state"><strong>{chatListTab==='archived'?'No hay mensajes archivados':'No hay chats'}</strong><span>{chatListTab==='archived'?'Los chats que archives aparecerán acá.':'Cuando quieras, podés iniciar una conversación con cualquier persona.'}</span>{chatListTab==='messages' && <button type="button" className="refresh-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir personas</button>}</div>}</div>
       </section><ZunoBottomNav view={view} setView={setView} onLogout={logout} adminVisible={String(profile?.username||'').trim().toLowerCase()==='manu.german'} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer></main>
   )
-  if (session?.user && view === 'admin' && String(profile?.username||'').trim().toLowerCase() === 'manu.german') {
+  if (session?.user && view === 'admin' && String(profile?.username||'').trim().toLowerCase() === 'manu.german' && adminAuthorized) {
     const adminSections = [
       {id:'overview',label:'Resumen',icon:LayoutDashboard},
       {id:'users',label:'Usuarios',icon:UserCog},
@@ -2541,7 +2589,7 @@ export default function App() {
           </aside>
           <div className="zuno-admin-main">
             <div className="zuno-admin-page-heading"><div><div className="eyebrow"><ShieldCheck size={14}/> ZUNO · ADMINISTRACIÓN</div><h1>{currentAdminTitle[0]}</h1><p>{currentAdminTitle[1]}</p></div><div className="admin-heading-actions"><span className="admin-secure-tag"><LockKeyhole size={13}/> Área privada</span><button type="button" className="admin-refresh" onClick={()=>setAdminSection('overview')}><RefreshCw size={15}/> Inicio</button></div></div>
-            <div className="zuno-admin-security-notice"><ShieldAlert size={18}/><div><strong>Panel en preparación segura</strong><span>La interfaz está diseñada. Las operaciones administrativas quedarán habilitadas cuando conectemos los permisos exclusivos del servidor; ocultar este panel no es una medida de seguridad suficiente.</span></div></div>
+            <div className="zuno-admin-security-notice"><ShieldCheck size={18}/><div><strong>Acceso administrativo verificado</strong><span>Supabase confirmó tu rol de administrador. Las consultas y acciones sensibles se validan nuevamente en el servidor.</span></div></div>
             {adminSection==='overview' ? <>
               <div className="zuno-admin-welcome"><div><span className="admin-welcome-kicker">CENTRO DE CONTROL</span><h2>Hola, administrador.</h2><p>Desde acá vas a poder supervisar la comunidad y mantener ZUNO seguro.</p></div><div className="admin-welcome-art"><ShieldCheck size={54}/><span/></div></div>
               <div className="zuno-admin-section-title"><div><h2>Actividad de esta sesión</h2><p>Datos locales cargados en tu sesión actual; no representan totales de toda la plataforma.</p></div></div>
@@ -2554,11 +2602,27 @@ export default function App() {
               <div className="zuno-admin-section-title"><div><h2>Herramientas de administración</h2><p>Módulos previstos para gestionar la plataforma.</p></div></div>
               <div className="zuno-admin-module-grid">{adminModules.map(item=>{const Icon=item.icon;return <button type="button" key={item.id} className="zuno-admin-module" onClick={()=>setAdminSection(item.id)}><span className="admin-module-icon"><Icon size={20}/></span><span className="admin-module-copy"><strong>{item.title}</strong><small>{item.description}</small></span><ChevronRight size={18}/></button>})}</div>
               <div className="zuno-admin-bottom-grid"><article className="zuno-admin-info-card"><div><Database size={18}/><strong>Base de datos</strong></div><p>La gestión global se conectará a funciones seguras de Supabase, sin exponer datos privados desde el navegador.</p><span className="admin-status-pending"><CircleAlert size={13}/> Integración pendiente</span></article><article className="zuno-admin-info-card"><div><CheckCircle2 size={18}/><strong>Acceso actual</strong></div><p>El menú está visible para @manu.german. La autorización real deberá verificarse en el servidor.</p><span className="admin-status-pending"><ShieldAlert size={13}/> Falta rol protegido</span></article></div>
-            </> : <div className="zuno-admin-workspace">
+            </> : adminSection==='users' ? <section className="admin-users-workspace">
+              <div className="admin-users-toolbar">
+                <div><span className="admin-welcome-kicker">DIRECTORIO DE LA COMUNIDAD</span><h2>Usuarios registrados</h2><p>Listado obtenido mediante una función protegida de Supabase.</p></div>
+                <button type="button" className="admin-refresh" onClick={()=>setAdminUsersRefresh(value=>value+1)} disabled={adminUsersLoading}><RefreshCw size={15}/> Actualizar</button>
+              </div>
+              <form className="admin-users-search" onSubmit={event=>{event.preventDefault();setAdminSelectedUser(null);setAdminUsersRefresh(value=>value+1)}}>
+                <Search size={18}/><input value={adminSearch} onChange={event=>setAdminSearch(event.target.value)} placeholder="Buscar por usuario o nombre..."/><button type="submit">Buscar</button>
+              </form>
+              {adminUsersError && <div className="admin-users-error"><CircleAlert size={16}/>{adminUsersError}</div>}
+              {adminUsersLoading ? <div className="admin-users-empty"><RefreshCw size={20}/> Cargando usuarios...</div> : adminSelectedUser ? <div className="admin-user-detail">
+                <button type="button" className="admin-user-back" onClick={()=>setAdminSelectedUser(null)}><ChevronLeft size={16}/> Volver a usuarios</button>
+                <div className="admin-user-detail-head"><ProfileAvatar person={adminSelectedUser} className="admin-user-avatar"/><div><h3>{adminSelectedUser.display_name || adminSelectedUser.username || 'Usuario'}</h3><p>@{adminSelectedUser.username || 'sin-usuario'}</p><small>Registrado: {adminSelectedUser.created_at ? new Date(adminSelectedUser.created_at).toLocaleString('es-UY') : 'Sin dato'}</small></div></div>
+                <div className="admin-user-detail-grid"><article><small>Identificador</small><strong>{adminSelectedUser.id}</strong></article><article><small>Cuenta verificada</small><strong>{adminSelectedUser.zuno_verified ? 'Sí' : 'No'}</strong></article></div>
+                <div className="admin-user-detail-bio"><strong>Biografía</strong><p>{adminSelectedUser.bio || 'Este usuario no agregó una biografía.'}</p></div>
+                <div className="admin-users-placeholder"><ShieldAlert size={19}/><div><strong>Revisión de contenido pendiente</strong><p>Las fotos, historias y mensajes se habilitarán mediante consultas administrativas específicas, con registro de acceso y controles de privacidad. Todavía no hay acceso directo a conversaciones privadas desde esta ficha.</p></div></div>
+              </div> : adminUsers.length ? <div className="admin-users-list">{adminUsers.map(user=><button type="button" key={user.id} className="admin-user-row" onClick={()=>setAdminSelectedUser(user)}><ProfileAvatar person={user} className="admin-user-row-avatar"/><span className="admin-user-row-copy"><strong>{user.display_name || 'Sin nombre'}</strong><small>@{user.username || 'sin-usuario'} · {user.created_at ? new Date(user.created_at).toLocaleDateString('es-UY') : 'Fecha no disponible'}</small></span>{user.zuno_verified && <span className="admin-user-verified"><CheckCircle2 size={14}/> Verificado</span>}<ChevronRight size={18}/></button>)}</div> : <div className="admin-users-empty"><Users size={24}/><strong>No se encontraron usuarios</strong><span>Probá con otro nombre o usuario.</span></div>}
+            </section> : <div className="zuno-admin-workspace">
               <div className="zuno-admin-workspace-icon"><AdminIcon size={28}/></div>
               <span className="admin-welcome-kicker">MÓDULO DE ADMINISTRACIÓN</span>
               <h2>{currentAdminTitle[0]}</h2><p>{currentAdminTitle[1]}</p>
-              <div className="admin-workspace-checklist"><div><CheckCircle2 size={17}/><span>Diseño y navegación del módulo preparados.</span></div><div><ShieldAlert size={17}/><span>Falta conectar consultas y acciones protegidas en Supabase.</span></div><div><LockKeyhole size={17}/><span>No se habilitan acciones hasta validar el rol administrativo en el servidor.</span></div></div>
+              <div className="admin-workspace-checklist"><div><CheckCircle2 size={17}/><span>Diseño y navegación del módulo preparados.</span></div><div><ShieldAlert size={17}/><span>Este módulo requiere su propia consulta y autorización protegida.</span></div><div><LockKeyhole size={17}/><span>Las acciones se habilitarán después de validar las reglas de moderación.</span></div></div>
               <button type="button" className="admin-back-overview" onClick={()=>setAdminSection('overview')}><ChevronRight size={16}/> Volver al resumen</button>
             </div>}
           </div>
