@@ -2240,7 +2240,7 @@ main.app-shell:has(> .zuno-stories) > .home-content > .empty-state{width:100%;ma
 .bot-chat-welcome{align-self:center;margin:auto;color:#cdb8d8;text-align:center;max-width:320px;line-height:1.5}
 .bot-chat-composer{display:flex;align-items:center;gap:9px;padding:12px 16px}
 .bot-chat-attach{width:42px;height:42px;flex:0 0 42px;border-radius:50%;display:grid;place-items:center;background:#ffffff12;color:#e9c8f7;cursor:pointer;position:relative}
-.bot-chat-attach input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.bot-chat-attach input{position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:0;color:transparent;cursor:pointer}
 .bot-chat-image{display:block;max-width:min(100%,280px);max-height:340px;object-fit:contain;border-radius:12px;margin-bottom:6px}
 .bot-chat-messages{overflow-anchor:auto;scroll-behavior:smooth}
 .bot-chat-shell{height:100dvh;min-height:0}
