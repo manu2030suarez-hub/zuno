@@ -76,7 +76,7 @@ Deno.serve(async (req: Request) => {
       (!Array.isArray(entry[1]) || entry[1].length > 0));
     const userProfileText = userFields.map(([label, value]) =>
       label + ": " + (Array.isArray(value) ? value.join(", ") : String(value))
-    ).join("\\n");
+    ).join("\n");
 
     const body = await req.json();
     const conversationId = String(body?.conversation_id || "");
