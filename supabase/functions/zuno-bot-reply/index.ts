@@ -30,9 +30,9 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const secret = readDefaultKey("SUPABASE_SECRET_KEYS", "SUPABASE_SERVICE_ROLE_KEY");
     const publishable = readDefaultKey("SUPABASE_PUBLISHABLE_KEYS", "SUPABASE_ANON_KEY");
-    const openAiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!supabaseUrl || !secret || !publishable || !openAiKey) {
-      console.error("Faltan secretos de Supabase u OPENAI_API_KEY.");
+    const groqKey = Deno.env.get("GROQ_API_KEY");
+    if (!supabaseUrl || !secret || !publishable || !groqKey) {
+      console.error("Faltan secretos de Supabase u GROQ_API_KEY.");
       return json({ error: "El servicio de inteligencia artificial todavía no está configurado." }, 503);
     }
     const authResponse = await fetch(supabaseUrl + "/auth/v1/user", {
@@ -121,34 +121,23 @@ Deno.serve(async (req: Request) => {
         content: message.body,
       })),
     ];
-    const aiResponse = await fetch("https://api.openai.com/v1/responses", {
+    // Groq ofrece un nivel gratuito y una API compatible con OpenAI.
+    const aiResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers: { Authorization: "Bearer " + openAiKey, "Content-Type": "application/json" },
+      headers: { Authorization: "Bearer " + groqKey, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        instructions: systemPrompt,
-        input: [
-          { role: "developer", content: "Respondé exclusivamente con un objeto JSON válido que contenga las claves reply y memory_summary." },
-          ...messages.map((message: { sender_type: string; body: string }) => ({
-            role: message.sender_type === "bot" ? "assistant" : "user",
-            content: message.body,
-          })),
-        ],
-        // No forzamos json_object: algunos modelos/API rechazan el formato estructurado
-        // aunque las instrucciones ya soliciten explícitamente una respuesta JSON.
-        max_output_tokens: 650,
+        model: "openai/gpt-oss-120b",
+        messages: chatMessages,
+        response_format: { type: "json_object" },
+        max_completion_tokens: 650,
       }),
     });
     const aiData = await aiResponse.json();
     if (!aiResponse.ok) {
-      console.error("OpenAI error:", aiData?.error?.message || aiResponse.status);
+      console.error("Groq error:", aiData?.error?.message || aiResponse.status);
       return json({ error: "La IA no pudo generar una respuesta. Intentá nuevamente." }, 502);
     }
-    const outputText = (aiData.output || [])
-      .flatMap((item: { content?: { type?: string; text?: string }[] }) => item.content || [])
-      .filter((item: { type?: string }) => item.type === "output_text")
-      .map((item: { text?: string }) => item.text || "")
-      .join("");
+    const outputText = aiData?.choices?.[0]?.message?.content || "";
     let generated: { reply?: string; memory_summary?: string };
     try {
       const cleanedOutput = outputText.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "");
