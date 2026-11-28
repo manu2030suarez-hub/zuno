@@ -2923,7 +2923,7 @@ export default function App() {
       <main className="app-shell profile-detail-shell">{callOverlay}
         <section className="member-detail profile-detail-screen">
           <div className="profile-photo-stage"
-            onPointerDown={event=>{profileTouchStartX.current=event.clientX;profileTouchStartY.current=event.clientY;event.currentTarget.setPointerCapture?.(event.pointerId)}}
+            onPointerDown={event=>{if(event.target.closest('button, input, textarea, select, form, a, [role="button"]')){profileTouchStartX.current=null;profileTouchStartY.current=null;return}profileTouchStartX.current=event.clientX;profileTouchStartY.current=event.clientY}}
             onPointerUp={event=>{const startX=profileTouchStartX.current;const startY=profileTouchStartY.current;const endX=event.clientX;const endY=event.clientY;profileTouchStartX.current=null;profileTouchStartY.current=null;if(startX!==null&&startY!==null){const deltaX=endX-startX;const deltaY=endY-startY;if(Math.abs(deltaY)>45&&Math.abs(deltaY)>Math.abs(deltaX)){setProfilePhotoIndex(index=>Math.max(0,Math.min(publicPhotos.length-1,index+(deltaY<0?1:-1))))}else if(Math.abs(deltaX)>45&&Math.abs(deltaX)>Math.abs(deltaY)){const currentIndex=filteredNavigationPeople.findIndex(person=>person.id===selectedProfile.id);const nextProfile=filteredNavigationPeople[currentIndex+(deltaX<0?1:-1)];if(currentIndex>=0&&nextProfile)openMemberProfile(nextProfile,Boolean(nextProfile.isOwn))}}}}
             onPointerCancel={()=>{profileTouchStartX.current=null;profileTouchStartY.current=null}}>
 
