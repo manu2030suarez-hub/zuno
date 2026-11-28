@@ -2137,3 +2137,34 @@ html body .zuno-admin-shell .admin-communication-success{
     padding-right: 18px !important;
   }
 }
+
+
+/* Historias: sección hermana del contenido, ancho completo real del viewport */
+@media (max-width: 760px) {
+  html body .app-shell:has(.zuno-bottom-nav) > section.zuno-stories {
+    display: block !important;
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    transform: none !important;
+    width: 100vw !important;
+    min-width: 100vw !important;
+    max-width: 100vw !important;
+    margin: 0 0 14px calc(50% - 50vw) !important;
+    box-sizing: border-box !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-radius: 0 !important;
+    padding: 9px 18px 8px !important;
+    overflow: hidden !important;
+  }
+  html body .app-shell:has(.zuno-bottom-nav) > section.zuno-stories .stories-heading {
+    width: 100% !important;
+    margin: 0 0 7px !important;
+  }
+  html body .app-shell:has(.zuno-bottom-nav) > section.zuno-stories .stories-rail {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+}
