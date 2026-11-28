@@ -1450,10 +1450,15 @@ export default function App() {
   }, [view, session?.user?.id, notifications])
 
   async function markNotificationRead(notificationId) {
-    if (!session?.user || !notificationId) return
+    if (!session?.user || !notificationId) return false
     const now = new Date().toISOString()
     const { error } = await supabase.from('notifications').update({ read_at: now }).eq('id', notificationId).eq('recipient_id', session.user.id)
-    if (!error) setNotifications(current => current.map(item => item.id === notificationId ? { ...item, read_at: item.read_at || now } : item))
+    if (error) {
+      setPeopleError('No pudimos marcar la notificación como leída. ' + error.message)
+      return false
+    }
+    setNotifications(current => current.map(item => item.id === notificationId ? { ...item, read_at: item.read_at || now } : item))
+    return true
   }
 
   async function deleteNotification(notificationId) {
@@ -1481,17 +1486,21 @@ export default function App() {
     if (!session?.user || !item?.entity_id || notificationBusy) return
     setNotificationBusy(item.id)
     setPeopleError('')
-    const { error } = await supabase.rpc('zuno_respond_private_album_request', {
-      p_request_id: item.entity_id,
-      p_status: status
-    })
-    if (error) {
-      setPeopleError('No pudimos responder la solicitud del álbum. ' + error.message)
-    } else {
+    try {
+      const { error } = await supabase.rpc('zuno_respond_private_album_request', {
+        p_request_id: item.entity_id,
+        p_status: status
+      })
+      if (error) {
+        setPeopleError('No pudimos responder la solicitud del álbum. ' + error.message)
+        return
+      }
       await markNotificationRead(item.id)
-      setNotifications(current => current.map(row => row.id === item.id ? { ...row, read_at: row.read_at || new Date().toISOString() } : row))
+    } catch (error) {
+      setPeopleError('Ocurrió un error al responder la solicitud. ' + (error?.message || 'Intentá nuevamente.'))
+    } finally {
+      setNotificationBusy('')
     }
-    setNotificationBusy('')
   }
 
   useEffect(() => {
