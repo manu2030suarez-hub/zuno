@@ -1823,3 +1823,7 @@ html body .zuno-admin-shell .admin-user-media-unavailable{display:flex;min-heigh
  .admin-moderation-filters span{margin-left:0;width:100%}
  .admin-report-actions button{flex:1 1 42%}
 }
+
+
+/* Estado visual de mensajes denunciados */
+.chat-message-reported{display:flex;align-items:center;gap:7px;padding:9px 12px;color:#35b879;font-size:12px;font-weight:700;cursor:default;white-space:nowrap}.chat-message-reported svg{flex:0 0 auto}
