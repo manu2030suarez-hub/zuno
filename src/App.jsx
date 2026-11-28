@@ -2691,8 +2691,8 @@ function ZunoBottomNav({ view, setView, unreadCount, notificationCount, mapReque
       <button type="button" className={active==='chats'?'active':''} onClick={()=>go('chats')}><span className="zuno-nav-icon"><MessageCircle size={21}/>{unreadCount>0&&<i>{unreadCount>99?'99+':unreadCount}</i>}</span><span>Chats</span></button>
       <button type="button" className={active==='notifications'?'active':''} onClick={()=>go('notifications')}><span className="zuno-nav-icon"><Bell size={21}/>{notificationCount>0&&<i>{notificationCount>99?'99+':notificationCount}</i>}{mapRequestCount>0&&<b className="zuno-map-request-dot" aria-label="Nueva solicitud de encuentro"/>}</span><span>Notificaciones</span></button>
       <button type="button" className={active==='map'?'active':''} onClick={()=>go('map')}><MapPin size={21}/><span>Mapa</span></button>
+      {adminVisible && <button type="button" className={active==='admin'?'active zuno-admin-nav':'zuno-admin-nav'} onClick={()=>go('admin')}><ShieldCheck size={21}/><span>Admin</span></button>}
       <div className="zuno-profile-nav-wrap">
-        {adminVisible && <button type="button" className={active==='admin'?'active zuno-admin-nav':'zuno-admin-nav'} onClick={()=>go('admin')}><ShieldCheck size={21}/><span>Admin</span></button>}
         {profileMenuOpen && <div className="zuno-profile-menu" role="menu">
           <button type="button" role="menuitem" onClick={()=>go('profile')}><Pencil size={17}/><span>Editar perfil</span></button>
           <button type="button" role="menuitem" onClick={()=>{setProfileMenuOpen(false);onLogout()}}><LogOut size={17}/><span>Cerrar sesión</span></button>
