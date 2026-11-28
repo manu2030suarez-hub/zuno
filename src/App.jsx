@@ -108,6 +108,12 @@ export default function App() {
   const [communicationError, setCommunicationError] = useState('')
   const [communicationHistory, setCommunicationHistory] = useState([])
   const [communicationHistoryLoading, setCommunicationHistoryLoading] = useState(false)
+  const [adminSecurityOverview, setAdminSecurityOverview] = useState(null)
+  const [adminSecurityEvents, setAdminSecurityEvents] = useState([])
+  const [adminSecurityLoading, setAdminSecurityLoading] = useState(false)
+  const [adminSecurityError, setAdminSecurityError] = useState('')
+  const [adminSecurityFilter, setAdminSecurityFilter] = useState('all')
+  const [adminSecurityRefresh, setAdminSecurityRefresh] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -277,6 +283,38 @@ export default function App() {
     loadCommunicationHistory()
     return () => { active = false }
   }, [view, adminAuthorized, adminSection])
+
+  useEffect(() => {
+    let active = true
+    async function loadAdminSecurity() {
+      if (view !== 'admin' || !adminAuthorized || adminSection !== 'security') return
+      setAdminSecurityLoading(true)
+      setAdminSecurityError('')
+      const [overviewResult, eventsResult] = await Promise.all([
+        supabase.rpc('admin_get_security_overview'),
+        supabase.rpc('admin_list_security_audit', {
+          p_source: adminSecurityFilter,
+          p_limit: 50,
+          p_offset: 0
+        })
+      ])
+      if (!active) return
+      if (overviewResult.error) {
+        setAdminSecurityError(overviewResult.error.message || 'No se pudo cargar el estado de seguridad.')
+        setAdminSecurityOverview(null)
+      } else {
+        const overview = Array.isArray(overviewResult.data) ? overviewResult.data[0] : overviewResult.data
+        setAdminSecurityOverview(overview || null)
+      }
+      if (eventsResult.error) {
+        setAdminSecurityError(current => current || eventsResult.error.message || 'No se pudo cargar el historial de auditoría.')
+        setAdminSecurityEvents([])
+      } else setAdminSecurityEvents(Array.isArray(eventsResult.data) ? eventsResult.data : [])
+      setAdminSecurityLoading(false)
+    }
+    loadAdminSecurity()
+    return () => { active = false }
+  }, [view, adminAuthorized, adminSection, adminSecurityFilter, adminSecurityRefresh])
 
   async function searchCommunicationUsers() {
     setCommunicationError('')
@@ -3077,6 +3115,29 @@ export default function App() {
               <div className="admin-communication-history"><div className="admin-users-toolbar"><div><span className="admin-welcome-kicker">REGISTRO AUDITADO</span><h2>Comunicaciones enviadas</h2><p>Historial de avisos enviados desde el panel administrativo.</p></div></div>
                 {communicationHistoryLoading ? <div className="admin-users-empty">Cargando historial...</div> : communicationHistory.length ? <div className="admin-communication-history-list">{communicationHistory.map(item=><article key={item.id}><div><strong>{item.title}</strong><small>{new Date(item.created_at).toLocaleString('es-UY')} · {item.target_type==='all'?'Toda la comunidad':'Usuario individual'} · {item.recipient_count} destinatario(s)</small></div><p>{item.body}</p></article>)}</div> : <div className="admin-users-empty"><Megaphone size={22}/><strong>Todavía no enviaste comunicaciones</strong><span>Los avisos enviados aparecerán acá.</span></div>}
               </div>
+            </section> : adminSection==='security' ? <section className="admin-moderation-workspace admin-security-workspace">
+              <div className="admin-users-toolbar">
+                <div><span className="admin-welcome-kicker">CENTRO DE SEGURIDAD</span><h2>Seguridad y auditoría</h2><p>Permisos administrativos y actividad registrada en ZUNO.</p></div>
+                <button type="button" className="admin-refresh" onClick={()=>setAdminSecurityRefresh(value=>value+1)} disabled={adminSecurityLoading}><RefreshCw size={15}/>{adminSecurityLoading?'Actualizando...':'Actualizar datos'}</button>
+              </div>
+              <div className="admin-retention-notice"><ShieldCheck size={18}/><span>Los registros se consultan mediante funciones protegidas. Las tablas de auditoría no tienen políticas de acceso directo para usuarios.</span></div>
+              {adminSecurityError && <div className="admin-users-error"><CircleAlert size={16}/>{adminSecurityError}</div>}
+              {adminSecurityLoading && !adminSecurityOverview ? <div className="admin-users-empty"><RefreshCw size={20}/> Consultando controles de seguridad...</div> : <>
+                <div className="zuno-admin-stats zuno-admin-live-stats admin-security-stats">
+                  <article><span className="admin-stat-icon purple"><ShieldCheck size={19}/></span><div><small>Administradores</small><strong>{Number(adminSecurityOverview?.admin_count||0).toLocaleString('es-UY')}</strong><em>Permisos registrados</em></div></article>
+                  <article><span className="admin-stat-icon pink"><Ban size={19}/></span><div><small>Sanciones activas</small><strong>{Number(adminSecurityOverview?.active_sanctions||0).toLocaleString('es-UY')}</strong><em>Restricciones vigentes</em></div></article>
+                  <article><span className="admin-stat-icon blue"><Activity size={19}/></span><div><small>Eventos de moderación</small><strong>{Number(adminSecurityOverview?.moderation_events||0).toLocaleString('es-UY')}</strong><em>Acciones registradas</em></div></article>
+                  <article><span className="admin-stat-icon purple"><Eye size={19}/></span><div><small>Accesos auditados</small><strong>{(Number(adminSecurityOverview?.access_events||0)+Number(adminSecurityOverview?.retained_access_events||0)).toLocaleString('es-UY')}</strong><em>Perfiles y mensajes conservados</em></div></article>
+                </div>
+                <div className="admin-security-admins">
+                  <div className="admin-users-toolbar"><div><span className="admin-welcome-kicker">ACCESO PRIVILEGIADO</span><h2>Administradores autorizados</h2><p>Usuarios incluidos en la lista privada de administradores.</p></div></div>
+                  {Array.isArray(adminSecurityOverview?.administrators) && adminSecurityOverview.administrators.length ? <div className="admin-security-admin-list">{adminSecurityOverview.administrators.map(admin=><article key={admin.user_id}><span className="admin-security-admin-icon"><ShieldCheck size={18}/></span><div><strong>Administrador ZUNO</strong><small><code>{admin.user_id}</code></small></div><time>{admin.created_at?new Date(admin.created_at).toLocaleDateString('es-UY'):'Fecha no disponible'}</time></article>)}</div> : <div className="admin-users-empty">No hay administradores registrados.</div>}
+                </div>
+                <div className="admin-security-audit">
+                  <div className="admin-users-toolbar"><div><span className="admin-welcome-kicker">TRAZABILIDAD</span><h2>Registro de actividad</h2><p>Últimos 50 eventos de las distintas áreas de auditoría.</p></div><label className="admin-security-filter">Tipo de evento<select value={adminSecurityFilter} onChange={event=>setAdminSecurityFilter(event.target.value)}><option value="all">Todos los eventos</option><option value="moderation">Moderación</option><option value="access">Acceso a perfiles</option><option value="retained">Mensajes conservados</option></select></label></div>
+                  {adminSecurityLoading ? <div className="admin-users-empty"><RefreshCw size={18}/> Cargando actividad...</div> : adminSecurityEvents.length ? <div className="admin-security-event-list">{adminSecurityEvents.map(item=><article key={item.source+'-'+item.event_id}><div className="admin-security-event-heading"><strong>{String(item.action||'Actividad').replaceAll('_',' ')}</strong><span>{item.source==='moderation'?'Moderación':item.source==='access'?'Acceso a perfil':'Mensajes conservados'}</span></div><div className="admin-security-event-meta"><span>Administrador: <code>{item.admin_user_id||'—'}</code></span><time>{item.created_at?new Date(item.created_at).toLocaleString('es-UY'):'Fecha no disponible'}</time></div><details><summary>Ver detalles del evento</summary><pre>{JSON.stringify(item.details||{},null,2)}</pre></details></article>)}</div> : <div className="admin-users-empty"><Activity size={22}/><strong>No hay eventos para este filtro</strong><span>Las nuevas acciones administrativas aparecerán acá.</span></div>}
+                </div>
+              </>}
             </section> : <div className="zuno-admin-workspace">
               <div className="zuno-admin-workspace-icon"><AdminIcon size={28}/></div>
               <span className="admin-welcome-kicker">MÓDULO DE ADMINISTRACIÓN</span>
