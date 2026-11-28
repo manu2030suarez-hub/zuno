@@ -1363,6 +1363,27 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (!session?.user) return
+    const unlockNotificationAudio = () => {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext
+        if (!AudioCtx) return
+        const ctx = mapRequestSoundRef.current || new AudioCtx()
+        mapRequestSoundRef.current = ctx
+        if (ctx.state === 'suspended') ctx.resume().catch(() => {})
+      } catch (error) {
+        console.debug('Audio de notificaciones no disponible', error)
+      }
+    }
+    document.addEventListener('pointerdown', unlockNotificationAudio, { once: true })
+    document.addEventListener('keydown', unlockNotificationAudio, { once: true })
+    return () => {
+      document.removeEventListener('pointerdown', unlockNotificationAudio)
+      document.removeEventListener('keydown', unlockNotificationAudio)
+    }
+  }, [session?.user?.id])
+
+  useEffect(() => {
     if (!session?.user) { setNotifications([]); setNotificationActors({}); return }
     let active = true
     const loadNotifications = async () => {
