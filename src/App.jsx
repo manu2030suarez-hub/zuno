@@ -687,6 +687,7 @@ export default function App() {
   const [botFavoriteIds, setBotFavoriteIds] = useState([])
   const [botBlockedIds, setBotBlockedIds] = useState([])
   const [botChatMessages, setBotChatMessages] = useState([])
+  const botChatMessagesContainerRef = useRef(null)
   const [botChatDraft, setBotChatDraft] = useState('')
   const [otherUserTyping, setOtherUserTyping] = useState(false)
   const chatMessagesContainerRef = useRef(null)
@@ -2110,10 +2111,52 @@ export default function App() {
       .upsert({user_id:session.user.id,bot_id:botId,deleted_at:null},{onConflict:'user_id,bot_id'}).select('id,bot_id,archived_at,deleted_at').single()
     if(error){setChatBusy(false);setPeopleError('No pudimos abrir el chat del bot. '+error.message);return}
     const {data:messages,error:messagesError}=await supabase.from('zuno_bot_messages')
-      .select('id,sender_type,body,created_at').eq('conversation_id',conversation.id).order('created_at')
+      .select('id,sender_type,body,created_at,message_type,media_path').eq('conversation_id',conversation.id).order('created_at')
     if(messagesError){setChatBusy(false);setPeopleError('No pudimos cargar el chat. '+messagesError.message);return}
-    setActiveBotConversation({...conversation,bot});activeBotConversationRef.current={...conversation,bot};setBotChatMessages(messages||[]);setChatBusy(false);setView('bot-chat')
+
+    const displayMessages = await Promise.all((messages||[]).map(async message => {
+      if (message.message_type !== 'image' || !message.media_path) return message
+      const { data:signed } = await supabase.storage.from('zuno-chat-media').createSignedUrl(message.media_path,3600)
+      return { ...message, media_url:signed?.signedUrl || '' }
+    }))
+    setActiveBotConversation({...conversation,bot});activeBotConversationRef.current={...conversation,bot};setBotChatMessages(displayMessages);setChatBusy(false);setView('bot-chat')
   }
+
+  async function sendBotChatImage(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !activeBotConversation || chatMediaBusy) return
+    if (!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type) || file.size > 10 * 1024 * 1024) {
+      setPeopleError('Elegí una imagen JPG, PNG, WEBP o GIF de hasta 10 MB.')
+      return
+    }
+    setChatMediaBusy(true); setPeopleError('')
+    const extension = ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'})[file.type]
+    const path = activeBotConversation.id + '/' + session.user.id + '/' + crypto.randomUUID() + '.' + extension
+    try {
+      const { data:uploaded, error:uploadError } = await supabase.storage.from('zuno-chat-media').upload(path,file,{contentType:file.type,upsert:false})
+      if (uploadError) throw uploadError
+      const { data, error } = await supabase.from('zuno_bot_messages').insert({
+        conversation_id:activeBotConversation.id,sender_type:'user',body:'📷 Foto adjunta',message_type:'image',media_path:uploaded.path
+      }).select('id,sender_type,body,created_at,message_type,media_path').single()
+      if (error) { await supabase.storage.from('zuno-chat-media').remove([uploaded.path]); throw error }
+      const { data:signed, error:signedError } = await supabase.storage.from('zuno-chat-media').createSignedUrl(uploaded.path,3600)
+      if (signedError) throw signedError
+      setBotChatMessages(current=>[...current,{...data,media_url:signed.signedUrl}])
+      const { data:replyData, error:replyError } = await supabase.functions.invoke('zuno-bot-reply',{body:{conversation_id:activeBotConversation.id}})
+      if (replyError || replyData?.error) setPeopleError('La foto quedó enviada, pero el bot no pudo responder. '+(replyData?.error||replyError?.message||''))
+      else if (replyData?.message && activeBotConversationRef.current?.id===activeBotConversation.id) setBotChatMessages(current=>[...current,replyData.message])
+    } catch (error) { setPeopleError('No pudimos enviar la foto. '+(error?.message||'')) }
+    setChatMediaBusy(false)
+  }
+
+  useEffect(() => {
+    if (view !== 'bot-chat') return
+    const container = botChatMessagesContainerRef.current
+    if (!container) return
+    window.requestAnimationFrame(() => { container.scrollTop = container.scrollHeight })
+  }, [botChatMessages, view])
+
   async function sendBotChatMessage(event) {
     event?.preventDefault()
     if(!activeBotConversation || !botChatDraft.trim() || chatBusy) return
@@ -3325,9 +3368,9 @@ export default function App() {
   if (session?.user && view === 'bot-chat' && activeBotConversation) {
     const bot=activeBotConversation.bot
     return <main className="app-shell bot-chat-shell">{callOverlay}
-      <header className="bot-chat-header"><button type="button" onClick={()=>setView('chats')} aria-label="Volver a mis chats"><ChevronLeft size={20}/></button><div className="bot-chat-avatar">{bot.photos?.[0]?.url?<img src={bot.photos[0].url} alt=""/>:<UserRound size={22}/>}</div><div><strong>{bot.display_name}</strong><span><Sparkles size={12}/> Bot de ZUNO</span></div><div className="chat-row-actions"><button type="button" title={activeBotConversation.archived_at?'Restaurar chat':'Archivar chat'} aria-label={activeBotConversation.archived_at?'Restaurar chat':'Archivar chat'} onClick={async()=>{const archivedAt=activeBotConversation.archived_at?null:new Date().toISOString();const {error}=await supabase.from('zuno_bot_conversations').update({archived_at:archivedAt}).eq('id',activeBotConversation.id).eq('user_id',session.user.id);if(error){setPeopleError('No se pudo actualizar el chat: '+error.message);return}setActiveBotConversation(current=>({...current,archived_at:archivedAt}));setView('chats')}}>{activeBotConversation.archived_at?<ArchiveRestore size={18}/>:<Archive size={18}/>}</button><button type="button" title="Eliminar conversación" aria-label="Eliminar conversación" onClick={async()=>{if(!window.confirm('¿Eliminar esta conversación?'))return;const {error}=await supabase.from('zuno_bot_conversations').update({deleted_at:new Date().toISOString()}).eq('id',activeBotConversation.id).eq('user_id',session.user.id);if(error){setPeopleError('No se pudo eliminar el chat: '+error.message);return}activeBotConversationRef.current=null;setActiveBotConversation(null);setBotChatMessages([]);setBotChatConversations(current=>current.filter(item=>item.id!==activeBotConversation.id));setView('chats')}}><Trash2 size={18}/></button></div></header>
-      <div className="bot-chat-messages">{botChatMessages.length?botChatMessages.map(message=><div key={message.id} className={'bot-chat-bubble '+(message.sender_type==='user'?'own':'')}>{message.body}<time>{new Date(message.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</time></div>):<div className="bot-chat-welcome">¡Hola! Este es el chat de prueba de {bot.display_name}. Ya podés escribirle.</div>}</div>
-      <form className="bot-chat-composer" onSubmit={sendBotChatMessage}><input value={botChatDraft} onChange={event=>setBotChatDraft(event.target.value)} placeholder="Escribile un mensaje…" maxLength={4000}/><button type="submit" disabled={!botChatDraft.trim()||chatBusy}><Send size={18}/></button></form>
+      <header className="bot-chat-header"><button type="button" onClick={()=>setView('chats')} aria-label="Volver a mis chats"><ChevronLeft size={20}/></button><div className="bot-chat-avatar">{bot.photos?.[0]?.url?<img src={bot.photos[0].url} alt=""/>:<UserRound size={22}/>}</div><div className="bot-chat-header-person"><strong>{bot.display_name}</strong><span><Sparkles size={12}/> Bot de ZUNO</span></div><div className="bot-chat-call-actions"><button type="button" title="Llamada de voz" aria-label="Llamada de voz" onClick={()=>botUnavailableAction('Las llamadas de voz')}><Phone size={19}/></button><button type="button" title="Videollamada" aria-label="Videollamada" onClick={()=>botUnavailableAction('Las videollamadas')}><Video size={19}/></button></div></header>
+      <div className="bot-chat-messages" ref={botChatMessagesContainerRef}>{botChatMessages.length?botChatMessages.map(message=><div key={message.id} className={'bot-chat-bubble '+(message.sender_type==='user'?'own':'')}>{message.message_type==='image'&&message.media_url&&<img className="bot-chat-image" src={message.media_url} alt="Foto enviada"/>}{message.body&&<span>{message.body}</span>}<time>{new Date(message.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</time></div>):<div className="bot-chat-welcome">¡Hola! Ya podés escribirle a {bot.display_name}.</div>}</div>
+      <form className="bot-chat-composer" onSubmit={sendBotChatMessage}><label className="bot-chat-attach" title="Enviar foto"><ImagePlus size={20}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={sendBotChatImage} disabled={chatMediaBusy}/></label><input value={botChatDraft} onChange={event=>setBotChatDraft(event.target.value)} placeholder="Escribile un mensaje…" maxLength={4000}/><button type="submit" disabled={!botChatDraft.trim()||chatBusy}><Send size={18}/></button></form>
       <p className="bot-chat-notice">Personaje virtual de ZUNO. Cada bot mantiene su propia memoria de conversación.</p>
     </main>
   }
