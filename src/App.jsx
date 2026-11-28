@@ -62,6 +62,46 @@ export default function App() {
   const [adminSearch, setAdminSearch] = useState('')
   const [adminUsersRefresh, setAdminUsersRefresh] = useState(0)
   const [adminSelectedUser, setAdminSelectedUser] = useState(null)
+  const [adminUserMedia, setAdminUserMedia] = useState([])
+  const [adminUserMediaLoading, setAdminUserMediaLoading] = useState(false)
+  const [adminUserMediaError, setAdminUserMediaError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    async function loadAdminUserMedia() {
+      if (view !== 'admin' || !adminAuthorized || !adminSelectedUser?.id) {
+        setAdminUserMedia([])
+        setAdminUserMediaError('')
+        return
+      }
+      setAdminUserMediaLoading(true)
+      setAdminUserMediaError('')
+      setAdminUserMedia([])
+      const { data, error: mediaError } = await supabase.rpc('admin_get_user_media', {
+        p_user_id: adminSelectedUser.id
+      })
+      if (!active) return
+      if (mediaError) {
+        setAdminUserMediaError(mediaError.message || 'No se pudo consultar el contenido.')
+        setAdminUserMediaLoading(false)
+        return
+      }
+      const rows = Array.isArray(data) ? data : []
+      const resolved = await Promise.all(rows.map(async item => {
+        const bucket = item.media_kind === 'story' ? 'zuno-stories' : 'zuno-profile-photos'
+        const { data: signed, error: signedError } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(item.storage_path, 120)
+        return { ...item, signedUrl: signedError ? '' : (signed?.signedUrl || '') }
+      }))
+      if (active) {
+        setAdminUserMedia(resolved)
+        setAdminUserMediaLoading(false)
+      }
+    }
+    loadAdminUserMedia()
+    return () => { active = false }
+  }, [view, adminAuthorized, adminSelectedUser?.id])
 
   useEffect(() => {
     let active = true
@@ -2616,7 +2656,14 @@ export default function App() {
                 <div className="admin-user-detail-head"><ProfileAvatar person={adminSelectedUser} className="admin-user-avatar"/><div><h3>{adminSelectedUser.display_name || adminSelectedUser.username || 'Usuario'}</h3><p>@{adminSelectedUser.username || 'sin-usuario'}</p><small>Registrado: {adminSelectedUser.created_at ? new Date(adminSelectedUser.created_at).toLocaleString('es-UY') : 'Sin dato'}</small></div></div>
                 <div className="admin-user-detail-grid"><article><small>Identificador</small><strong>{adminSelectedUser.id}</strong></article><article><small>Cuenta verificada</small><strong>{adminSelectedUser.zuno_verified ? 'Sí' : 'No'}</strong></article></div>
                 <div className="admin-user-detail-bio"><strong>Biografía</strong><p>{adminSelectedUser.bio || 'Este usuario no agregó una biografía.'}</p></div>
-                <div className="admin-users-placeholder"><ShieldAlert size={19}/><div><strong>Revisión de contenido pendiente</strong><p>Las fotos, historias y mensajes se habilitarán mediante consultas administrativas específicas, con registro de acceso y controles de privacidad. Todavía no hay acceso directo a conversaciones privadas desde esta ficha.</p></div></div>
+                <section className="admin-user-media-section">
+                  <div className="admin-user-media-heading"><div><strong>Fotos e historias</strong><small>Contenido consultado con permiso administrativo y acceso auditado.</small></div><span>{adminUserMedia.length} elementos</span></div>
+                  {adminUserMediaLoading ? <div className="admin-users-empty"><RefreshCw size={20}/> Cargando contenido...</div> : adminUserMediaError ? <div className="admin-users-error"><CircleAlert size={16}/>{adminUserMediaError}</div> : adminUserMedia.length ? <div className="admin-user-media-grid">{adminUserMedia.map(item=><article className="admin-user-media-card" key={item.media_kind+'-'+item.media_id}>
+                    {item.signedUrl ? item.media_type?.startsWith('video') ? <video src={item.signedUrl} controls preload="metadata"/> : <img src={item.signedUrl} alt={item.media_kind==='story'?'Historia del usuario':'Foto de perfil del usuario'} loading="lazy"/> : <div className="admin-user-media-unavailable"><Image size={22}/><span>Archivo no disponible</span></div>}
+                    <div><strong>{item.media_kind==='story'?'Historia':'Foto de perfil'}</strong><small>{item.created_at ? new Date(item.created_at).toLocaleString('es-UY') : 'Fecha no disponible'}</small>{item.caption && <p>{item.caption}</p>}</div>
+                  </article>)}</div> : <div className="admin-users-empty"><Image size={24}/><strong>Sin fotos ni historias disponibles</strong><span>Este usuario no tiene contenido registrado para mostrar.</span></div>}
+                </section>
+                <div className="admin-users-placeholder"><ShieldAlert size={19}/><div><strong>Mensajes privados todavía protegidos</strong><p>Las conversaciones no se muestran desde esta ficha. Para revisarlas, primero conectaremos el acceso a contenido denunciado, con registro de auditoría y controles específicos. El material íntimo sospechoso o posiblemente relacionado con menores no se expondrá en una galería administrativa.</p></div></div>
               </div> : adminUsers.length ? <div className="admin-users-list">{adminUsers.map(user=><button type="button" key={user.id} className="admin-user-row" onClick={()=>setAdminSelectedUser(user)}><ProfileAvatar person={user} className="admin-user-row-avatar"/><span className="admin-user-row-copy"><strong>{user.display_name || 'Sin nombre'}</strong><small>@{user.username || 'sin-usuario'} · {user.created_at ? new Date(user.created_at).toLocaleDateString('es-UY') : 'Fecha no disponible'}</small></span>{user.zuno_verified && <span className="admin-user-verified"><CheckCircle2 size={14}/> Verificado</span>}<ChevronRight size={18}/></button>)}</div> : <div className="admin-users-empty"><Users size={24}/><strong>No se encontraron usuarios</strong><span>Probá con otro nombre o usuario.</span></div>}
             </section> : <div className="zuno-admin-workspace">
               <div className="zuno-admin-workspace-icon"><AdminIcon size={28}/></div>
