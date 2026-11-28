@@ -1508,3 +1508,96 @@ button{touch-action:manipulation}
 .zuno-bottom-nav.has-admin{grid-template-columns:repeat(6,minmax(0,1fr))}
 .zuno-bottom-nav.has-admin .zuno-admin-nav{color:#e7b7ff}
 .zuno-bottom-nav.has-admin .zuno-admin-nav.active{color:#fff}
+
+/* ZUNO ADMIN · panel de administración */
+.zuno-admin-shell{min-height:100vh;background:#090910;color:#f8f5fb;padding-bottom:86px}
+.zuno-admin-topbar{position:sticky;top:0;z-index:30;background:#0b0a12ed;border-bottom:1px solid #ffffff12;backdrop-filter:blur(18px)}
+.admin-brand-label{margin-left:7px;padding:4px 7px;border:1px solid #d85be95c;border-radius:6px;color:#e9a7f2;font-size:9px;font-weight:900;letter-spacing:1.2px}
+.admin-account-pill{display:flex;align-items:center;gap:8px;padding:8px 11px;border:1px solid #ffffff16;border-radius:30px;background:#ffffff08;color:#d9d2e1;font-size:12px}
+.admin-account-pill>span,.admin-online-dot{width:7px;height:7px;border-radius:50%;background:#53d99b;box-shadow:0 0 10px #53d99b88}
+.zuno-admin-layout{display:grid;grid-template-columns:238px minmax(0,1fr);gap:28px;width:min(1440px,100%);margin:0 auto;padding:28px 30px 48px}
+.zuno-admin-sidebar{position:sticky;top:92px;align-self:start;min-height:calc(100vh - 190px);display:flex;flex-direction:column;padding:17px 12px;border:1px solid #ffffff12;border-radius:19px;background:linear-gradient(160deg,#15121f,#0f0e17 70%)}
+.zuno-admin-sidebar-heading{display:flex;align-items:center;gap:11px;padding:5px 7px 21px;border-bottom:1px solid #ffffff12}
+.zuno-admin-shield{width:40px;height:40px;display:grid;place-items:center;border:1px solid #c65be65c;border-radius:13px;background:#a83bd51c;color:#e4a0f4}
+.zuno-admin-sidebar-heading strong,.zuno-admin-sidebar-heading small{display:block}
+.zuno-admin-sidebar-heading strong{font-size:13px}.zuno-admin-sidebar-heading small{margin-top:3px;color:#91899e;font-size:11px}
+.zuno-admin-nav-label{padding:22px 10px 9px;color:#716b7e;font-size:9px;font-weight:900;letter-spacing:1.5px}
+.zuno-admin-sidebar nav{display:grid;gap:5px}
+.zuno-admin-sidebar nav button{width:100%;display:flex;align-items:center;gap:12px;padding:11px 12px;border:1px solid transparent;border-radius:11px;background:transparent;color:#aaa3b6;text-align:left;font-size:12px;cursor:pointer;transition:.18s}
+.zuno-admin-sidebar nav button:hover{background:#ffffff09;color:#fff}
+.zuno-admin-sidebar nav button.active{border-color:#bd57df3d;background:linear-gradient(100deg,#a83bd529,#d34c9d12);color:#f2c5ff;box-shadow:inset 3px 0 #cf72e7}
+.zuno-admin-sidebar nav button svg{flex:0 0 auto}
+.admin-nav-soon{margin-left:auto;color:#777084;font-size:11px;font-style:normal}
+.zuno-admin-sidebar-bottom{margin-top:auto;padding:16px 9px 4px;border-top:1px solid #ffffff12;color:#d2cbd9;font-size:11px}
+.zuno-admin-sidebar-bottom .admin-online-dot{display:inline-block;margin-right:7px;vertical-align:middle}
+.zuno-admin-sidebar-bottom div{margin:6px 0 0 14px;color:#777184;font-size:10px}
+.zuno-admin-main{min-width:0;max-width:1080px}
+.zuno-admin-page-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin:4px 0 22px}
+.zuno-admin-page-heading .eyebrow{display:flex;align-items:center;gap:7px;color:#cf8ee4;font-size:10px;font-weight:900;letter-spacing:1.5px}
+.zuno-admin-page-heading h1{margin:9px 0 5px;color:#fff;font-size:clamp(27px,4vw,38px);letter-spacing:-1.4px}
+.zuno-admin-page-heading p{margin:0;color:#a39bad;font-size:13px}
+.admin-heading-actions{display:flex;align-items:center;gap:9px}
+.admin-secure-tag{display:flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid #58c99a30;border-radius:9px;background:#3bba8410;color:#9de5c4;font-size:10px;white-space:nowrap}
+.admin-refresh{display:flex;align-items:center;gap:7px;padding:9px 11px;border:1px solid #ffffff18;border-radius:9px;background:#ffffff08;color:#e8e1ed;font-size:11px;cursor:pointer}
+.zuno-admin-security-notice{display:flex;align-items:flex-start;gap:12px;margin-bottom:20px;padding:13px 15px;border:1px solid #dba44a38;border-radius:13px;background:#dba44a0d;color:#e9c78d}
+.zuno-admin-security-notice>svg{flex:0 0 auto;margin-top:1px}
+.zuno-admin-security-notice strong,.zuno-admin-security-notice span{display:block}
+.zuno-admin-security-notice strong{font-size:12px}.zuno-admin-security-notice span{margin-top:4px;color:#c6b99e;font-size:11px;line-height:1.55}
+.zuno-admin-welcome{position:relative;display:flex;align-items:center;justify-content:space-between;min-height:168px;overflow:hidden;padding:25px 29px;border:1px solid #bd65dc38;border-radius:19px;background:radial-gradient(ellipse at 85% 20%,#9d46c83b,transparent 42%),linear-gradient(115deg,#21152d,#171323 58%,#25142b)}
+.admin-welcome-kicker{color:#d995ef;font-size:9px;font-weight:900;letter-spacing:1.7px}
+.zuno-admin-welcome h2{margin:9px 0 6px;color:#fff;font-size:25px;letter-spacing:-.7px}
+.zuno-admin-welcome p{max-width:470px;margin:0;color:#bcb1c7;font-size:12px;line-height:1.6}
+.admin-welcome-art{position:relative;width:112px;height:112px;display:grid;place-items:center;margin-right:35px;border:1px solid #d68bea55;border-radius:32px;background:#ffffff0a;color:#e4a1f5;transform:rotate(-8deg)}
+.admin-welcome-art span{position:absolute;right:-12px;bottom:-10px;width:33px;height:33px;border:1px solid #e5a0f455;border-radius:50%;background:#c64ed52b}
+.zuno-admin-section-title{display:flex;align-items:flex-end;justify-content:space-between;margin:27px 0 13px}
+.zuno-admin-section-title h2{margin:0;color:#f7f2fa;font-size:16px}.zuno-admin-section-title p{margin:5px 0 0;color:#898294;font-size:11px}
+.zuno-admin-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.zuno-admin-stats article{display:flex;align-items:flex-start;gap:11px;min-width:0;padding:16px 13px;border:1px solid #ffffff12;border-radius:14px;background:linear-gradient(145deg,#171520,#111019)}
+.admin-stat-icon{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:11px}
+.admin-stat-icon.purple{background:#a65bd526;color:#d6a2f3}.admin-stat-icon.pink{background:#dc579c20;color:#ef9dc5}.admin-stat-icon.blue{background:#548edb20;color:#9bc2f5}.admin-stat-icon.orange{background:#dba44a20;color:#e9c78d}
+.zuno-admin-stats article small,.zuno-admin-stats article strong,.zuno-admin-stats article em{display:block}
+.zuno-admin-stats article small{color:#a8a1b2;font-size:10px}
+.zuno-admin-stats article strong{margin:7px 0 3px;color:#fff;font-size:23px;line-height:1.1}
+.zuno-admin-stats article em{color:#777184;font-size:9px;font-style:normal}
+.zuno-admin-stats article strong.admin-stat-pending{font-size:15px;color:#e7c98d}
+.zuno-admin-module-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.zuno-admin-module{display:flex;align-items:center;gap:13px;min-width:0;padding:15px;border:1px solid #ffffff13;border-radius:13px;background:#14121c;color:#fff;text-align:left;cursor:pointer;transition:.18s}
+.zuno-admin-module:hover{transform:translateY(-2px);border-color:#c76bdf66;background:#1b1524}
+.admin-module-icon{width:39px;height:39px;flex:0 0 auto;display:grid;place-items:center;border:1px solid #c16bdc2b;border-radius:12px;background:#a64ec21a;color:#dba2ee}
+.admin-module-copy{flex:1;min-width:0}.admin-module-copy strong,.admin-module-copy small{display:block}
+.admin-module-copy strong{font-size:12px}.admin-module-copy small{margin-top:4px;color:#938b9e;font-size:10px;line-height:1.45}
+.zuno-admin-module>svg{flex:0 0 auto;color:#82798e}
+.zuno-admin-bottom-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:15px}
+.zuno-admin-info-card{padding:16px;border:1px solid #ffffff12;border-radius:14px;background:#12111a}
+.zuno-admin-info-card>div{display:flex;align-items:center;gap:9px;color:#dca3ee}.zuno-admin-info-card>div strong{color:#eee8f3;font-size:12px}
+.zuno-admin-info-card p{min-height:42px;margin:10px 0;color:#9c95a7;font-size:10px;line-height:1.6}
+.admin-status-pending{display:inline-flex;align-items:center;gap:6px;color:#d7b97f;font-size:10px}
+.zuno-admin-workspace{min-height:440px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:35px 22px;border:1px solid #ffffff13;border-radius:19px;background:radial-gradient(ellipse at 50% 0%,#a34fc21a,transparent 55%),#12111a;text-align:center}
+.zuno-admin-workspace-icon{width:66px;height:66px;display:grid;place-items:center;margin-bottom:20px;border:1px solid #c16bdc48;border-radius:20px;background:#a64ec21a;color:#dfa2f0}
+.zuno-admin-workspace h2{margin:10px 0 6px;color:#fff;font-size:22px}.zuno-admin-workspace>p{margin:0;color:#a49cad;font-size:12px}
+.admin-workspace-checklist{display:grid;gap:12px;width:min(460px,100%);margin:25px 0;padding:17px;border:1px solid #ffffff12;border-radius:13px;background:#ffffff05;text-align:left}
+.admin-workspace-checklist>div{display:flex;align-items:flex-start;gap:9px;color:#aaa2b5;font-size:11px;line-height:1.5}
+.admin-workspace-checklist svg{flex:0 0 auto;color:#dca0ec}
+.admin-back-overview{display:flex;align-items:center;gap:7px;padding:9px 13px;border:1px solid #c56cdd55;border-radius:9px;background:#a64ec21a;color:#e6b4f3;font-size:11px;cursor:pointer}
+.admin-back-overview svg{transform:rotate(180deg)}
+@media(max-width:900px){.zuno-admin-layout{grid-template-columns:190px minmax(0,1fr);gap:17px;padding:22px 18px}.zuno-admin-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.zuno-admin-sidebar{padding:13px 9px}}
+@media(max-width:650px){
+ .zuno-admin-shell{padding-bottom:92px}.zuno-admin-topbar{padding-left:12px;padding-right:12px}.admin-account-pill{display:none}
+ .zuno-admin-layout{display:block;padding:14px 12px 30px}
+ .zuno-admin-sidebar{position:static;min-height:0;margin-bottom:20px;padding:10px;border-radius:14px}
+ .zuno-admin-sidebar-heading{display:none}.zuno-admin-nav-label,.zuno-admin-sidebar-bottom{display:none}
+ .zuno-admin-sidebar nav{display:flex;gap:7px;overflow-x:auto;padding:1px 1px 5px;scrollbar-width:none}
+ .zuno-admin-sidebar nav::-webkit-scrollbar{display:none}
+ .zuno-admin-sidebar nav button{width:auto;flex:0 0 auto;gap:7px;padding:9px 11px;font-size:10px;white-space:nowrap}
+ .zuno-admin-sidebar nav button.active{box-shadow:inset 0 -2px #cf72e7}
+ .zuno-admin-page-heading{align-items:flex-start;flex-direction:column;margin:4px 0 17px}
+ .admin-heading-actions{width:100%;justify-content:space-between}
+ .zuno-admin-security-notice{padding:11px 12px}
+ .zuno-admin-welcome{min-height:150px;padding:20px 18px}
+ .zuno-admin-welcome h2{font-size:21px}.zuno-admin-welcome p{max-width:270px;font-size:11px}
+ .admin-welcome-art{width:75px;height:75px;margin-right:4px;border-radius:23px}.admin-welcome-art svg{width:40px}
+ .zuno-admin-stats{gap:8px}.zuno-admin-stats article{gap:8px;padding:12px 9px}.admin-stat-icon{width:31px;height:31px}.zuno-admin-stats article strong{font-size:20px}
+ .zuno-admin-module-grid,.zuno-admin-bottom-grid{grid-template-columns:1fr;gap:8px}
+ .zuno-admin-module{padding:12px}.zuno-admin-info-card p{min-height:0}
+}
+@media(max-width:390px){.admin-secure-tag{font-size:9px}.admin-refresh{font-size:10px;padding:8px}.zuno-admin-stats article{display:block}.zuno-admin-stats article>div{margin-top:8px}}
