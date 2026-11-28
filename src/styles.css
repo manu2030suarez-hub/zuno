@@ -2270,3 +2270,7 @@ main.app-shell:has(> .zuno-stories) > .home-content > .empty-state{width:100%;ma
 .bot-location-picker-panel>footer span{flex:1;min-width:150px;font-size:11px}
 .bot-location-picker-panel>footer button{min-height:38px}
 @media(max-width:600px){.zuno-admin-shell .admin-bot-location-control{align-items:stretch;flex-direction:column}.bot-location-picker-panel>footer{align-items:stretch;flex-direction:column}.bot-location-picker-panel>footer span{min-height:22px}}
+
+.bot-location-pin-icon{background:transparent!important;border:0!important}
+.bot-location-pin-icon span{display:block;position:relative;width:22px;height:22px;margin:2px auto 0;background:#ef3340;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 9px #0009}
+.bot-location-pin-icon span:after{content:'';position:absolute;width:6px;height:6px;left:5px;top:5px;border-radius:50%;background:#fff}
