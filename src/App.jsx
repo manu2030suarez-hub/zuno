@@ -3,6 +3,14 @@ import { supabase, isSupabaseConfigured } from './lib/supabase'
 import { Heart, Flame, Ruler, ArrowDownRight, Clock3, Eye, EyeOff, MoreVertical, Archive, ArchiveRestore, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, ChevronLeft, LocateFixed, Route, StopCircle, Ban, Flag, SlidersHorizontal, Bell, Phone, PhoneOff, Video, MicOff, VideoOff, LayoutDashboard, Search, UserCog, Megaphone, Settings, Activity, ChevronRight, ShieldAlert, ChartNoAxesCombined, Database, Clock, CheckCircle2, CircleAlert, FileWarning, Image, LockKeyhole, Menu } from 'lucide-react'
 import L from 'leaflet'
 
+function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+  const toRad = value => Number(value) * Math.PI / 180
+  const dLat = toRad(Number(lat2) - Number(lat1))
+  const dLon = toRad(Number(lon2) - Number(lon1))
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
 function formatApproxDistance(km) {
   if (km === null || km === undefined || !Number.isFinite(Number(km))) return ''
   const meters = Math.max(0, Math.round(Number(km) * 1000))
@@ -125,6 +133,11 @@ export default function App() {
   const [adminBotsError, setAdminBotsError] = useState('')
   const [adminBotsFeedback, setAdminBotsFeedback] = useState('')
   const [adminBotEditor, setAdminBotEditor] = useState(null)
+  const [botLocationPickerOpen, setBotLocationPickerOpen] = useState(false)
+  const [botLocationDraft, setBotLocationDraft] = useState(null)
+  const botLocationMapContainerRef = useRef(null)
+  const botLocationMapRef = useRef(null)
+  const botLocationMarkerRef = useRef(null)
   const [publicPlatformSettings, setPublicPlatformSettings] = useState(null)
   const [publicPlatformSettingsLoading, setPublicPlatformSettingsLoading] = useState(true)
   const [publicPlatformSettingsError, setPublicPlatformSettingsError] = useState('')
@@ -364,6 +377,7 @@ export default function App() {
       can_initiate:false,can_send_taps:true,proactive_min_minutes:180,proactive_max_minutes:720,
       response_delay_min_seconds:20,response_delay_max_seconds:180,active_hours:'09:00-23:00',
       interaction_style:'balanced',is_active:true,is_test:false,sort_order:100,
+      latitude:null,longitude:null,
       persona:{personality:'',speaking_style:'Español rioplatense natural, cálido y coherente.',backstory:'',system_prompt:'',safety_rules:[]}
     })
   }
@@ -387,9 +401,13 @@ export default function App() {
       persona:{...(adminBotEditor.persona||{}),safety_rules:Array.isArray(adminBotEditor.persona?.safety_rules)?adminBotEditor.persona.safety_rules:String(adminBotEditor.persona?.safety_rules||'').split('\n').map(x=>x.trim()).filter(Boolean)}
     }
     const {data,error}=await supabase.rpc('admin_save_bot',{p_bot:payload})
-    setAdminBotsSaving(false)
-    if(error){setAdminBotsError(error.message||'No se pudo guardar el bot.');return}
+    if(error){setAdminBotsSaving(false);setAdminBotsError(error.message||'No se pudo guardar el bot.');return}
     const saved=Array.isArray(data)?data[0]:data
+    const {error:locationError}=await supabase.rpc('admin_set_bot_location',{p_bot_id:saved.id,p_latitude:adminBotEditor.latitude ?? null,p_longitude:adminBotEditor.longitude ?? null})
+    setAdminBotsSaving(false)
+    if(locationError){setAdminBotsError('El bot se guardó, pero no pudimos guardar su ubicación: '+locationError.message);return}
+    saved.latitude=adminBotEditor.latitude ?? null
+    saved.longitude=adminBotEditor.longitude ?? null
     setAdminBots(current=>{const rest=current.filter(item=>item.id!==saved.id);return [...rest,saved].sort((a,b)=>(a.sort_order||100)-(b.sort_order||100))})
     setAdminBotEditor(null)
     setAdminBotsFeedback('El bot se guardó correctamente.')
@@ -1665,14 +1683,21 @@ export default function App() {
       let onlineRecentlyByUser = {}
       let activityStatusByUser = {}
       const hasServerFilters = true
+      let ownMapLocation = null
+      let canShowBotDistance = false
       if (hasServerFilters) {
         if (discoveryDistanceKm) {
-          const [{data:myLocation,error:locationError},{data:myPrivacy,error:privacyError}]=await Promise.all([supabase.from('user_map_locations').select('updated_at').eq('user_id',session.user.id).maybeSingle(),supabase.from('profiles').select('show_distance,location_terms_accepted').eq('id',session.user.id).maybeSingle()])
+          const [{data:myLocation,error:locationError},{data:myPrivacy,error:privacyError}]=await Promise.all([supabase.from('user_map_locations').select('latitude,longitude,updated_at').eq('user_id',session.user.id).maybeSingle(),supabase.from('profiles').select('show_distance,location_terms_accepted').eq('id',session.user.id).maybeSingle()])
           if (locationError || privacyError || !myPrivacy?.show_distance || !myPrivacy?.location_terms_accepted || !myLocation?.updated_at || new Date(myLocation.updated_at).getTime()<Date.now()-86400000) {
             if (!active) return
-            setPeopleError('Para filtrar por distancia, activá “Mostrar distancia en perfiles” y actualizá tu ubicación. Solo se consideran personas que también habilitaron mostrar su distancia.')
+            setPeopleError('Para filtrar por distancia, activá “Mostrar distancia en perfiles” y actualizá tu ubicación.')
             setPeople([]);setPeopleLoading(false);return
           }
+          ownMapLocation = myLocation
+          canShowBotDistance = true
+        } else {
+          const [{data:myLocation},{data:myPrivacy}]=await Promise.all([supabase.from('user_map_locations').select('latitude,longitude,updated_at').eq('user_id',session.user.id).maybeSingle(),supabase.from('profiles').select('show_distance,location_terms_accepted').eq('id',session.user.id).maybeSingle()])
+          if (myPrivacy?.show_distance && myPrivacy?.location_terms_accepted && myLocation?.updated_at && new Date(myLocation.updated_at).getTime()>=Date.now()-86400000) { ownMapLocation=myLocation; canShowBotDistance=true }
         }
         const minAge=discoveryAgeMin?Number(discoveryAgeMin):null
         const maxAge=discoveryAgeMax?Number(discoveryAgeMax):null
@@ -1730,23 +1755,33 @@ export default function App() {
         let botProfiles = []
         if (view === 'home' || view === 'favorites') {
           const { data: bots, error: botsError } = await supabase.from('zuno_bots')
-            .select('id,slug,display_name,age,gender,bot_role,bio,interests,looking_for,avatar_url,is_active,sort_order,created_at')
+            .select('id,slug,display_name,age,gender,bot_role,bio,interests,looking_for,avatar_url,latitude,longitude,country,city,neighborhood,is_active,sort_order,created_at')
             .eq('is_active', true).order('sort_order', { ascending: true })
           if (!active) return
           if (botsError) console.warn('No se pudieron cargar los bots de ZUNO:', botsError.message)
-          botProfiles = (bots || []).map(bot => ({
+          botProfiles = (bots || []).map(bot => {
+            const approximateDistanceKm = canShowBotDistance && ownMapLocation && bot.latitude != null && bot.longitude != null ? calculateDistanceKm(ownMapLocation.latitude,ownMapLocation.longitude,bot.latitude,bot.longitude) : null
+            return ({
             ...bot,
             id: 'bot:' + bot.id,
+            approximateDistanceKm,
+            show_distance: approximateDistanceKm !== null,
             username: bot.slug,
             isBot: true,
             role: bot.bot_role,
             photos: bot.avatar_url ? [{ url: bot.avatar_url }] : [],
-            visibleCity: '',
+            visibleCity: [bot.neighborhood,bot.city].filter(Boolean).join(', '),
             show_location: false,
             show_online: false,
             zuno_verified: false,
             created_at: bot.created_at
-          }))
+          })}).filter(bot => {
+            if (discoveryAgeMin && Number(bot.age) < Number(discoveryAgeMin)) return false
+            if (discoveryAgeMax && Number(bot.age) > Number(discoveryAgeMax)) return false
+            if (discoveryDistanceKm && (bot.approximateDistanceKm === null || bot.approximateDistanceKm > Number(discoveryDistanceKm))) return false
+            if (discoveryOnlineRecently) return false
+            return true
+          })
         }
         setPeople([...mappedProfiles, ...botProfiles.filter(bot => !botBlockedIds.includes(bot.id))])
         setPeopleLoading(false)
@@ -3309,7 +3344,7 @@ export default function App() {
         {showLocationMenu && <div className="chat-location-menu"><strong>Compartir ubicación</strong><button type="button" onClick={sendCurrentLocation} disabled={chatMediaBusy}><MapPin size={17}/> Enviar ubicación actual</button><button type="button" onClick={()=>startLiveLocation(30)} disabled={chatMediaBusy || !!liveSharing}><Navigation size={17}/> En tiempo real · 30 minutos</button><button type="button" onClick={()=>startLiveLocation(60)} disabled={chatMediaBusy || !!liveSharing}><Navigation size={17}/> En tiempo real · 1 hora</button><small>Podés detener la ubicación en cualquier momento.</small></div>}
         <form className="chat-compose" onSubmit={sendChatMessage}><label className="chat-image-upload chat-compose-control" title="Subir fotos"><ImagePlus size={19}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={event=>{addChatImages(event.target.files);event.target.value=''}} disabled={chatDraftImages.length>=5}/></label><button type="button" className={`chat-gallery-toggle ${showChatGallery?'active':''}`} title="Reutilizar fotos anteriores" aria-label="Reutilizar fotos anteriores" disabled={!chatGallery.length} onClick={()=>setShowChatGallery(value=>!value)}><Images size={19}/></button><input value={chatDraft} onChange={event=>handleChatDraftChange(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="button" className="chat-gallery-toggle" title="Compartir ubicación" aria-label="Compartir ubicación" onClick={()=>setShowLocationMenu(value=>!value)}><MapPin size={19}/></button><button type="button" className={`chat-mic-button ${isRecording?'recording':''}`} title={isRecording?'Soltá para terminar':'Mantené presionado para grabar'} aria-label="Mantener presionado para grabar audio" disabled={!!audioDraft||chatMediaBusy} onPointerDown={startChatRecording} onPointerUp={stopChatRecording} onPointerCancel={stopChatRecording} onContextMenu={event=>event.preventDefault()}><Mic size={19}/></button><button type="submit" disabled={chatBusy||!chatDraft.trim()}><Send size={18}/></button></form>
         {isRecording && <div className="chat-recording-hint">Grabando… soltá el micrófono para terminar.</div>}
-      </section>{reportTarget && <div className="security-modal-backdrop" role="presentation"><form className="security-modal" onSubmit={submitUserReport}><div className="security-modal-heading"><h2>{reportTarget.messageId?'Denunciar mensaje':reportTarget.contentType==='story'?'Denunciar historia':'Denunciar perfil'}</h2><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)} aria-label="Cerrar"><X size={17}/></button></div><p>Tu denuncia sobre {reportTarget.display_name || 'este usuario'} será privada y revisada por el equipo de ZUNO.{reportTarget.messageId?' Se adjuntará la referencia del mensaje para que moderación pueda revisar su contexto.':''}</p><label>Motivo<select value={reportReason} onChange={event=>setReportReason(event.target.value)}><option value="fake_profile">Perfil falso o suplantación</option><option value="harassment">Acoso o amenazas</option><option value="inappropriate_content">Contenido inapropiado</option><option value="spam">Spam</option><option value="underage">Posible menor de edad</option><option value="scam">Estafa o fraude</option><option value="other">Otro motivo</option></select></label><label>Detalles (opcional)<textarea rows="4" maxLength="2000" value={reportDetails} onChange={event=>setReportDetails(event.target.value)} placeholder="Contanos qué pasó…"/></label><div className="security-modal-actions"><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)}>Cancelar</button><button type="submit" className="submit-btn" disabled={reportBusy}>{reportBusy?'Enviando…':'Enviar denuncia'}</button></div></form></div>}{locationMapOpen && <div className="zuno-location-map-backdrop" role="dialog" aria-modal="true" aria-label="Mapa de ubicación"><div className="zuno-location-map-panel"><header><div><strong>Ubicación en ZUNO</strong><small>{locationMapTarget?.label || 'Movimientos en tiempo real'}</small></div><button type="button" onClick={()=>{setLocationMapOpen(false);setLocationMapTarget(null)}} aria-label="Cerrar mapa"><X size={23}/></button></header><div ref={locationMapContainerRef} className="zuno-location-map-canvas"/></div></div>}<ZunoBottomNav view={view} setView={setView} onLogout={logout} adminVisible={String(profile?.username||'').trim().toLowerCase()==='manu.german'} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>!item.read_at).length} mapRequestCount={notifications.filter(item=>item.notification_type==='map_meetup_request'&&!item.read_at).length} albumRequestCount={notifications.filter(item=>item.notification_type==='album_access_request'&&!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+      </section>{reportTarget && <div className="security-modal-backdrop" role="presentation"><form className="security-modal" onSubmit={submitUserReport}><div className="security-modal-heading"><h2>{reportTarget.messageId?'Denunciar mensaje':reportTarget.contentType==='story'?'Denunciar historia':'Denunciar perfil'}</h2><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)} aria-label="Cerrar"><X size={17}/></button></div><p>Tu denuncia sobre {reportTarget.display_name || 'este usuario'} será privada y revisada por el equipo de ZUNO.{reportTarget.messageId?' Se adjuntará la referencia del mensaje para que moderación pueda revisar su contexto.':''}</p><label>Motivo<select value={reportReason} onChange={event=>setReportReason(event.target.value)}><option value="fake_profile">Perfil falso o suplantación</option><option value="harassment">Acoso o amenazas</option><option value="inappropriate_content">Contenido inapropiado</option><option value="spam">Spam</option><option value="underage">Posible menor de edad</option><option value="scam">Estafa o fraude</option><option value="other">Otro motivo</option></select></label><label>Detalles (opcional)<textarea rows="4" maxLength="2000" value={reportDetails} onChange={event=>setReportDetails(event.target.value)} placeholder="Contanos qué pasó…"/></label><div className="security-modal-actions"><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)}>Cancelar</button><button type="submit" className="submit-btn" disabled={reportBusy}>{reportBusy?'Enviando…':'Enviar denuncia'}</button></div></form></div>}{botLocationPickerOpen && <div className="zuno-location-map-backdrop bot-location-picker-backdrop" role="dialog" aria-modal="true" aria-label="Elegir ubicación del bot"><div className="zuno-location-map-panel bot-location-picker-panel"><header><div><strong>Ubicación del bot</strong><small>Hacé clic en el mapa para elegir dónde aparecerá en Explorar</small></div><button type="button" onClick={()=>setBotLocationPickerOpen(false)} aria-label="Cerrar mapa"><X size={23}/></button></header><div ref={botLocationMapContainerRef} className="zuno-location-map-canvas bot-location-picker-canvas"/><footer><span>{botLocationDraft ? `${Number(botLocationDraft.latitude).toFixed(5)}, ${Number(botLocationDraft.longitude).toFixed(5)}` : 'Seleccioná un punto en el mapa'}</span><button type="button" className="logout-btn" onClick={()=>setBotLocationDraft(null)}>Quitar ubicación</button><button type="button" className="submit-btn" disabled={!botLocationDraft} onClick={()=>{setAdminBotEditor(current=>({...current,latitude:botLocationDraft.latitude,longitude:botLocationDraft.longitude}));setBotLocationPickerOpen(false)}}>Usar esta ubicación</button></footer></div></div>}{locationMapOpen && <div className="zuno-location-map-backdrop" role="dialog" aria-modal="true" aria-label="Mapa de ubicación"><div className="zuno-location-map-panel"><header><div><strong>Ubicación en ZUNO</strong><small>{locationMapTarget?.label || 'Movimientos en tiempo real'}</small></div><button type="button" onClick={()=>{setLocationMapOpen(false);setLocationMapTarget(null)}} aria-label="Cerrar mapa"><X size={23}/></button></header><div ref={locationMapContainerRef} className="zuno-location-map-canvas"/></div></div>}<ZunoBottomNav view={view} setView={setView} onLogout={logout} adminVisible={String(profile?.username||'').trim().toLowerCase()==='manu.german'} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>!item.read_at).length} mapRequestCount={notifications.filter(item=>item.notification_type==='map_meetup_request'&&!item.read_at).length} albumRequestCount={notifications.filter(item=>item.notification_type==='album_access_request'&&!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
   )
 
@@ -3548,6 +3583,7 @@ export default function App() {
                       ['display_name','Nombre','text'],['slug','Identificador (sin espacios)','text'],['age','Edad','number'],['gender','Género','text'],['bot_role','Rol en ZUNO','text'],['country','País','text'],['city','Ciudad','text'],['neighborhood','Barrio','text'],['street','Calle ficticia','text'],['occupation','Trabajo / profesión','text'],['workplace','Lugar de trabajo ficticio','text'],['employed_since','Desde cuándo trabaja','date'],['work_schedule','Horarios de trabajo','text'],['education','Estudios','text'],['avatar_url','URL de foto','url']
                     ].map(([key,label,type])=><label className="admin-communication-field" key={key}>{label}<input type={type} value={adminBotEditor[key]??''} onChange={event=>setAdminBotEditor(current=>({...current,[key]:event.target.value}))} required={['display_name','slug','age'].includes(key)} /></label>)}
                   </div>
+                  <div className="admin-bot-location-control"><div><strong><MapPin size={16}/> Ubicación para Explorar</strong><small>{adminBotEditor.latitude != null && adminBotEditor.longitude != null ? `Punto elegido: ${Number(adminBotEditor.latitude).toFixed(5)}, ${Number(adminBotEditor.longitude).toFixed(5)}` : 'Todavía no configuraste una ubicación para este bot.'}</small></div><button type="button" className="admin-refresh" onClick={()=>{setBotLocationDraft(adminBotEditor.latitude != null && adminBotEditor.longitude != null ? {latitude:Number(adminBotEditor.latitude),longitude:Number(adminBotEditor.longitude)} : null);setBotLocationPickerOpen(true)}}><MapPin size={16}/>{adminBotEditor.latitude != null ? 'Cambiar ubicación' : 'Agregar ubicación'}</button></div>
                   <label className="admin-communication-field">Biografía<textarea rows={3} value={adminBotEditor.bio||''} onChange={event=>setAdminBotEditor(current=>({...current,bio:event.target.value}))}/></label>
                   <label className="admin-communication-field">Intereses (separados por comas)<input value={(adminBotEditor.interests||[]).join(', ')} onChange={event=>setAdminBotEditor(current=>({...current,interests:event.target.value.split(',').map(x=>x.trim()).filter(Boolean)}))}/></label>
                   <label className="admin-communication-field">Qué busca (separado por comas)<input value={(adminBotEditor.looking_for||[]).join(', ')} onChange={event=>setAdminBotEditor(current=>({...current,looking_for:event.target.value.split(',').map(x=>x.trim()).filter(Boolean)}))}/></label>
