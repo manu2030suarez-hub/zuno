@@ -2274,3 +2274,48 @@ main.app-shell:has(> .zuno-stories) > .home-content > .empty-state{width:100%;ma
 .bot-location-pin-icon{background:transparent!important;border:0!important}
 .bot-location-pin-icon span{display:block;position:relative;width:22px;height:22px;margin:2px auto 0;background:#ef3340;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 9px #0009}
 .bot-location-pin-icon span:after{content:'';position:absolute;width:6px;height:6px;left:5px;top:5px;border-radius:50%;background:#fff}
+
+
+/* El selector de ubicación mantiene siempre visibles sus controles */
+.bot-location-picker-panel{
+  display:flex!important;
+  flex-direction:column!important;
+  height:100dvh!important;
+  min-height:0!important;
+}
+.bot-location-picker-panel>header{
+  position:relative!important;
+  inset:auto!important;
+  z-index:10000!important;
+  flex:0 0 auto!important;
+  margin:12px!important;
+}
+.bot-location-picker-panel>.bot-location-picker-canvas{
+  position:relative!important;
+  inset:auto!important;
+  z-index:1!important;
+  width:100%!important;
+  height:auto!important;
+  min-height:320px!important;
+  flex:1 1 auto!important;
+}
+.bot-location-picker-panel>footer{
+  position:relative!important;
+  z-index:10000!important;
+  flex:0 0 auto!important;
+  display:flex!important;
+  visibility:visible!important;
+  opacity:1!important;
+  pointer-events:auto!important;
+  padding-bottom:max(12px,env(safe-area-inset-bottom))!important;
+}
+.bot-location-picker-panel>footer button{
+  position:relative!important;
+  z-index:10001!important;
+  visibility:visible!important;
+  opacity:1!important;
+  pointer-events:auto!important;
+}
+@media(max-width:600px){
+  .bot-location-picker-panel>footer{align-items:stretch!important;flex-direction:column!important}
+}
