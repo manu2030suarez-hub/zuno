@@ -14,6 +14,20 @@ function readDefaultKey(pluralName: string, legacyName: string): string | null {
   }
   return Deno.env.get(legacyName) || null;
 }
+function applyNoviceWritingStyle(value: string): string {
+  return value
+    // Novato: estilo de chat simple y visiblemente informal, sin cambiar el sentido.
+    .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "")
+    .replace(/[¿¡]/g, "")
+    .replace(/,\\s*/g, " ")
+    .replace(/\\bpara\\b/gi, "pa")
+    .replace(/\\bporque\\b/gi, "xq")
+    .replace(/\\btambien\\b/gi, "tambien")
+    .replace(/\\b(estas|estás)\\b/gi, "tas")
+    .replace(/\\s{2,}/g, " ")
+    .trim();
+}
+
 async function rest(url: string, secret: string, path: string, init: RequestInit = {}) {
   return await fetch(url + "/rest/v1/" + path, {
     ...init,
@@ -222,7 +236,8 @@ Deno.serve(async (req: Request) => {
       console.error("OpenAI devolvió una respuesta que no se pudo interpretar como JSON.");
       throw new Error("La IA devolvió una respuesta con formato inválido.");
     }
-    const reply = String(generated.reply || "").trim().slice(0, 4000);
+    const rawReply = String(generated.reply || "").trim().slice(0, 4000);
+    const reply = (botDifficulty === "novato" ? applyNoviceWritingStyle(rawReply) : rawReply).slice(0, 4000);
     const memorySummary = String(generated.memory_summary || conversation.context_summary || "").trim().slice(0, 1800);
     if (!reply) throw new Error("La IA devolvió una respuesta vacía.");
 
