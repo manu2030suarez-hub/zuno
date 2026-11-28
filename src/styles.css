@@ -1226,7 +1226,7 @@ button{touch-action:manipulation}
 /* ZUNO member profile: immersive photo viewer inspired by the supplied reference */
 .profile-detail-shell{padding:0 0 80px}
 .profile-detail-screen{width:min(100%,760px);max-width:760px;min-height:0;margin:0 auto;padding:0 0 34px}
-.profile-photo-stage{position:relative;width:100%;height:min(78dvh,820px);min-height:510px;overflow:hidden;background:#08080b;color:#fff;isolation:isolate}
+.profile-photo-stage{position:relative;width:100%;height:min(78dvh,820px);min-height:510px;overflow:hidden;background:#08080b;color:#fff;isolation:isolate;touch-action:none}
 .profile-stage-image{display:block;width:100%;height:100%;object-fit:cover;object-position:center;cursor:zoom-in}
 .profile-stage-empty{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#b8adbf;background:linear-gradient(145deg,#201827,#08080b)}
 .profile-stage-top{position:absolute;z-index:3;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:calc(env(safe-area-inset-top) + 14px) 17px 15px;background:linear-gradient(#0008,transparent)}
