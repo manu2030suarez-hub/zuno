@@ -69,6 +69,16 @@ export default function App() {
   const [adminUserMedia, setAdminUserMedia] = useState([])
   const [adminUserMediaLoading, setAdminUserMediaLoading] = useState(false)
   const [adminUserMediaError, setAdminUserMediaError] = useState('')
+  const [adminReports, setAdminReports] = useState([])
+  const [adminReportsLoading, setAdminReportsLoading] = useState(false)
+  const [adminReportsError, setAdminReportsError] = useState('')
+  const [adminReportsFilter, setAdminReportsFilter] = useState('all')
+  const [adminReportsRefresh, setAdminReportsRefresh] = useState(0)
+  const [adminReportBusy, setAdminReportBusy] = useState('')
+  const [adminRetainedMessages, setAdminRetainedMessages] = useState([])
+  const [adminRetainedLoading, setAdminRetainedLoading] = useState(false)
+  const [adminRetainedError, setAdminRetainedError] = useState('')
+  const [adminRetainedRefresh, setAdminRetainedRefresh] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -147,6 +157,62 @@ export default function App() {
     loadAdminUsers()
     return () => { active = false }
   }, [view, adminAuthorized, adminSection, adminUsersRefresh])
+  useEffect(() => {
+    let active = true
+    async function loadAdminReports() {
+      if (view !== 'admin' || !adminAuthorized || adminSection !== 'reports') return
+      setAdminReportsLoading(true)
+      setAdminReportsError('')
+      const { data, error: listError } = await supabase.rpc('admin_list_user_reports', {
+        p_status: adminReportsFilter === 'all' ? null : adminReportsFilter,
+        p_limit: 100,
+        p_offset: 0
+      })
+      if (!active) return
+      if (listError) {
+        setAdminReportsError(listError.message || 'No se pudieron cargar las denuncias.')
+        setAdminReports([])
+      } else setAdminReports(Array.isArray(data) ? data : [])
+      setAdminReportsLoading(false)
+    }
+    loadAdminReports()
+    return () => { active = false }
+  }, [view, adminAuthorized, adminSection, adminReportsFilter, adminReportsRefresh])
+
+  useEffect(() => {
+    let active = true
+    async function loadAdminRetainedMessages() {
+      if (view !== 'admin' || !adminAuthorized || adminSection !== 'content') return
+      setAdminRetainedLoading(true)
+      setAdminRetainedError('')
+      const { data, error: listError } = await supabase.rpc('admin_list_retained_chat_messages', {
+        p_limit: 100,
+        p_offset: 0
+      })
+      if (!active) return
+      if (listError) {
+        setAdminRetainedError(listError.message || 'No se pudieron cargar los mensajes conservados.')
+        setAdminRetainedMessages([])
+      } else setAdminRetainedMessages(Array.isArray(data) ? data : [])
+      setAdminRetainedLoading(false)
+    }
+    loadAdminRetainedMessages()
+    return () => { active = false }
+  }, [view, adminAuthorized, adminSection, adminRetainedRefresh])
+
+  async function updateAdminReport(reportId, nextStatus) {
+    if (!reportId || adminReportBusy) return
+    setAdminReportBusy(reportId)
+    const { error: updateError } = await supabase.rpc('admin_update_user_report', {
+      p_report_id: reportId,
+      p_status: nextStatus,
+      p_admin_note: null
+    })
+    if (updateError) setAdminReportsError(updateError.message || 'No se pudo actualizar la denuncia.')
+    else setAdminReportsRefresh(value => value + 1)
+    setAdminReportBusy('')
+  }
+
   useEffect(() => {
     let active = true
     async function checkPolicyAcceptance() {
@@ -2716,6 +2782,41 @@ export default function App() {
                 </section>
                 <div className="admin-users-placeholder"><ShieldAlert size={19}/><div><strong>Mensajes privados todavía protegidos</strong><p>Las conversaciones no se muestran desde esta ficha. Para revisarlas, primero conectaremos el acceso a contenido denunciado, con registro de auditoría y controles específicos. El material íntimo sospechoso o posiblemente relacionado con menores no se expondrá en una galería administrativa.</p></div></div>
               </div> : adminUsers.length ? <div className="admin-users-list">{adminUsers.map(user=><button type="button" key={user.id} className="admin-user-row" onClick={()=>setAdminSelectedUser(user)}><ProfileAvatar person={user} className="admin-user-row-avatar"/><span className="admin-user-row-copy"><strong>{user.display_name || 'Sin nombre'}</strong><small>@{user.username || 'sin-usuario'} · {user.created_at ? new Date(user.created_at).toLocaleDateString('es-UY') : 'Fecha no disponible'}</small></span>{user.zuno_verified && <span className="admin-user-verified"><CheckCircle2 size={14}/> Verificado</span>}<ChevronRight size={18}/></button>)}</div> : <div className="admin-users-empty"><Users size={24}/><strong>No se encontraron usuarios</strong><span>Probá con otro nombre o usuario.</span></div>}
+            </section> : adminSection==='reports' ? <section className="admin-moderation-workspace">
+              <div className="admin-users-toolbar">
+                <div><span className="admin-welcome-kicker">SEGURIDAD DE LA COMUNIDAD</span><h2>Denuncias recibidas</h2><p>Reportes privados. Cada consulta y cambio de estado queda registrado.</p></div>
+                <button type="button" className="admin-refresh" onClick={()=>setAdminReportsRefresh(value=>value+1)} disabled={adminReportsLoading}><RefreshCw size={15}/> Actualizar</button>
+              </div>
+              <div className="admin-moderation-filters">
+                <label htmlFor="admin-report-filter">Estado</label>
+                <select id="admin-report-filter" value={adminReportsFilter} onChange={event=>setAdminReportsFilter(event.target.value)}>
+                  <option value="all">Todas</option><option value="pending">Pendientes</option><option value="reviewed">En revisión</option><option value="resolved">Resueltas</option><option value="dismissed">Descartadas</option>
+                </select>
+                <span>{adminReports.length} denuncias</span>
+              </div>
+              {adminReportsError && <div className="admin-users-error"><CircleAlert size={16}/>{adminReportsError}</div>}
+              {adminReportsLoading ? <div className="admin-users-empty"><RefreshCw size={20}/> Cargando denuncias...</div> : adminReports.length ? <div className="admin-report-list">{adminReports.map(report=><article className="admin-report-card" key={report.report_id}>
+                <div className="admin-report-head"><div><strong>{report.reason || 'Motivo no especificado'}</strong><small>{report.created_at ? new Date(report.created_at).toLocaleString('es-UY') : 'Fecha no disponible'}</small></div><span className={'admin-report-status status-'+(report.status||'pending')}>{({pending:'Pendiente',reviewed:'En revisión',resolved:'Resuelta',dismissed:'Descartada'})[report.status] || report.status || 'Pendiente'}</span></div>
+                <div className="admin-report-people"><div><small>Denunciante</small><strong>{report.reporter_display_name || 'Usuario'} {report.reporter_username ? '@'+report.reporter_username : ''}</strong><code>{report.reporter_id}</code></div><div><small>Cuenta denunciada</small><strong>{report.reported_display_name || 'Usuario'} {report.reported_username ? '@'+report.reported_username : ''}</strong><code>{report.reported_user_id}</code></div></div>
+                <p className="admin-report-details">{report.details || 'La denuncia no incluye detalles adicionales.'}</p>
+                <div className="admin-report-actions">
+                  <button type="button" disabled={adminReportBusy===report.report_id || report.status==='reviewed'} onClick={()=>updateAdminReport(report.report_id,'reviewed')}>Marcar en revisión</button>
+                  <button type="button" disabled={adminReportBusy===report.report_id || report.status==='resolved'} onClick={()=>updateAdminReport(report.report_id,'resolved')}>Resolver</button>
+                  <button type="button" className="subtle" disabled={adminReportBusy===report.report_id || report.status==='dismissed'} onClick={()=>updateAdminReport(report.report_id,'dismissed')}>Descartar</button>
+                </div>
+              </article>)}</div> : <div className="admin-users-empty"><Flag size={24}/><strong>No hay denuncias para mostrar</strong><span>Cuando una persona denuncie una cuenta, aparecerá acá.</span></div>}
+            </section> : adminSection==='content' ? <section className="admin-moderation-workspace">
+              <div className="admin-users-toolbar">
+                <div><span className="admin-welcome-kicker">REGISTRO PRIVADO Y AUDITADO</span><h2>Mensajes conservados</h2><p>Mensajes vencidos o eliminados para todos que fueron archivados antes de retirarse del chat.</p></div>
+                <button type="button" className="admin-refresh" onClick={()=>setAdminRetainedRefresh(value=>value+1)} disabled={adminRetainedLoading}><RefreshCw size={15}/> Actualizar</button>
+              </div>
+              <div className="admin-retention-notice"><ShieldCheck size={18}/><span>El acceso queda registrado. Esta vista muestra texto y metadatos; no abre automáticamente archivos privados ni álbumes.</span></div>
+              {adminRetainedError && <div className="admin-users-error"><CircleAlert size={16}/>{adminRetainedError}</div>}
+              {adminRetainedLoading ? <div className="admin-users-empty"><RefreshCw size={20}/> Cargando mensajes conservados...</div> : adminRetainedMessages.length ? <div className="admin-retained-list">{adminRetainedMessages.map(item=><article className="admin-retained-card" key={item.original_message_id}>
+                <div className="admin-report-head"><div><strong>{item.message_type || 'Mensaje'}</strong><small>{item.original_created_at ? new Date(item.original_created_at).toLocaleString('es-UY') : 'Fecha no disponible'}</small></div><span className="admin-report-status">{item.deletion_reason==='expired'?'Venció':'Eliminado para todos'}</span></div>
+                <p className="admin-retained-body">{item.body || (item.has_media ? 'Este mensaje contenía un archivo adjunto.' : 'Mensaje sin texto.')}</p>
+                <div className="admin-retained-meta"><span>Remitente: <code>{item.sender_id}</code></span><span>Conversación: <code>{item.conversation_id}</code></span><span>Conservado: {item.preserved_at ? new Date(item.preserved_at).toLocaleString('es-UY') : '—'}</span><span>Retención hasta: {item.retention_until ? new Date(item.retention_until).toLocaleString('es-UY') : '—'}</span></div>
+              </article>)}</div> : <div className="admin-users-empty"><MessageCircle size={24}/><strong>No hay mensajes conservados</strong><span>Los mensajes aparecerán acá cuando hayan sido archivados por el sistema.</span></div>}
             </section> : <div className="zuno-admin-workspace">
               <div className="zuno-admin-workspace-icon"><AdminIcon size={28}/></div>
               <span className="admin-welcome-kicker">MÓDULO DE ADMINISTRACIÓN</span>
