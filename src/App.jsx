@@ -114,6 +114,12 @@ export default function App() {
   const [adminSecurityError, setAdminSecurityError] = useState('')
   const [adminSecurityFilter, setAdminSecurityFilter] = useState('all')
   const [adminSecurityRefresh, setAdminSecurityRefresh] = useState(0)
+  const [adminPlatformSettings, setAdminPlatformSettings] = useState({ platform_name: 'ZUNO', platform_description: 'Conectá, chateá y descubrí personas.', registration_enabled: true, maintenance_mode: false, maintenance_message: 'Estamos realizando mejoras. Volvé a intentarlo en unos minutos.' })
+  const [adminPlatformLoading, setAdminPlatformLoading] = useState(false)
+  const [adminPlatformSaving, setAdminPlatformSaving] = useState(false)
+  const [adminPlatformError, setAdminPlatformError] = useState('')
+  const [adminPlatformFeedback, setAdminPlatformFeedback] = useState('')
+  const [publicPlatformSettings, setPublicPlatformSettings] = useState(null)
 
   useEffect(() => {
     let active = true
@@ -283,6 +289,58 @@ export default function App() {
     loadCommunicationHistory()
     return () => { active = false }
   }, [view, adminAuthorized, adminSection])
+
+  useEffect(() => {
+    let active = true
+    supabase.rpc('zuno_get_platform_settings').then(({ data, error }) => {
+      if (!active) return
+      if (!error && data) setPublicPlatformSettings(Array.isArray(data) ? data[0] : data)
+    })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    async function loadAdminPlatformSettings() {
+      if (view !== 'admin' || !adminAuthorized || adminSection !== 'settings') return
+      setAdminPlatformLoading(true)
+      setAdminPlatformError('')
+      setAdminPlatformFeedback('')
+      const { data, error } = await supabase.rpc('admin_get_platform_settings')
+      if (!active) return
+      if (error) setAdminPlatformError(error.message || 'No se pudo cargar la configuración.')
+      else {
+        const settings = Array.isArray(data) ? data[0] : data
+        if (settings) setAdminPlatformSettings(settings)
+      }
+      setAdminPlatformLoading(false)
+    }
+    loadAdminPlatformSettings()
+    return () => { active = false }
+  }, [view, adminAuthorized, adminSection])
+
+  async function saveAdminPlatformSettings(event) {
+    event.preventDefault()
+    setAdminPlatformSaving(true)
+    setAdminPlatformError('')
+    setAdminPlatformFeedback('')
+    const { data, error } = await supabase.rpc('admin_update_platform_settings', {
+      p_platform_name: adminPlatformSettings.platform_name,
+      p_platform_description: adminPlatformSettings.platform_description,
+      p_registration_enabled: adminPlatformSettings.registration_enabled,
+      p_maintenance_mode: adminPlatformSettings.maintenance_mode,
+      p_maintenance_message: adminPlatformSettings.maintenance_message
+    })
+    setAdminPlatformSaving(false)
+    if (error) {
+      setAdminPlatformError(error.message || 'No se pudieron guardar los cambios.')
+      return
+    }
+    const saved = Array.isArray(data) ? data[0] : data
+    if (saved) setAdminPlatformSettings(saved)
+    setPublicPlatformSettings(saved || adminPlatformSettings)
+    setAdminPlatformFeedback('La configuración de ZUNO se guardó correctamente.')
+  }
 
   useEffect(() => {
     let active = true
@@ -2545,6 +2603,7 @@ export default function App() {
     setMessage(''); setError('')
     if (!isSupabaseConfigured) { setError('La conexión con Supabase todavía no está configurada.'); return }
     if (password.length < 8) { setError('La contraseña debe tener al menos 8 caracteres.'); return }
+    if (mode === 'signup' && publicPlatformSettings?.registration_enabled === false) { setError('En este momento ZUNO no está aceptando nuevos registros.'); return }
     if (mode === 'signup' && !displayName.trim()) { setError('Escribí cómo querés que te llamemos.'); return }
     if (mode === 'signup' && !locationTermsAccepted) { setError('Para crear tu cuenta tenés que aceptar los términos y condiciones.'); return }
     const identifier = email.trim()
@@ -3138,6 +3197,25 @@ export default function App() {
                   {adminSecurityLoading ? <div className="admin-users-empty"><RefreshCw size={18}/> Cargando actividad...</div> : adminSecurityEvents.length ? <div className="admin-security-event-list">{adminSecurityEvents.map(item=><article key={item.source+'-'+item.event_id}><div className="admin-security-event-heading"><strong>{String(item.action||'Actividad').replaceAll('_',' ')}</strong><span>{item.source==='moderation'?'Moderación':item.source==='access'?'Acceso a perfil':'Mensajes conservados'}</span></div><div className="admin-security-event-meta"><span>Administrador: <code>{item.admin_user_id||'—'}</code></span><time>{item.created_at?new Date(item.created_at).toLocaleString('es-UY'):'Fecha no disponible'}</time></div><details><summary>Ver detalles del evento</summary><pre>{JSON.stringify(item.details||{},null,2)}</pre></details></article>)}</div> : <div className="admin-users-empty"><Activity size={22}/><strong>No hay eventos para este filtro</strong><span>Las nuevas acciones administrativas aparecerán acá.</span></div>}
                 </div>
               </>}
+            </section> : adminSection==='settings' ? <section className="admin-moderation-workspace admin-platform-settings">
+              <div className="admin-users-toolbar"><div><span className="admin-welcome-kicker">PREFERENCIAS GENERALES</span><h2>Configuración de ZUNO</h2><p>Controlá la identidad, el registro y la disponibilidad de la plataforma.</p></div><button type="button" className="admin-refresh" onClick={()=>setAdminSection('settings')}><RefreshCw size={15}/> Recargar</button></div>
+              {adminPlatformLoading ? <div className="admin-users-empty">Cargando configuración...</div> : <form className="admin-platform-settings-form" onSubmit={saveAdminPlatformSettings}>
+                <section className="admin-platform-settings-card"><div className="admin-platform-settings-card-heading"><span><Settings size={19}/></span><div><h3>Identidad de la plataforma</h3><p>Nombre y descripción que identifican a ZUNO.</p></div></div>
+                  <label className="admin-communication-field">Nombre de la plataforma<input value={adminPlatformSettings.platform_name||''} maxLength={60} required onChange={event=>setAdminPlatformSettings(current=>({...current,platform_name:event.target.value}))}/></label>
+                  <label className="admin-communication-field">Descripción<input value={adminPlatformSettings.platform_description||''} maxLength={180} onChange={event=>setAdminPlatformSettings(current=>({...current,platform_description:event.target.value}))}/></label>
+                </section>
+                <section className="admin-platform-settings-card"><div className="admin-platform-settings-card-heading"><span><Users size={19}/></span><div><h3>Registro de usuarios</h3><p>Decidí si se pueden crear nuevas cuentas.</p></div></div>
+                  <label className="admin-platform-toggle"><span><strong>Permitir nuevos registros</strong><small>Si lo desactivás, las personas podrán iniciar sesión, pero no crear cuentas nuevas.</small></span><input type="checkbox" checked={Boolean(adminPlatformSettings.registration_enabled)} onChange={event=>setAdminPlatformSettings(current=>({...current,registration_enabled:event.target.checked}))}/></label>
+                </section>
+                <section className="admin-platform-settings-card"><div className="admin-platform-settings-card-heading"><span><ShieldAlert size={19}/></span><div><h3>Modo mantenimiento</h3><p>Mostrá un aviso y bloqueá el acceso normal a la interfaz mientras trabajás en ZUNO.</p></div></div>
+                  <label className="admin-platform-toggle"><span><strong>Activar modo mantenimiento</strong><small>Tu cuenta de administrador seguirá pudiendo entrar al panel.</small></span><input type="checkbox" checked={Boolean(adminPlatformSettings.maintenance_mode)} onChange={event=>setAdminPlatformSettings(current=>({...current,maintenance_mode:event.target.checked}))}/></label>
+                  <label className="admin-communication-field">Mensaje para los usuarios<textarea rows={3} maxLength={500} value={adminPlatformSettings.maintenance_message||''} onChange={event=>setAdminPlatformSettings(current=>({...current,maintenance_message:event.target.value}))}/></label>
+                  {adminPlatformSettings.maintenance_mode && <div className="admin-platform-maintenance-preview"><ShieldAlert size={17}/><span><strong>Vista previa del aviso</strong>{adminPlatformSettings.maintenance_message}</span></div>}
+                </section>
+                {adminPlatformError && <div className="admin-users-error"><CircleAlert size={16}/>{adminPlatformError}</div>}
+                {adminPlatformFeedback && <div className="admin-communication-success"><CheckCircle2 size={17}/>{adminPlatformFeedback}</div>}
+                <div className="admin-platform-settings-actions"><small>Los cambios se guardan en Supabase y se aplican al actualizar la plataforma.</small><button type="submit" className="admin-back-overview" disabled={adminPlatformSaving || !adminPlatformSettings.platform_name?.trim()}><CheckCircle2 size={17}/>{adminPlatformSaving?'Guardando...':'Guardar configuración'}</button></div>
+              </form>}
             </section> : <div className="zuno-admin-workspace">
               <div className="zuno-admin-workspace-icon"><AdminIcon size={28}/></div>
               <span className="admin-welcome-kicker">MÓDULO DE ADMINISTRACIÓN</span>
@@ -3288,6 +3366,10 @@ export default function App() {
     </main>
   )
 
+  if (publicPlatformSettings?.maintenance_mode && !(session?.user && String(profile?.username||'').trim().toLowerCase()==='manu.german')) return (
+    <main className="app-shell zuno-maintenance-screen"><div className="zuno-maintenance-card"><span className="zuno-maintenance-icon"><Settings size={30}/></span><span className="admin-welcome-kicker">ZUNO · EN MANTENIMIENTO</span><h1>Volvemos enseguida.</h1><p>{publicPlatformSettings.maintenance_message || 'Estamos realizando mejoras. Volvé a intentarlo en unos minutos.'}</p></div></main>
+  )
+
   return (
     <main className="app-shell">{callOverlay}
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><span className="top-note">CONEXIONES AUTÉNTICAS</span></header>
@@ -3303,9 +3385,9 @@ export default function App() {
           <div className="orb orb-one"/><div className="orb orb-two"/>
         </div>
         <div className="auth-wrap"><div className="auth-card auth-card-neon"><div className="card-icon"><Heart size={21} fill="currentColor"/></div><h2>{mode === 'signup' ? 'Creá tu cuenta' : 'Bienvenido de nuevo'}</h2><p className="card-sub">{mode === 'signup' ? 'Tu próxima conexión empieza acá.' : 'Iniciá sesión para continuar.'}</p>
-          <div className="mode-switch" role="tablist" aria-label="Acceso a ZUNO"><button type="button" role="tab" aria-selected={mode === 'signup'} className={mode === 'signup' ? 'active' : ''} onClick={()=>{setMode('signup');setError('');setMessage('');setVerificationEmail('')}}>Crear cuenta</button><button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'active' : ''} onClick={()=>{setMode('login');setError('');setMessage('');setVerificationEmail('')}}>Iniciar sesión</button></div>
+          <div className="mode-switch" role="tablist" aria-label="Acceso a ZUNO"><button type="button" role="tab" aria-selected={mode === 'signup'} className={mode === 'signup' ? 'active' : ''} onClick={()=>{if(publicPlatformSettings?.registration_enabled===false)return;setMode('signup');setError('');setMessage('');setVerificationEmail('')}} disabled={publicPlatformSettings?.registration_enabled===false}>Crear cuenta</button><button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'active' : ''} onClick={()=>{setMode('login');setError('');setMessage('');setVerificationEmail('')}}>Iniciar sesión</button></div>
           <form onSubmit={handleSubmit}>
-            {mode === 'signup' && <><label htmlFor="displayName">¿Cómo querés que te llamemos?</label><input id="displayName" value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="Tu nombre para mostrar" required maxLength={40}/></>}
+            {mode === 'signup' && publicPlatformSettings?.registration_enabled === false ? <div className="notice error">ZUNO no está aceptando nuevos registros en este momento.</div> : mode === 'signup' && <><label htmlFor="displayName">¿Cómo querés que te llamemos?</label><input id="displayName" value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="Tu nombre para mostrar" required maxLength={40}/></>}
             <label htmlFor="email">Correo electrónico</label><input id="email" type="email" autoComplete="email" placeholder="tu@email.com" value={email} onChange={e=>setEmail(e.target.value)} required/>
             <label htmlFor="password">Contraseña</label><div className="password-field"><input id="password" type={showPassword?'text':'password'} autoComplete={mode==='signup'?'new-password':'current-password'} placeholder="Mínimo 8 caracteres" value={password} onChange={e=>setPassword(e.target.value)} required minLength={8}/><button type="button" aria-label={showPassword?'Ocultar contraseña':'Mostrar contraseña'} onClick={()=>setShowPassword(!showPassword)}>{showPassword?<EyeOff size={18}/>:<Eye size={18}/>}</button></div>
             {mode === 'signup' && <label className="signup-terms-check"><input type="checkbox" checked={locationTermsAccepted} onChange={e=>setLocationTermsAccepted(e.target.checked)}/><span>Acepto los <button type="button" className="terms-inline-link" onClick={()=>setShowTermsModal(true)}>términos y condiciones</button> de ZUNO.</span></label>}
