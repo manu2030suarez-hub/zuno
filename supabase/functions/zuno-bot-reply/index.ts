@@ -25,7 +25,7 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Método no permitido." }, 405);
   try {
     const authorization = req.headers.get("Authorization") || "";
-    const accessToken = authorization.match(/^Bearer\\s+(.+)$/i)?.[1];
+    const accessToken = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
     if (!accessToken) return json({ error: "Tenés que iniciar sesión." }, 401);
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const secret = readDefaultKey("SUPABASE_SECRET_KEYS", "SUPABASE_SERVICE_ROLE_KEY");
