@@ -1,10 +1,8 @@
 -- ZUNO: reliable meetup invites, RLS-safe validation, and activity notifications.
+-- Notification types are extensible; do not restrict the table to a
+-- short allow-list that can reject existing or future notification types.
 alter table public.notifications
   drop constraint if exists notifications_notification_type_check;
-
-alter table public.notifications
-  add constraint notifications_notification_type_check
-  check (notification_type in ('favorite','album_access_request','map_meetup_request'));
 
 drop policy if exists "Users can invite visible map members"
   on public.map_meetup_requests;
