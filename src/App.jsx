@@ -3390,7 +3390,8 @@ export default function App() {
       content:['Mensajes conservados','Mensajes archivados con acceso administrativo auditado.'],
       announcements:['Comunicaciones','Prepará avisos para toda la comunidad.'],
       security:['Seguridad y auditoría','Permisos, actividad administrativa y controles.'],
-      bots:['Administración de bots','Creá personajes, definí sus historias y configurá cómo interactúan.'],\n      settings:['Configuración de ZUNO','Parámetros generales de la plataforma.']
+      bots:['Administración de bots','Creá personajes, definí sus historias y configurá cómo interactúan.'],
+      settings:['Configuración de ZUNO','Parámetros generales de la plataforma.']
     }
     const currentAdminTitle = adminTitles[adminSection] || adminTitles.overview
     const adminModules = [
