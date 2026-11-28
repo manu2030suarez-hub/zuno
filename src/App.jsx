@@ -1506,15 +1506,30 @@ export default function App() {
   }
 
   async function respondMapMeetup(request,status) {
-    if (!request || mapInviteBusy) return
+    if (!request || mapInviteBusy || !['accepted','rejected','ignored'].includes(status)) return
     setMapInviteBusy(true)
-    const {error}=await supabase.from('map_meetup_requests').update({status,updated_at:new Date().toISOString()}).eq('id',request.id).eq('receiver_id',session.user.id)
-    if(error){setMapStatus('No pudimos responder: '+error.message);setMapInviteBusy(false);return false}
-    setMapInvites(current=>current.map(item=>item.id===request.id?{...item,status}:item));setMapStatus(status==='accepted'?'Aceptaste. Calculando la ruta aproximada…':'Invitación rechazada.');if(status==='accepted'){setSelectedMapPerson(null);setPeopleRefresh(value=>value+1)}
+    const {data,error}=await supabase.from('map_meetup_requests').update({status,updated_at:new Date().toISOString()}).eq('id',request.id).eq('receiver_id',session.user.id).eq('status','pending').select('id,status,updated_at').maybeSingle()
+    if(error || !data){setMapStatus('No pudimos responder: '+(error?.message||'La solicitud ya fue respondida o dejó de estar pendiente.'));setMapInviteBusy(false);return false}
+    setMapInvites(current=>current.map(item=>item.id===request.id?{...item,...data}:item))
+    setMapStatus(status==='accepted'?'Aceptaste. Calculando la ruta aproximada…':status==='rejected'?'Invitación rechazada.':'Invitación ignorada.')
+    if(status==='accepted'){setSelectedMapPerson(null);setPeopleRefresh(value=>value+1)}
     const matchingNotification = notifications.find(item => item.notification_type === 'map_meetup_request' && item.entity_id === request.id)
     if (matchingNotification) await markNotificationRead(matchingNotification.id)
     setMapInviteBusy(false)
     return true
+  }
+
+  async function finishMapMeetup(request) {
+    if (!request?.id || mapInviteBusy) return
+    setMapInviteBusy(true)
+    const endedAt=new Date().toISOString()
+    const {data,error}=await supabase.from('map_meetup_requests').update({status:'cancelled',updated_at:endedAt}).eq('id',request.id).eq('status','accepted').select('id,status,updated_at').maybeSingle()
+    if(error || !data){setMapStatus('No pudimos finalizar el encuentro: '+(error?.message||'No se encontró un encuentro activo.'));setMapInviteBusy(false);return}
+    setMapInvites(current=>current.map(row=>row.id===request.id?{...row,...data}:row))
+    setActiveMapRoute(null)
+    setMapStatus('Encuentro finalizado. Quedó registrado en las notificaciones.')
+    if(mapRouteLayerRef.current){mapRouteLayerRef.current.remove();mapRouteLayerRef.current=null}
+    setMapInviteBusy(false)
   }
 
   async function refreshMyMapLocation() {
@@ -2348,7 +2363,7 @@ export default function App() {
       {mapStatus && <div className="zuno-map-toast">{mapStatus}</div>}
       {selectedMapPerson && <div className="zuno-map-person-card"><button type="button" className="zuno-map-card-close" onClick={()=>setSelectedMapPerson(null)}><X size={18}/></button><div className="zuno-map-card-person"><span className="zuno-map-card-avatar">{selectedMapPerson.profile?.avatar_url?<img src={selectedMapPerson.profile.avatar_url} alt=""/>:<UserRound/>}</span><div><strong>{selectedMapPerson.isMe?'Eres tú':selectedMapPerson.display_name||selectedMapPerson.profile?.display_name||'Persona cercana'}</strong><small>{selectedMapPerson.isMe?'Tu perfil':(selectedMapPerson.approximate_distance_km??'—')+' km aproximadamente'}</small></div></div>{!selectedMapPerson.isMe && <><button type="button" className="zuno-map-meet-button" onClick={()=>inviteMapMeetup(selectedMapPerson)} disabled={mapInviteBusy}><Navigation size={17}/>{mapInviteBusy?'Enviando…':'Cómo llegar · Invitar a encontrarse'}</button><p>La ruta solo se activa si la otra persona acepta. Se muestra una ubicación aproximada.</p></>}</div>}
       {mapInvites.filter(item=>item.receiver_id===session.user.id&&item.status==='pending').slice(0,1).map(item=><div className="zuno-map-invite-card" key={item.id}><strong>Te invitaron a encontrarse</strong><p>¿Aceptás que ZUNO muestre una ruta aproximada para llegar?</p><div><button type="button" onClick={()=>respondMapMeetup(item,'accepted')} disabled={mapInviteBusy}>Aceptar</button><button type="button" onClick={()=>respondMapMeetup(item,'rejected')} disabled={mapInviteBusy}>Ahora no</button></div></div>)}
-      {activeMapRoute && <div className="zuno-map-route-pill"><Route size={17}/><span>Ruta aproximada · {(activeMapRoute.distance/1000).toFixed(1)} km · {Math.max(1,Math.round(activeMapRoute.duration/60))} min</span><button type="button" onClick={async()=>{const endedAt=new Date().toISOString();const {error}=await supabase.from('map_meetup_requests').update({status:'cancelled',updated_at:endedAt}).eq('id',activeMapRoute.request.id);if(!error){setMapInvites(current=>current.map(row=>row.id===activeMapRoute.request.id?{...row,status:'cancelled',updated_at:endedAt}:row));setActiveMapRoute(null);setMapStatus('Encuentro finalizado. Quedó registrado en las notificaciones.');if(mapRouteLayerRef.current){mapRouteLayerRef.current.remove();mapRouteLayerRef.current=null}}else setMapStatus('No pudimos finalizar el encuentro: '+error.message)}}>Finalizar</button></div>}
+      {activeMapRoute && <div className="zuno-map-route-pill"><Route size={17}/><span>Ruta aproximada · {(activeMapRoute.distance/1000).toFixed(1)} km · {Math.max(1,Math.round(activeMapRoute.duration/60))} min</span><button type="button" disabled={mapInviteBusy} onClick={()=>finishMapMeetup(activeMapRoute.request)}>Finalizar</button></div>}
       {!selectedMapPerson && !mapInvites.some(item=>item.receiver_id===session.user.id&&item.status==='pending') && !activeMapRoute && <div className="zuno-map-bottom-hint"><strong>Personas cerca de vos</strong><span>Tocá una foto para invitarla a encontrarse.</span><small>Solo aparecen quienes activaron su visibilidad. Las ubicaciones son aproximadas.</small></div>}
       <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/>
     </main>
@@ -2370,7 +2385,7 @@ export default function App() {
               {!item.read_at && <i className="notification-unread-dot"/>}
             </button>
 
-            {item.notification_type==='map_meetup_request' && (()=>{const request=mapInvites.find(row=>row.id===item.entity_id);const status=request?.status||'pending';return status==='pending'?<div className="notification-actions"><button type="button" className="accept-btn" disabled={mapInviteBusy} onClick={()=>respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status},'accepted')}><Check size={15}/> Aceptar</button><button type="button" className="reject-btn" disabled={mapInviteBusy} onClick={()=>respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status},'rejected')}><X size={15}/> Rechazar</button></div>:<div className="notification-resolution"><Check size={15}/><span>{status==='accepted'?'Solicitud aceptada':status==='rejected'?'Solicitud rechazada':status==='cancelled'?'Encuentro finalizado':'Solicitud '+status}</span><time>{request?.updated_at?new Date(request.updated_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}):'Guardado en el historial'}</time></div>})()}
+            {item.notification_type==='map_meetup_request' && (()=>{const request=mapInvites.find(row=>row.id===item.entity_id);const status=request?.status||'pending';return status==='pending'?<div className="notification-actions"><button type="button" className="accept-btn" disabled={mapInviteBusy} onClick={()=>respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status},'accepted')}><Check size={15}/> Aceptar</button><button type="button" className="reject-btn" disabled={mapInviteBusy} onClick={()=>respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status},'rejected')}><X size={15}/> Rechazar</button><button type="button" className="reject-btn" disabled={mapInviteBusy} onClick={()=>respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status},'ignored')}>Ignorar</button></div>:<div className="notification-resolution"><Check size={15}/><span>{status==='accepted'?'Solicitud aceptada':status==='rejected'?'Solicitud rechazada':status==='ignored'?'Solicitud ignorada':status==='cancelled'?'Encuentro finalizado':'Solicitud '+status}</span><time>{request?.updated_at?new Date(request.updated_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}):'Guardado en el historial'}</time></div>})()}
             {item.notification_type==='album_access_request' && <div className="notification-actions"><button type="button" className="accept-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'approved')}><Check size={15}/> {notificationBusy===item.id?'Guardando…':'Permitir'}</button><button type="button" className="reject-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'rejected')}><X size={15}/> Rechazar</button><button type="button" className="later-btn" disabled={notificationBusy===item.id} onClick={()=>markNotificationRead(item.id)}>Más tarde</button></div>}
             <button type="button" className="notification-delete" aria-label="Eliminar notificación" onClick={()=>deleteNotification(item.id)}><Trash2 size={15}/></button>
           </article>}) : <div className="empty-state"><Bell size={28}/><h3>Todo al día</h3><p>Cuando alguien te dé un tap, solicite acceso a tu álbum o quiera encontrarse con vos, aparecerá acá.</p></div>}
