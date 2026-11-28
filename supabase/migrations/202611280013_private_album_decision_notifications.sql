@@ -1,14 +1,7 @@
 -- Restore private-album decision notifications and handle responses through a guarded RPC.
+-- Notification types are intentionally extensible; remove any legacy allow-list constraint.
 alter table public.notifications
   drop constraint if exists notifications_notification_type_check;
-
-alter table public.notifications
-  add constraint notifications_notification_type_check
-  check (notification_type in (
-    'favorite',
-    'album_access_request',
-    'album_access_decision'
-  ));
 
 create or replace function public.zuno_respond_private_album_request(
   p_request_id uuid,
