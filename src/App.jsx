@@ -2710,7 +2710,7 @@ export default function App() {
       {id:'overview',label:'Resumen',icon:LayoutDashboard},
       {id:'users',label:'Usuarios',icon:UserCog},
       {id:'reports',label:'Denuncias',icon:Flag},
-      {id:'content',label:'Contenido',icon:Image},
+      {id:'content',label:'Mensajes conservados',icon:MessageCircle},
       {id:'announcements',label:'Comunicaciones',icon:Megaphone},
       {id:'security',label:'Seguridad',icon:ShieldCheck},
       {id:'settings',label:'Configuración',icon:Settings}
@@ -2719,7 +2719,7 @@ export default function App() {
       overview:['Centro de control','Una vista general del estado de ZUNO.'],
       users:['Gestión de usuarios','Buscá cuentas y administrá su estado.'],
       reports:['Centro de denuncias','Revisá reportes y actuá sobre incumplimientos.'],
-      content:['Moderación de contenido','Historias, fotos y publicaciones reportadas.'],
+      content:['Mensajes conservados','Mensajes archivados con acceso administrativo auditado.'],
       announcements:['Comunicaciones','Prepará avisos para toda la comunidad.'],
       security:['Seguridad y auditoría','Permisos, actividad administrativa y controles.'],
       settings:['Configuración de ZUNO','Parámetros generales de la plataforma.']
@@ -2728,7 +2728,7 @@ export default function App() {
     const adminModules = [
       {id:'users',title:'Usuarios',description:'Buscar perfiles, revisar cuentas y aplicar medidas.',icon:Users},
       {id:'reports',title:'Denuncias',description:'Priorizar reportes y registrar resoluciones.',icon:Flag},
-      {id:'content',title:'Contenido',description:'Moderar historias, fotos y material publicado.',icon:Image},
+      {id:'content',title:'Mensajes conservados',description:'Consultar mensajes archivados y sus datos de conservación.',icon:MessageCircle},
       {id:'announcements',title:'Comunicaciones',description:'Enviar avisos y novedades a la comunidad.',icon:Megaphone},
       {id:'security',title:'Seguridad',description:'Roles, accesos y registro de acciones.',icon:LockKeyhole},
       {id:'settings',title:'Configuración',description:'Gestionar parámetros y políticas de ZUNO.',icon:Settings}
@@ -2741,7 +2741,7 @@ export default function App() {
           <aside className="zuno-admin-sidebar">
             <div className="zuno-admin-sidebar-heading"><span className="zuno-admin-shield"><ShieldCheck size={21}/></span><div><strong>Administración</strong><small>Panel de control</small></div></div>
             <div className="zuno-admin-nav-label">PLATAFORMA</div>
-            <nav aria-label="Secciones de administración">{adminSections.map(item=>{const Icon=item.icon;return <button type="button" key={item.id} className={adminSection===item.id?'active':''} onClick={()=>setAdminSection(item.id)}><Icon size={18}/><span>{item.label}</span>{item.id==='reports'&&<i className="admin-nav-soon">—</i>}</button>})}</nav>
+            <nav aria-label="Secciones de administración">{adminSections.map(item=>{const Icon=item.icon;return <button type="button" key={item.id} className={adminSection===item.id?'active':''} onClick={()=>setAdminSection(item.id)}><Icon size={18}/><span>{item.label}</span></button>})}</nav>
             <div className="zuno-admin-sidebar-bottom"><span className="admin-online-dot"/> Sesión de administrador<div>Acceso visual restringido</div></div>
           </aside>
           <div className="zuno-admin-main">
@@ -2754,11 +2754,11 @@ export default function App() {
                 <article><span className="admin-stat-icon purple"><Users size={19}/></span><div><small>Perfiles cargados</small><strong>{people.length.toLocaleString('es-UY')}</strong><em>En esta sesión</em></div></article>
                 <article><span className="admin-stat-icon pink"><MessageCircle size={19}/></span><div><small>Conversaciones</small><strong>{conversations.length.toLocaleString('es-UY')}</strong><em>Visibles para tu cuenta</em></div></article>
                 <article><span className="admin-stat-icon blue"><Bell size={19}/></span><div><small>Notificaciones</small><strong>{notifications.length.toLocaleString('es-UY')}</strong><em>De tu cuenta</em></div></article>
-                <article><span className="admin-stat-icon orange"><Activity size={19}/></span><div><small>Estado del panel</small><strong className="admin-stat-pending">Preparación</strong><em>Backend pendiente</em></div></article>
+                <article><span className="admin-stat-icon orange"><Activity size={19}/></span><div><small>Estado del panel</small><strong>Conectado</strong><em>Herramientas admin activas</em></div></article>
               </div>
               <div className="zuno-admin-section-title"><div><h2>Herramientas de administración</h2><p>Módulos previstos para gestionar la plataforma.</p></div></div>
               <div className="zuno-admin-module-grid">{adminModules.map(item=>{const Icon=item.icon;return <button type="button" key={item.id} className="zuno-admin-module" onClick={()=>setAdminSection(item.id)}><span className="admin-module-icon"><Icon size={20}/></span><span className="admin-module-copy"><strong>{item.title}</strong><small>{item.description}</small></span><ChevronRight size={18}/></button>})}</div>
-              <div className="zuno-admin-bottom-grid"><article className="zuno-admin-info-card"><div><Database size={18}/><strong>Base de datos</strong></div><p>La gestión global se conectará a funciones seguras de Supabase, sin exponer datos privados desde el navegador.</p><span className="admin-status-pending"><CircleAlert size={13}/> Integración pendiente</span></article><article className="zuno-admin-info-card"><div><CheckCircle2 size={18}/><strong>Acceso actual</strong></div><p>El menú está visible para @manu.german. La autorización real deberá verificarse en el servidor.</p><span className="admin-status-pending"><ShieldAlert size={13}/> Falta rol protegido</span></article></div>
+              <div className="zuno-admin-bottom-grid"><article className="zuno-admin-info-card"><div><Database size={18}/><strong>Base de datos</strong></div><p>Las denuncias y los mensajes conservados se consultan mediante funciones protegidas y con auditoría.</p><span className="admin-status-pending"><ShieldCheck size={13}/> Consultas protegidas</span></article><article className="zuno-admin-info-card"><div><CheckCircle2 size={18}/><strong>Acceso actual</strong></div><p>El acceso se valida con la función zuno_is_admin() de Supabase.</p><span className="admin-status-pending"><CheckCircle2 size={13}/> Rol verificado</span></article></div>
             </> : adminSection==='users' ? <section className="admin-users-workspace">
               <div className="admin-users-toolbar">
                 <div><span className="admin-welcome-kicker">DIRECTORIO DE LA COMUNIDAD</span><h2>Usuarios registrados</h2><p>Listado obtenido mediante una función protegida de Supabase.</p></div>
