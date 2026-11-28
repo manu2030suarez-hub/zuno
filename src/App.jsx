@@ -153,7 +153,7 @@ export default function App() {
       if (!session?.user) { setPolicyStatus('loading'); setPolicyError(''); return }
       setPolicyStatus('loading')
       setPolicyError('')
-      const { data, error: readError } = await supabase.from('user_policy_acceptances').select('policy_version, accepted_at').eq('user_id', session.user.id).eq('policy_version', CURRENT_POLICY_VERSION).maybeSingle()
+      const { data, error: readError } = await supabase.from('user_policy_acceptances').select('policy_version, accepted_at').eq('user_id', session.user.id).eq('policy_version', CURRENT_POLICY_VERSION).limit(1).maybeSingle()
       if (!active) return
       if (readError) { setPolicyStatus('error'); setPolicyError(readError.message || 'No se pudo verificar la aceptación.'); return }
       setPolicyStatus(data ? 'accepted' : 'required')
@@ -2403,7 +2403,7 @@ export default function App() {
 
   const callOverlay = session?.user ? (
     <>
-      {session?.user && emailConfirmed && policyStatus !== 'accepted' && <div className="zuno-policy-gate" role="dialog" aria-modal="true" aria-labelledby="zuno-policy-title">
+      {session?.user && emailConfirmed && (policyStatus === 'required' || policyStatus === 'error') && <div className="zuno-policy-gate" role="dialog" aria-modal="true" aria-labelledby="zuno-policy-title">
         <section className="zuno-policy-card">
           <div className="zuno-policy-mark"><ShieldCheck size={24}/></div>
           <span className="eyebrow">ZUNO · ACTUALIZACIÓN IMPORTANTE</span>
@@ -2411,7 +2411,7 @@ export default function App() {
           {policyStatus === 'loading' ? <p>Estamos verificando si ya aceptaste esta versión.</p> : policyStatus === 'error' ? <>
             <p>No pudimos comprobar tu aceptación. Para proteger tu cuenta, el acceso queda pausado hasta verificarla.</p>
             <p className="zuno-policy-error">{policyError}</p>
-            <button type="button" className="submit-btn" onClick={async()=>{setPolicyStatus('loading');setPolicyError('');const {data,error}=await supabase.from('user_policy_acceptances').select('policy_version').eq('user_id',session.user.id).eq('policy_version',CURRENT_POLICY_VERSION).maybeSingle();if(error){setPolicyError(error.message);setPolicyStatus('error')}else setPolicyStatus(data?'accepted':'required')}}>Reintentar verificación</button>
+            <button type="button" className="submit-btn" onClick={async()=>{setPolicyStatus('loading');setPolicyError('');const {data,error}=await supabase.from('user_policy_acceptances').select('policy_version').eq('user_id',session.user.id).eq('policy_version',CURRENT_POLICY_VERSION).limit(1).maybeSingle();if(error){setPolicyError(error.message);setPolicyStatus('error')}else setPolicyStatus(data?'accepted':'required')}}>Reintentar verificación</button>
             <button type="button" className="logout-btn" onClick={logout}>Cerrar sesión</button>
           </> : <>
             <div className="zuno-policy-scroll">
