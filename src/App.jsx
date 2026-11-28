@@ -1567,7 +1567,7 @@ export default function App() {
   useEffect(() => {
     if (!session?.user || !['home', 'favorites', 'connections'].includes(view)) return
     let active = true
-    if (!people.length) setPeopleLoading(true); setPeopleError('')
+    setPeopleLoading(true); setPeopleError('')
     const loadDiscoveryProfiles = async () => {
       let discoveryIds = null
       let distanceByUser = {}
@@ -1599,7 +1599,7 @@ export default function App() {
         distanceByUser=(matches||[]).reduce((acc,row)=>{acc[row.user_id]=row.approximate_distance_km;return acc},{})
         onlineRecentlyByUser=(matches||[]).reduce((acc,row)=>{acc[row.user_id]=row.online_recently===true;return acc},{})
         activityStatusByUser=(matches||[]).reduce((acc,row)=>{acc[row.user_id]=row.activity_status || null;return acc},{})
-        if (!discoveryIds.length) {setPeople([]);setPeopleLoading(false);return}
+        if (!discoveryIds.length) discoveryIds = []
       }
       let profileQuery=supabase.from('profiles').select('id, display_name, username, bio, avatar_url, zuno_verified, city, region, interests, looking_for, show_location, show_online, show_distance, created_at').neq('id', session.user.id).order('created_at', { ascending: false }).limit(100)
       if (discoveryIds) profileQuery=profileQuery.in('id',discoveryIds)
@@ -1628,14 +1628,35 @@ export default function App() {
           }
         }
         if (!active) return
-        setPeople(profiles.map(person => ({
+        const mappedProfiles = profiles.map(person => ({
           ...person,
           approximateDistanceKm:distanceByUser[person.id] ?? null,
           onlineRecently:onlineRecentlyByUser[person.id]===true,
           activityStatus:person.show_online ? activityStatusByUser[person.id] : null,
           photos: photosByUser[person.id] || [],
           visibleCity: person.show_location ? [person.city, person.region].filter(Boolean).join(', ') : ''
-        })))
+        }))
+        let botProfiles = []
+        if (view === 'home') {
+          const { data: bots, error: botsError } = await supabase.from('zuno_bots')
+            .select('id,slug,display_name,age,gender,bot_role,bio,interests,looking_for,avatar_url,is_active,sort_order,created_at')
+            .eq('is_active', true).order('sort_order', { ascending: true })
+          if (!active) return
+          if (botsError) console.warn('No se pudieron cargar los bots de ZUNO:', botsError.message)
+          botProfiles = (bots || []).map(bot => ({
+            ...bot,
+            id: 'bot:' + bot.id,
+            username: bot.slug,
+            isBot: true,
+            photos: bot.avatar_url ? [{ url: bot.avatar_url }] : [],
+            visibleCity: '',
+            show_location: false,
+            show_online: false,
+            zuno_verified: false,
+            created_at: bot.created_at
+          }))
+        }
+        setPeople([...mappedProfiles, ...botProfiles])
         setPeopleLoading(false)
     }
     loadDiscoveryProfiles()
@@ -1729,6 +1750,7 @@ export default function App() {
     if (discoveryLookingFor && !(person.looking_for || []).includes(discoveryLookingFor)) return false
     if (discoveryVerifiedOnly && !person.zuno_verified) return false
     if (discoveryWithPhotos && !(person.photos || []).length) return false
+    if (person.isBot && ((discoveryAgeMin && Number(person.age) < Number(discoveryAgeMin)) || (discoveryAgeMax && Number(person.age) > Number(discoveryAgeMax)) || discoveryDistanceKm || discoveryOnlineRecently)) return false
     return true
   }).sort((a,b) => discoverySort === 'name' ? (a.display_name || '').localeCompare(b.display_name || '') : discoverySort === 'oldest' ? new Date(a.created_at || 0)-new Date(b.created_at || 0) : new Date(b.created_at || 0)-new Date(a.created_at || 0))
   const discoveryFiltersActive = Boolean(discoverySearch || discoveryCity || discoveryInterest || discoveryLookingFor || discoveryVerifiedOnly || discoveryWithPhotos || discoverySort !== 'recent' || discoveryAgeMin || discoveryAgeMax || discoveryDistanceKm || discoveryOnlineRecently)
@@ -3412,13 +3434,14 @@ export default function App() {
               <p className="person-username">Este es tu perfil</p>
             </div>
           </article>}
-          {(view === 'home' ? discoveryPeople : view === 'favorites' ? people.filter(person => favoriteIds.includes(person.id)) : people).map(person => <article className="person-card person-card-clickable" key={person.id} role="button" tabIndex={0} onClick={()=>openMemberProfile(person,false)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openMemberProfile(person,false)}}}>
+          {(view === 'home' ? discoveryPeople : view === 'favorites' ? people.filter(person => favoriteIds.includes(person.id)) : people).map(person => <article className={`person-card${person.isBot ? ' person-card-bot' : ' person-card-clickable'}`} key={person.id} {...(!person.isBot ? { role:'button', tabIndex:0, onClick:()=>openMemberProfile(person,false), onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openMemberProfile(person,false)}} } : {})}>
             <div className="person-card-gallery">
               {person.photos?.length ? <img src={person.photos[0].url} alt={`Foto de ${person.display_name || 'usuario'}`}/> : <ProfileAvatar person={person}/>}
               
             </div>
             <div className="person-info">
-              <div className="person-title-row"><h3>{person.display_name || 'Usuario ZUNO'} {person.zuno_verified && <span className="verified-dot" title="Cuenta verificada">✓</span>}</h3><button type="button" className={`favorite-btn ${favoriteIds.includes(person.id) ? 'is-favorite' : ''}`} aria-label={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} title={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} disabled={favoriteBusy === person.id} onClick={event=>{event.stopPropagation();toggleFavorite(person.id)}}><Heart size={18} fill={favoriteIds.includes(person.id) ? 'currentColor' : 'none'}/></button></div>
+              <div className="person-title-row"><h3>{person.display_name || 'Usuario ZUNO'} {person.zuno_verified && <span className="verified-dot" title="Cuenta verificada">✓</span>}</h3>{person.isBot ? <span className="zuno-bot-badge"><Sparkles size={12}/> Bot de ZUNO</span> : <button type="button" className={`favorite-btn ${favoriteIds.includes(person.id) ? 'is-favorite' : ''}`} aria-label={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} title={favoriteIds.includes(person.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} disabled={favoriteBusy === person.id} onClick={event=>{event.stopPropagation();toggleFavorite(person.id)}}><Heart size={18} fill={favoriteIds.includes(person.id) ? 'currentColor' : 'none'}/></button>}</div>
+              {person.isBot && <p className="person-bot-meta">{person.age} años · {person.gender || 'Bot'}{person.bot_role ? ` · ${person.bot_role}` : ''}</p>}
               {person.show_distance && person.approximateDistanceKm!==null && person.approximateDistanceKm!==undefined && <p className="person-distance-label"><MapPin size={12}/> A {formatApproxDistance(person.approximateDistanceKm)}</p>}
               {person.username && <p className="person-username">@{person.username}</p>}
               {person.show_online && person.activityStatus && <p className={`person-online-label ${person.activityStatus}`}><span/> {person.activityStatus === 'active' ? 'Activo ahora' : person.activityStatus === 'recent' ? 'En línea recientemente' : 'Desconectado'}</p>}
@@ -3426,7 +3449,8 @@ export default function App() {
               {person.bio && <p className="person-bio">{person.bio}</p>}
               {person.interests?.length > 0 && <div className="person-tags">{person.interests.slice(0,5).map(tag=><span key={tag}>{tag}</span>)}</div>}
               {person.looking_for?.length > 0 && <p className="person-looking"><strong>Busca:</strong> {person.looking_for.join(' · ')}</p>}
-              <div className="person-card-actions"><button type="button" className="chat-start-btn" onClick={event=>{event.stopPropagation();openChat(person)}}><MessageCircle size={15}/> Chatear</button><ConnectionAction personId={person.id} currentUserId={session.user.id} rows={connectionRows} busy={connectionBusy} onSend={sendConnectionRequest} onRespond={respondToConnection}/></div>
+              {!person.isBot && <div className="person-card-actions"><button type="button" className="chat-start-btn" onClick={event=>{event.stopPropagation();openChat(person)}}><MessageCircle size={15}/> Chatear</button><ConnectionAction personId={person.id} currentUserId={session.user.id} rows={connectionRows} busy={connectionBusy} onSend={sendConnectionRequest} onRespond={respondToConnection}/></div>}
+              {person.isBot && <div className="person-bot-note"><Sparkles size={14}/> Personaje virtual de ZUNO</div>}
             </div>
           </article>)}</div>
           {view === 'home' && !discoveryPeople.length && <div className="connections-empty">No encontramos perfiles con esos filtros. Probá cambiar alguno o limpiar la búsqueda.</div>}
