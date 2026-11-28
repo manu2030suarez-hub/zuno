@@ -296,16 +296,29 @@ Deno.serve(async (req: Request) => {
     const imageQuery = String(generated.image_search_query || "").trim().slice(0, 100);
     if (imageQuery && adultIntimacyAllowed) {
       try {
-        const imageUrl = "https://api.perverzija.com/v1/scenes?q=" + encodeURIComponent(imageQuery) + "&per_page=3";
-        const imageResponse = await fetch(imageUrl, { headers: { Accept: "application/json" } });
-        if (imageResponse.ok) {
-          const imageData = await imageResponse.json();
-          const candidates = (Array.isArray(imageData?.data) ? imageData.data : [])
-            .filter((scene: any) => typeof scene?.cover === "string" &&
-              scene.cover.startsWith("https://") &&
-              typeof (scene?.urls?.watch || scene?.urls?.page) === "string" &&
-              (scene.urls.watch || scene.urls.page).startsWith("https://"))
-            .slice(0, 2);
+        const requestScenes = async (url: string) => {
+          const response = await fetch(url, { headers: { Accept: "application/json" } });
+          if (!response.ok) {
+            console.warn("La búsqueda de imágenes no estuvo disponible:", response.status);
+            return [];
+          }
+          const payload = await response.json();
+          return Array.isArray(payload?.data) ? payload.data : [];
+        };
+        const searchUrl = "https://api.perverzija.com/v1/scenes?q=" + encodeURIComponent(imageQuery) + "&per_page=5";
+        let scenes = await requestScenes(searchUrl);
+        const validScenes = (items: any[]) => items
+          .filter((scene: any) => typeof scene?.cover === "string" &&
+            scene.cover.startsWith("https://") &&
+            typeof (scene?.urls?.watch || scene?.urls?.page) === "string" &&
+            (scene.urls.watch || scene.urls.page).startsWith("https://"));
+        let candidates = validScenes(scenes).slice(0, 2);
+        // Las búsquedas en lenguaje natural pueden no coincidir con títulos del catálogo.
+        // Si no hay coincidencias, mostramos portadas recientes del mismo catálogo.
+        if (!candidates.length) {
+          scenes = await requestScenes("https://api.perverzija.com/v1/scenes?per_page=10&sort=-release_date");
+          candidates = validScenes(scenes).slice(0, 2);
+        }
           for (const scene of candidates) {
             const imageSave = await rest(supabaseUrl, secret, "zuno_bot_messages", {
               method: "POST", headers: { Prefer: "return=representation" },
@@ -325,8 +338,6 @@ Deno.serve(async (req: Request) => {
               console.error("No se pudo guardar una imagen de referencia:", imageSave.status);
             }
           }
-        } else {
-          console.warn("La búsqueda de imágenes no estuvo disponible:", imageResponse.status);
         }
       } catch (imageError) {
         console.warn("Falló la búsqueda opcional de imágenes:", imageError);
