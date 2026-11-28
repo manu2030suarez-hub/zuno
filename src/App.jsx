@@ -1368,7 +1368,7 @@ export default function App() {
     const loadNotifications = async () => {
       const { data, error: notificationError } = await supabase.from('notifications')
         .select('id,recipient_id,actor_id,notification_type,entity_id,title,body,created_at,read_at,metadata')
-        .eq('recipient_id', session.user.id).in('notification_type',['favorite','tap','album_access_request','map_meetup_request','report_response','admin_announcement']).order('created_at', { ascending: false }).limit(100)
+        .eq('recipient_id', session.user.id).in('notification_type',['favorite','tap','album_access_request','album_access_decision','map_meetup_request','report_response','admin_announcement']).order('created_at', { ascending: false }).limit(100)
       if (!active) return
       if (notificationError) { setPeopleError('No pudimos cargar las notificaciones. ' + notificationError.message); return }
       setNotifications(data || [])
@@ -1383,11 +1383,11 @@ export default function App() {
     const channel = supabase.channel('zuno-notifications-' + session.user.id)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: 'recipient_id=eq.' + session.user.id }, async payload => {
         const item = payload.new
-        if (!['favorite','tap','album_access_request','map_meetup_request','report_response','admin_announcement'].includes(item.notification_type)) return
+        if (!['favorite','tap','album_access_request','album_access_decision','map_meetup_request','report_response','admin_announcement'].includes(item.notification_type)) return
         const peerId = activeConversation?.person?.id
         if (item.notification_type === 'message' && view === 'chat' && peerId === item.actor_id) return
         setNotifications(current => current.some(existing => existing.id === item.id) ? current : [item, ...current].slice(0, 100))
-        if (item.notification_type === 'map_meetup_request') {
+        if (['map_meetup_request','album_access_request'].includes(item.notification_type)) {
           try {
             const AudioCtx = window.AudioContext || window.webkitAudioContext
             if (AudioCtx) {
@@ -1459,16 +1459,16 @@ export default function App() {
   async function decidePrivateAlbumRequest(item, status) {
     if (!session?.user || !item?.entity_id || notificationBusy) return
     setNotificationBusy(item.id)
-    const { error } = await supabase.from('private_album_access_requests')
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq('id', item.entity_id)
-      .eq('owner_id', session.user.id)
-      .eq('status', 'pending')
+    setPeopleError('')
+    const { error } = await supabase.rpc('zuno_respond_private_album_request', {
+      p_request_id: item.entity_id,
+      p_status: status
+    })
     if (error) {
       setPeopleError('No pudimos responder la solicitud del álbum. ' + error.message)
     } else {
       await markNotificationRead(item.id)
-      setPeopleError('')
+      setNotifications(current => current.map(row => row.id === item.id ? { ...row, read_at: row.read_at || new Date().toISOString() } : row))
     }
     setNotificationBusy('')
   }
@@ -2983,7 +2983,7 @@ export default function App() {
           </div>}
         </section></div>}
         {reportTarget && <div className="security-modal-backdrop" role="presentation"><form className="security-modal" onSubmit={submitUserReport}><div className="security-modal-heading"><h2>{reportTarget.messageId?'Denunciar mensaje':reportTarget.contentType==='story'?'Denunciar historia':'Denunciar perfil'}</h2><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)} aria-label="Cerrar"><X size={17}/></button></div><p>Tu denuncia sobre {reportTarget.display_name || 'este usuario'} será privada y revisada por el equipo de ZUNO.{reportTarget.messageId?' Se adjuntará la referencia del mensaje para que moderación pueda revisar su contexto.':''}</p><label>Motivo<select value={reportReason} onChange={event=>setReportReason(event.target.value)}><option value="fake_profile">Perfil falso o suplantación</option><option value="harassment">Acoso o amenazas</option><option value="inappropriate_content">Contenido inapropiado</option><option value="spam">Spam</option><option value="underage">Posible menor de edad</option><option value="scam">Estafa o fraude</option><option value="other">Otro motivo</option></select></label><label>Detalles (opcional)<textarea rows="4" maxLength="2000" value={reportDetails} onChange={event=>setReportDetails(event.target.value)} placeholder="Contanos qué pasó…"/></label><div className="security-modal-actions"><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)}>Cancelar</button><button type="submit" className="submit-btn" disabled={reportBusy}>{reportBusy?'Enviando…':'Enviar denuncia'}</button></div></form></div>}
-        <ZunoBottomNav view={view} setView={setView} onLogout={logout} adminVisible={String(profile?.username||'').trim().toLowerCase()==='manu.german'} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>['favorite','tap','album_access_request','map_meetup_request','report_response','admin_announcement'].includes(item.notification_type)&&!item.read_at).length} mapRequestCount={notifications.filter(item=>item.notification_type==='map_meetup_request'&&!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+        <ZunoBottomNav view={view} setView={setView} onLogout={logout} adminVisible={String(profile?.username||'').trim().toLowerCase()==='manu.german'} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>['favorite','tap','album_access_request','album_access_decision','map_meetup_request','report_response','admin_announcement'].includes(item.notification_type)&&!item.read_at).length} mapRequestCount={notifications.filter(item=>item.notification_type==='map_meetup_request'&&!item.read_at).length} albumRequestCount={notifications.filter(item=>item.notification_type==='album_access_request'&&!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
       </main>
     )
   }
@@ -3026,11 +3026,11 @@ export default function App() {
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
       <section className="notifications-page">
         <div className="home-heading notifications-heading"><div><h1>Notificaciones</h1></div>
-          {notifications.some(item=>['favorite','tap','album_access_request','map_meetup_request','report_response','admin_announcement'].includes(item.notification_type)&&!item.read_at) && <button type="button" className="refresh-btn" onClick={async()=>{const now=new Date().toISOString();const {error}=await supabase.from('notifications').update({read_at:now}).eq('recipient_id',session.user.id).in('notification_type',['favorite','tap','album_access_request','map_meetup_request','report_response','admin_announcement']).is('read_at',null);if(!error)setNotifications(current=>current.map(item=>({...item,read_at:item.read_at||now})))}}>Marcar todas leídas</button>}
+          {notifications.some(item=>['favorite','tap','album_access_request','album_access_decision','map_meetup_request','report_response','admin_announcement'].includes(item.notification_type)&&!item.read_at) && <button type="button" className="refresh-btn" onClick={async()=>{const now=new Date().toISOString();const {error}=await supabase.from('notifications').update({read_at:now}).eq('recipient_id',session.user.id).in('notification_type',['favorite','tap','album_access_request','album_access_decision','map_meetup_request','report_response','admin_announcement']).is('read_at',null);if(!error)setNotifications(current=>current.map(item=>({...item,read_at:item.read_at||now})))}}>Marcar todas leídas</button>}
         </div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         <div className="notifications-list">
-          {notifications.filter(item=>['favorite','tap','album_access_request','map_meetup_request','report_response','admin_announcement'].includes(item.notification_type)).length ? notifications.filter(item=>['favorite','tap','album_access_request','map_meetup_request','report_response','admin_announcement'].includes(item.notification_type)).map(item=>{const actor=notificationActors[item.actor_id];const name=actor?.display_name||actor?.username||'Un miembro de ZUNO';return <article className={'notification-card '+(!item.read_at?'unread':'')} key={item.id}>
+          {notifications.filter(item=>['favorite','tap','album_access_request','album_access_decision','map_meetup_request','report_response','admin_announcement'].includes(item.notification_type)).length ? notifications.filter(item=>['favorite','tap','album_access_request','album_access_decision','map_meetup_request','report_response','admin_announcement'].includes(item.notification_type)).map(item=>{const actor=notificationActors[item.actor_id];const name=actor?.display_name||actor?.username||'Un miembro de ZUNO';return <article className={'notification-card '+(!item.read_at?'unread':'')} key={item.id}>
             <button type="button" className="notification-main" onClick={()=>openNotification(item)}>
               <span className={'notification-symbol '+item.notification_type}>{['report_response','admin_announcement'].includes(item.notification_type)?<ShieldCheck size={19}/>:item.notification_type==='map_meetup_request'?<MapPin size={19}/>:item.notification_type==='album_access_request'?<Images size={19}/>:item.notification_type==='tap'?<Flame size={19}/>:<Heart size={19}/>}</span>
               <span className="notification-copy"><strong>{item.title}</strong><span>{['report_response','admin_announcement'].includes(item.notification_type)?'Equipo de ZUNO':name} · {item.body}</span><time>{new Date(item.created_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}</time></span>
@@ -3039,6 +3039,7 @@ export default function App() {
 
             {item.notification_type==='map_meetup_request' && (()=>{const request=mapInvites.find(row=>row.id===item.entity_id);const status=request?.status||'pending';return status==='pending'?<div className="notification-actions"><button type="button" className="accept-btn" disabled={mapInviteBusy} onClick={()=>respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status},'accepted')}><Check size={15}/> Aceptar</button><button type="button" className="reject-btn" disabled={mapInviteBusy} onClick={()=>respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status},'rejected')}><X size={15}/> Rechazar</button><button type="button" className="reject-btn" disabled={mapInviteBusy} onClick={()=>respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status},'ignored')}>Ignorar</button></div>:<div className="notification-resolution"><Check size={15}/><span>{status==='accepted'?'Solicitud aceptada':status==='rejected'?'Solicitud rechazada':status==='ignored'?'Solicitud ignorada':status==='cancelled'?'Encuentro finalizado':'Solicitud '+status}</span><time>{request?.updated_at?new Date(request.updated_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}):'Guardado en el historial'}</time></div>})()}
             {item.notification_type==='report_response' && <div className="notification-resolution"><ShieldCheck size={15}/><span>Respuesta del equipo de moderación sobre tu denuncia.</span></div>}
+            {item.notification_type==='album_access_decision' && <div className="notification-resolution"><Check size={15}/><span>{item.body || 'La persona respondió tu solicitud de acceso al álbum privado.'}</span></div>}
             {item.notification_type==='album_access_request' && <div className="notification-actions"><button type="button" className="accept-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'approved')}><Check size={15}/> {notificationBusy===item.id?'Guardando…':'Permitir'}</button><button type="button" className="reject-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'rejected')}><X size={15}/> Rechazar</button><button type="button" className="later-btn" disabled={notificationBusy===item.id} onClick={()=>markNotificationRead(item.id)}>Más tarde</button></div>}
             <button type="button" className="notification-delete" aria-label="Eliminar notificación" onClick={()=>deleteNotification(item.id)}><Trash2 size={15}/></button>
           </article>}) : <div className="empty-state"><Bell size={28}/><h3>Todo al día</h3><p>Cuando recibas una novedad, un tap, una solicitud o un aviso del equipo de ZUNO, aparecerá acá.</p></div>}
@@ -3430,7 +3431,7 @@ export default function App() {
 }
 
 
-function ZunoBottomNav({ view, setView, unreadCount, notificationCount, mapRequestCount, onLogout, adminVisible = false }) {
+function ZunoBottomNav({ view, setView, unreadCount, notificationCount, mapRequestCount, albumRequestCount, onLogout, adminVisible = false }) {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const active = view === 'chat' ? 'chats' : ['detail','favorites','connections'].includes(view) ? (view==='favorites'?'favorites':'home') : view
   const go = (nextView) => { setProfileMenuOpen(false); setView(nextView) }
@@ -3438,7 +3439,7 @@ function ZunoBottomNav({ view, setView, unreadCount, notificationCount, mapReque
     <nav className={'zuno-bottom-nav'+(adminVisible?' has-admin':'')} aria-label="Navegación principal">
       <button type="button" className={active==='home'?'active':''} onClick={()=>go('home')}><Compass size={21}/><span>Descubrir</span></button>
       <button type="button" className={active==='chats'?'active':''} onClick={()=>go('chats')}><span className="zuno-nav-icon"><MessageCircle size={21}/>{unreadCount>0&&<i>{unreadCount>99?'99+':unreadCount}</i>}</span><span>Chats</span></button>
-      <button type="button" className={active==='notifications'?'active':''} onClick={()=>go('notifications')}><span className="zuno-nav-icon"><Bell size={21}/>{notificationCount>0&&<i>{notificationCount>99?'99+':notificationCount}</i>}{mapRequestCount>0&&<b className="zuno-map-request-dot" aria-label="Nueva solicitud de encuentro"/>}</span><span>Notificaciones</span></button>
+      <button type="button" className={active==='notifications'?'active':''} onClick={()=>go('notifications')}><span className="zuno-nav-icon"><Bell size={21}/>{notificationCount>0&&<i>{notificationCount>99?'99+':notificationCount}</i>}{(mapRequestCount>0||albumRequestCount>0)&&<b className="zuno-map-request-dot" aria-label="Nueva solicitud pendiente"/>}</span><span>Notificaciones</span></button>
       <button type="button" className={active==='map'?'active':''} onClick={()=>go('map')}><MapPin size={21}/><span>Mapa</span></button>
       {adminVisible && <button type="button" className={active==='admin'?'active zuno-admin-nav':'zuno-admin-nav'} onClick={()=>go('admin')}><ShieldCheck size={21}/><span>Admin</span></button>}
       <div className="zuno-profile-nav-wrap">
