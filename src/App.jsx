@@ -2172,7 +2172,7 @@ export default function App() {
     if(activeBotConversationRef.current?.id===conversationId){setBotChatMessages(current=>[...current,data]);setBotChatDraft('')}
     const {data:replyData,error:replyError}=await supabase.functions.invoke('zuno-bot-reply',{body:{conversation_id:conversationId}})
     if(replyError || replyData?.error){setPeopleError('Tu mensaje quedó enviado, pero el bot no pudo responder. '+(replyData?.error||replyError?.message||'Intentá nuevamente.'))}
-    else if(activeBotConversationRef.current?.id===conversationId){setBotChatMessages(current=>[...current,...(replyData?.messages || [replyData?.message]).filter(Boolean)])}
+    else if(activeBotConversationRef.current?.id===conversationId){setBotChatMessages(current=>[...current,...(replyData?.messages || [replyData?.message]).filter(Boolean).map(message=>({...message,media_url:message.external_media_url||message.media_url||''}))])}
     setChatBusy(false)
   }
 
