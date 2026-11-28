@@ -1502,3 +1502,9 @@ button{touch-action:manipulation}
   .profile-photo-stage{touch-action:none;-webkit-user-select:none;user-select:none}
   .profile-stage-image{touch-action:none;-webkit-user-drag:none}
 }
+
+
+/* Navigation expands to six equal tabs only for the administrator account. */
+.zuno-bottom-nav.has-admin{grid-template-columns:repeat(6,minmax(0,1fr))}
+.zuno-bottom-nav.has-admin .zuno-admin-nav{color:#e7b7ff}
+.zuno-bottom-nav.has-admin .zuno-admin-nav.active{color:#fff}
