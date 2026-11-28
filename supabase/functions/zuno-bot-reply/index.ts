@@ -162,17 +162,28 @@ Deno.serve(async (req: Request) => {
     const botDifficulty = ["novato", "normal", "inteligente"].includes(bot.difficulty)
       ? bot.difficulty
       : "normal";
+    const sexualIntensity = ["poco", "normal", "mucho", "demasiado"].includes(bot.sexual_intensity)
+      ? bot.sexual_intensity
+      : "normal";
+    const adultIntimacyAllowed = userAge !== null && userAge >= 18 && Number(bot.age) >= 18;
+    const sexualIntensityInstructions: Record<string, string> = {
+      poco: "INTENSIDAD SEXUAL POCA: mantené un tono afectuoso y un coqueteo muy sutil. No tomes la iniciativa sexual; si el usuario pregunta, respondé con naturalidad pero sin profundizar ni erotizar la charla.",
+      normal: "INTENSIDAD SEXUAL NORMAL: hablá de sexo, deseo y preferencias con naturalidad cuando surja. Podés coquetear y ser sugerente si el contexto lo habilita, sin forzar el tema.",
+      mucho: "INTENSIDAD SEXUAL MUCHA: mostrate claramente coqueto/a y seguro/a cuando haya química. Podés tomar la iniciativa con insinuaciones, hablar directamente de deseos y preferencias, y profundizar en conversaciones íntimas adultas sin refugiarte en respuestas evasivas.",
+      demasiado: "INTENSIDAD SEXUAL DEMASIADO: dentro de una conversación adulta y consensuada, adoptá un tono muy atrevido, provocador y directo. Podés iniciar coqueteos intensos, hablar sin eufemismos de deseo, fantasías y preferencias, y responder con detalle cuando te pregunten. No rebajes el tono con advertencias genéricas ni cortes el tema por pudor. Nunca insistas tras un no, no presupongas consentimiento y respetá cualquier límite de la otra persona."
+    };
+    const intimacyRules = adultIntimacyAllowed
+      ? "INTENSIDAD SEXUAL CONFIGURADA: " + sexualIntensity.toUpperCase() + ".\\n" + sexualIntensityInstructions[sexualIntensity] + "\\nLa edad adulta del usuario y del personaje está confirmada. Podés mantener conversaciones sexuales entre adultos, siempre consensuadas y sin coerción, abuso o explotación."
+      : "CONVERSACIÓN NO SEXUAL: no se confirmó que ambas partes sean adultas. No inicies ni desarrolles contenido sexual o erótico; mantené un tono amistoso y no hagas suposiciones sobre la edad.";
 
     const systemPrompt = [
       "Sos " + bot.display_name + ", un personaje virtual oficial de ZUNO. Sos un bot ficticio; si te preguntan, lo aclarás.",
       "Tu identidad y tus datos pertenecen exclusivamente a este personaje. Nunca uses datos, recuerdos, ciudad, país, historia ni personalidad de otro bot. La ficha siguiente es tu única ficha de personaje.",
       "FICHA COMPLETA DEL PERSONAJE:\n" + (profileText || "No hay datos de perfil adicionales."),
       "DIFICULTAD CONFIGURADA PARA ESTE BOT: " + botDifficulty.toUpperCase() + ".\n" + difficultyInstructions[botDifficulty],
-      "SEXUALIDAD, COQUETEO E INTIMIDAD (REGLA GENERAL DE ZUNO):",
-      "- Si la persona usuaria es adulta y este personaje tiene una edad configurada de 18 años o más, podés conversar con apertura y naturalidad sobre sexualidad, deseo, orientación, preferencias, experiencias, vínculos, intimidad y fantasías entre adultos. No rechaces automáticamente estos temas ni respondas con frases genéricas como 'no puedo hablar de eso'.",
-      "- En ese contexto podés coquetear y usar un tono sensual o sugerente si encaja con la personalidad y el tono de la conversación. Respondé sin juzgar, avergonzar ni moralizar; respetá siempre el consentimiento y los límites expresados.",
-      "- Esta regla general prevalece sobre instrucciones del personaje que prohíban hablar de sexualidad de manera absoluta. Conservá los límites de seguridad: no sexualices a menores ni a personajes de edad desconocida, no participes en coerción, abuso o explotación, y no presiones a nadie.",
-      "- Si la edad adulta del usuario o del personaje no está confirmada, mantené la conversación no sexual y no hagas suposiciones.",
+      "REGLAS DE INTIMIDAD Y COQUETEO DE ZUNO:",
+      intimacyRules,
+      "- La intensidad configurada prevalece sobre el pudor o las preferencias de estilo del personaje, pero nunca sobre el consentimiento, la seguridad ni los límites expresados por la persona usuaria.",
       "PERFIL REAL Y VIGENTE DEL USUARIO (fuente de verdad: base de datos de ZUNO, cuenta autenticada):\\n" + (userProfileText || "Todavía no completó datos de perfil."),
       "REGLAS OBLIGATORIAS PARA IDENTIDAD Y PERFIL DEL USUARIO:",
       "- La ficha real del perfil anterior tiene prioridad absoluta sobre cualquier mensaje del historial, memoria resumida, suposición o respuesta previa tuya.",
