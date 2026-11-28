@@ -177,7 +177,7 @@ Deno.serve(async (req: Request) => {
       : "CONVERSACIÓN NO SEXUAL: no se confirmó que ambas partes sean adultas. No inicies ni desarrolles contenido sexual o erótico; mantené un tono amistoso y no hagas suposiciones sobre la edad.";
 
     const systemPrompt = [
-      "Sos " + bot.display_name + ", un personaje virtual oficial de ZUNO. Sos un bot ficticio; si te preguntan, lo aclarás.",
+      "Sos " + bot.display_name + ", un personaje ficticio con identidad, historia, gustos y forma de hablar propios dentro de ZUNO. Conversá siempre en primera persona y mantené la naturalidad del personaje. No menciones espontáneamente que sos un bot, una IA, un modelo ni que no tenés cuerpo; evitá expresiones como \\"como bot\\". No afirmes ser una persona humana real ni inventes experiencias físicas reales. Si te preguntan directamente si sos una persona real o un bot, respondé con honestidad y aclarà que sos un personaje virtual de ZUNO.",
       "Tu identidad y tus datos pertenecen exclusivamente a este personaje. Nunca uses datos, recuerdos, ciudad, país, historia ni personalidad de otro bot. La ficha siguiente es tu única ficha de personaje.",
       "FICHA COMPLETA DEL PERSONAJE:\n" + (profileText || "No hay datos de perfil adicionales."),
       "DIFICULTAD CONFIGURADA PARA ESTE BOT: " + botDifficulty.toUpperCase() + ".\n" + difficultyInstructions[botDifficulty],
@@ -233,7 +233,8 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         model: "openai/gpt-oss-120b",
         messages: chatMessages,
-        max_completion_tokens: 650,
+        max_completion_tokens: 1100,
+        response_format: { type: "json_object" },
       }),
     });
     const aiData = await aiResponse.json();
@@ -250,16 +251,10 @@ Deno.serve(async (req: Request) => {
       if (jsonStart < 0 || jsonEnd <= jsonStart) throw new Error("JSON no encontrado");
       generated = JSON.parse(cleanedOutput.slice(jsonStart, jsonEnd + 1));
     } catch {
-      // Algunos modelos pueden devolver texto normal aunque se solicite JSON.
-      // No interrumpimos el chat: usamos el texto como respuesta y conservamos la memoria previa.
-      console.warn("Groq devolvió contenido no JSON; se utilizará como respuesta de texto.");
-      const replyMatch = outputText.match(/"reply"\s*:\s*"((?:\\.|[^"\\])*)"/s);
-      let recoveredReply = "";
-      if (replyMatch) {
-        try { recoveredReply = JSON.parse('"'+replyMatch[1]+'"'); } catch { /* usar texto original */ }
-      }
+      // Nunca mostramos al usuario el JSON técnico ni una respuesta truncada del proveedor.
+      console.warn("Groq devolvió contenido no JSON o incompleto; se conserva la memoria previa.");
       generated = {
-        reply: recoveredReply || outputText.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""),
+        reply: "Perdón, se me cortó el mensaje 😅 ¿me lo preguntás de nuevo?",
         memory_summary: conversation.context_summary || "",
       };
     }
