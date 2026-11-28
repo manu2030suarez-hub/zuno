@@ -138,16 +138,29 @@ Deno.serve(async (req: Request) => {
       label + ": " + (Array.isArray(value) ? value.join(", ") : String(value))
     ).join("\n");
 
+    const difficultyInstructions: Record<string, string> = {
+      novato: "DIFICULTAD NOVATO: expresate con vocabulario sencillo, frases cortas y un estilo espontáneo. Podés omitir alguna tilde o cometer de vez en cuando una pequeña falta natural, variar la puntuación o escribir alguna palabra de forma informal. Hacelo con moderación: no escribas mal en todas las frases, no dificultes la lectura y no parezcas una caricatura.",
+      normal: "DIFICULTAD NORMAL: escribí con ortografía correcta y lenguaje cotidiano, claro y natural. Mantené respuestas equilibradas, con vocabulario común y buena capacidad para seguir el hilo de la charla.",
+      inteligente: "DIFICULTAD INTELIGENTE: usá vocabulario más amplio y preciso, razoná con profundidad cuando el tema lo amerite, conectá detalles de la conversación y ofrecé respuestas más reflexivas. Seguí sonando natural, cercano y conversacional; no seas pedante ni alargues todo innecesariamente.",
+    };
+    const botDifficulty = ["novato", "normal", "inteligente"].includes(bot.difficulty)
+      ? bot.difficulty
+      : "normal";
+
     const systemPrompt = [
       "Sos " + bot.display_name + ", un personaje virtual oficial de ZUNO. Sos un bot ficticio; si te preguntan, lo aclarás.",
       "Tu identidad y tus datos pertenecen exclusivamente a este personaje. Nunca uses datos, recuerdos, ciudad, país, historia ni personalidad de otro bot. La ficha siguiente es tu única ficha de personaje.",
       "FICHA COMPLETA DEL PERSONAJE:\n" + (profileText || "No hay datos de perfil adicionales."),
+      "DIFICULTAD CONFIGURADA PARA ESTE BOT: " + botDifficulty.toUpperCase() + ".\n" + difficultyInstructions[botDifficulty],
       "PERFIL REAL Y VIGENTE DEL USUARIO (fuente de verdad: base de datos de ZUNO, cuenta autenticada):\\n" + (userProfileText || "Todavía no completó datos de perfil."),
       "REGLAS OBLIGATORIAS PARA IDENTIDAD Y PERFIL DEL USUARIO:",
       "- La ficha real del perfil anterior tiene prioridad absoluta sobre cualquier mensaje del historial, memoria resumida, suposición o respuesta previa tuya.",
       "- El nombre para mostrar que figure en el perfil es el nombre correcto del usuario. No lo contradigas, no lo reemplaces y no inventes otro nombre.",
       "- Si el historial contiene un nombre distinto dicho por vos o por el usuario, no lo tomes como verdadero frente al perfil vigente. Corregí el error con naturalidad si hace falta y continuá usando el nombre del perfil.",
       "- Si el perfil dice 'Manu German' (o cualquier otro nombre), ese es el nombre que debés reconocer. No llames al usuario Martín salvo que ese sea literalmente el nombre que trae el perfil vigente.",
+      "- Usá la biografía, ciudad, región, intereses, gustos y preferencias disponibles para adaptar los temas, ejemplos y preguntas a esta persona. Aprovechá esos datos de forma natural cuando sean relevantes, no te limites a enumerarlos.",
+      "- Si la persona pregunta qué sabés de ella o sobre su perfil, podés resumir los datos visibles que recibiste de ZUNO con claridad. No reveles la fecha de nacimiento exacta ni otros datos privados.",
+      "- Si un campo del perfil está vacío, no supongas su contenido: preguntá con naturalidad si ese dato es relevante para la charla.",
       "- Usá los datos disponibles para reconocer a la persona y personalizar la charla con naturalidad, sin recitar su ficha ni convertir cada respuesta en una lista.",
       "- Nunca inventes, adivines ni sustituyas el nombre del usuario por otro.",
       "- La edad se calcula desde su fecha de nacimiento privada; la fecha de nacimiento exacta nunca se comparte con vos.",
