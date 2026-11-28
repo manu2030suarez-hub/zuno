@@ -120,6 +120,8 @@ export default function App() {
   const [adminPlatformError, setAdminPlatformError] = useState('')
   const [adminPlatformFeedback, setAdminPlatformFeedback] = useState('')
   const [publicPlatformSettings, setPublicPlatformSettings] = useState(null)
+  const [publicPlatformSettingsLoading, setPublicPlatformSettingsLoading] = useState(true)
+  const [publicPlatformSettingsError, setPublicPlatformSettingsError] = useState('')
 
   useEffect(() => {
     let active = true
@@ -292,10 +294,19 @@ export default function App() {
 
   useEffect(() => {
     let active = true
-    supabase.rpc('zuno_get_platform_settings').then(({ data, error }) => {
+    async function loadPublicPlatformSettings() {
+      setPublicPlatformSettingsLoading(true)
+      setPublicPlatformSettingsError('')
+      const { data, error } = await supabase.rpc('zuno_get_platform_settings')
       if (!active) return
-      if (!error && data) setPublicPlatformSettings(Array.isArray(data) ? data[0] : data)
-    })
+      if (error || !data) {
+        setPublicPlatformSettingsError(error?.message || 'No se pudo verificar el estado de ZUNO.')
+      } else {
+        setPublicPlatformSettings(Array.isArray(data) ? data[0] : data)
+      }
+      setPublicPlatformSettingsLoading(false)
+    }
+    loadPublicPlatformSettings()
     return () => { active = false }
   }, [])
 
@@ -2828,6 +2839,22 @@ export default function App() {
     <main className="app-shell"><header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header><section className="loading-state"><div className="card-icon"><Heart size={21}/></div><h2>Conectando con ZUNO…</h2></section></main>
   )
 
+  if (publicPlatformSettingsLoading) return (
+    <main className="app-shell zuno-maintenance-screen"><div className="zuno-maintenance-card"><span className="zuno-maintenance-icon"><Settings size={30}/></span><h1>Verificando ZUNO…</h1><p>Estamos comprobando el estado de la plataforma.</p></div></main>
+  )
+
+  if (publicPlatformSettingsError) return (
+    <main className="app-shell zuno-maintenance-screen"><div className="zuno-maintenance-card"><span className="zuno-maintenance-icon"><ShieldCheck size={30}/></span><h1>No pudimos verificar ZUNO.</h1><p>Por seguridad, no podemos habilitar el acceso hasta comprobar el estado de la plataforma.</p><button className="submit-btn" onClick={()=>window.location.reload()}>Volver a intentar</button></div></main>
+  )
+
+  if (publicPlatformSettings?.maintenance_mode && session?.user && profileLoading) return (
+    <main className="app-shell zuno-maintenance-screen"><div className="zuno-maintenance-card"><span className="zuno-maintenance-icon"><Settings size={30}/></span><h1>Verificando acceso…</h1><p>Estamos comprobando los permisos de administrador.</p></div></main>
+  )
+
+  if (publicPlatformSettings?.maintenance_mode && String(profile?.username || '').trim().toLowerCase() !== 'manu.german') return (
+    <main className="app-shell zuno-maintenance-screen"><div className="zuno-maintenance-card"><span className="zuno-maintenance-icon"><Settings size={30}/></span><span className="admin-welcome-kicker">ZUNO · EN MANTENIMIENTO</span><h1>Volvemos enseguida.</h1><p>{publicPlatformSettings.maintenance_message || 'Estamos realizando mejoras. Volvé a intentarlo en unos minutos.'}</p></div></main>
+  )
+
   if (session?.user && !emailConfirmed) return (
     <main className="app-shell">{callOverlay}
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header>
@@ -2840,9 +2867,7 @@ export default function App() {
     </main>
   )
 
-  if (publicPlatformSettings?.maintenance_mode && !(session?.user && (profileLoading || String(profile?.username||'').trim().toLowerCase()==='manu.german'))) return (
-    <main className="app-shell zuno-maintenance-screen"><div className="zuno-maintenance-card"><span className="zuno-maintenance-icon"><Settings size={30}/></span><span className="admin-welcome-kicker">ZUNO · EN MANTENIMIENTO</span><h1>Volvemos enseguida.</h1><p>{publicPlatformSettings.maintenance_message || 'Estamos realizando mejoras. Volvé a intentarlo en unos minutos.'}</p></div></main>
-  )
+
 
   if (session?.user && profileLoading) return (
     <main className="app-shell">{callOverlay}<header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header><section className="loading-state"><div className="card-icon"><Heart size={21}/></div><h2>Preparando tu espacio…</h2><p>Estamos cargando tu perfil.</p></section></main>
