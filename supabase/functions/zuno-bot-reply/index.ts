@@ -47,6 +47,14 @@ Deno.serve(async (req: Request) => {
       rest(supabaseUrl, secret, "private_profiles?select=birth_date&user_id=eq." + encodeURIComponent(user.id) + "&limit=1"),
     ]);
     if (!userProfileResponse.ok || !privateProfileResponse.ok) {
+      const profileError = !userProfileResponse.ok
+        ? await userProfileResponse.text()
+        : await privateProfileResponse.text();
+      console.error("Error consultando perfil de usuario en Supabase:", {
+        profiles_status: userProfileResponse.status,
+        private_profiles_status: privateProfileResponse.status,
+        details: profileError.slice(0, 1000),
+      });
       throw new Error("No pudimos cargar tu perfil para personalizar la conversación.");
     }
     const userProfiles = await userProfileResponse.json();
