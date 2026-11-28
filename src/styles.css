@@ -1637,3 +1637,66 @@ html body .zuno-admin-shell .zuno-admin-workspace{display:flex!important;min-hei
  html body .zuno-admin-shell .zuno-admin-welcome{min-height:145px!important;padding:18px!important}
  html body .zuno-admin-shell .admin-welcome-art{width:70px!important;height:70px!important;margin-right:0!important}
 }
+
+
+/* ZUNO ADMIN · visual refresh */
+html body .app-shell.zuno-admin-shell{font-family:Inter,'DM Sans',sans-serif!important;background:radial-gradient(ellipse at 78% -8%,#632c7d38 0,transparent 34%),radial-gradient(ellipse at 12% 20%,#30205a30 0,transparent 32%),#09080f!important;color:#f8f5fc!important}
+html body .zuno-admin-shell .zuno-admin-topbar{background:rgba(12,10,19,.94)!important;backdrop-filter:blur(18px)!important;border-bottom:1px solid #ffffff12!important;box-shadow:0 8px 35px #0004!important}
+html body .zuno-admin-shell .brand{font-size:25px!important;font-weight:900!important;letter-spacing:-1.2px!important}
+html body .zuno-admin-shell .admin-brand-label{display:inline-flex!important;align-items:center!important;margin-left:9px!important;padding:5px 9px!important;border:1px solid #bd70e766!important;border-radius:999px!important;background:#a84bd51c!important;color:#e8b9ff!important;font-size:9px!important;letter-spacing:1.8px!important}
+html body .zuno-admin-shell .admin-account-pill{display:inline-flex!important;align-items:center!important;gap:8px!important;padding:9px 13px!important;border:1px solid #ffffff18!important;border-radius:999px!important;background:#ffffff08!important;color:#e8deef!important;font-size:11px!important}
+html body .zuno-admin-shell .admin-account-pill>span,.admin-online-dot{width:7px!important;height:7px!important;border-radius:50%!important;background:#56d69a!important;box-shadow:0 0 12px #56d69a!important}
+html body .zuno-admin-shell .zuno-admin-layout{grid-template-columns:250px minmax(0,1fr)!important;gap:25px!important;width:min(1500px,calc(100% - 64px))!important;padding-top:34px!important}
+html body .zuno-admin-shell .zuno-admin-sidebar{top:96px!important;min-height:calc(100dvh - 155px)!important;padding:20px 14px!important;border:1px solid #ffffff15!important;border-radius:21px!important;background:linear-gradient(165deg,#191522 0%,#100e17 72%)!important;box-shadow:0 20px 65px #0005!important}
+html body .zuno-admin-shell .zuno-admin-sidebar-heading{display:flex!important;align-items:center!important;gap:12px!important;padding:4px 7px 22px!important;border-bottom:1px solid #ffffff12!important}
+html body .zuno-admin-shell .zuno-admin-shield{width:43px!important;height:43px!important;display:grid!important;place-items:center!important;border:1px solid #bd70e766!important;border-radius:14px!important;background:linear-gradient(145deg,#b94be52e,#6440a52b)!important;color:#e7b5ff!important}
+html body .zuno-admin-shell .zuno-admin-sidebar-heading strong{display:block!important;color:#fff!important;font-size:13px!important}
+html body .zuno-admin-shell .zuno-admin-sidebar-heading small{display:block!important;margin-top:4px!important;color:#94899f!important;font-size:10px!important}
+html body .zuno-admin-shell .zuno-admin-nav-label{margin:22px 10px 9px!important;color:#70677b!important;font-size:9px!important;font-weight:800!important;letter-spacing:1.8px!important}
+html body .zuno-admin-shell .zuno-admin-sidebar nav{display:grid!important;gap:6px!important}
+html body .zuno-admin-shell .zuno-admin-sidebar nav button{position:relative!important;min-height:46px!important;padding:0 13px!important;border:1px solid transparent!important;border-radius:12px!important;color:#aaa1b6!important;font-size:12px!important;font-weight:600!important;transition:background .18s,border-color .18s,transform .18s!important}
+html body .zuno-admin-shell .zuno-admin-sidebar nav button:hover{background:#ffffff08!important;color:#fff!important;transform:translateX(2px)!important}
+html body .zuno-admin-shell .zuno-admin-sidebar nav button.active{border-color:#bd70e744!important;background:linear-gradient(100deg,#a94bd52b,#7745a414)!important;color:#f1d6ff!important;box-shadow:inset 3px 0 #d783f1,0 8px 22px #0002!important}
+html body .zuno-admin-shell .zuno-admin-sidebar nav button.active svg{color:#e4a5fa!important}
+html body .zuno-admin-shell .zuno-admin-sidebar-bottom{margin-top:auto!important;padding:17px 10px 5px!important;border-top:1px solid #ffffff12!important;color:#d7cadd!important;font-size:10px!important}
+html body .zuno-admin-shell .zuno-admin-sidebar-bottom div{margin:7px 0 0 15px!important;color:#81778c!important;font-size:9px!important}
+html body .zuno-admin-shell .zuno-admin-page-heading{margin:3px 0 25px!important}
+html body .zuno-admin-shell .zuno-admin-page-heading .eyebrow{color:#dba5f0!important;font-size:10px!important;letter-spacing:1.7px!important}
+html body .zuno-admin-shell .zuno-admin-page-heading h1{font-size:clamp(31px,4vw,43px)!important;font-weight:850!important;letter-spacing:-1.7px!important}
+html body .zuno-admin-shell .zuno-admin-page-heading p{font-size:13px!important;color:#a49aae!important}
+html body .zuno-admin-shell .admin-secure-tag{padding:9px 12px!important;border:1px solid #ffffff16!important;border-radius:999px!important;background:#ffffff07!important;color:#bdb2c8!important;font-size:10px!important}
+html body .zuno-admin-shell .admin-refresh{display:inline-flex!important;align-items:center!important;gap:7px!important;padding:10px 14px!important;border:1px solid #bd70e755!important;border-radius:11px!important;background:#a84bd51b!important;color:#edc8ff!important;font-size:11px!important;font-weight:700!important;cursor:pointer!important}
+html body .zuno-admin-shell .zuno-admin-security-notice{padding:15px 17px!important;border:1px solid #e0ae5b40!important;border-radius:15px!important;background:linear-gradient(100deg,#b47b291b,#9a64200a)!important;box-shadow:0 10px 30px #0002!important}
+html body .zuno-admin-shell .zuno-admin-security-notice strong{display:block!important;margin-bottom:4px!important;color:#f3d49c!important;font-size:12px!important}
+html body .zuno-admin-shell .zuno-admin-security-notice span{color:#b8a88e!important;font-size:11px!important;line-height:1.6!important}
+html body .zuno-admin-shell .zuno-admin-welcome{position:relative!important;overflow:hidden!important;min-height:205px!important;padding:31px 34px!important;border:1px solid #b86ad34a!important;border-radius:22px!important;background:linear-gradient(112deg,#291a39 0%,#1c152a 55%,#21152d 100%)!important;box-shadow:0 18px 55px #0004!important}
+html body .zuno-admin-shell .zuno-admin-welcome:after{content:""!important;position:absolute!important;width:310px!important;height:310px!important;right:70px!important;top:-190px!important;border:1px solid #d58af322!important;border-radius:50%!important;box-shadow:0 0 0 35px #d58af30a,0 0 0 70px #d58af307!important}
+html body .zuno-admin-shell .admin-welcome-kicker{color:#dca6f2!important;font-size:9px!important;font-weight:800!important;letter-spacing:2px!important}
+html body .zuno-admin-shell .zuno-admin-welcome h2{margin:12px 0 8px!important;color:#fff!important;font-size:clamp(23px,3vw,30px)!important;font-weight:850!important;letter-spacing:-.8px!important}
+html body .zuno-admin-shell .zuno-admin-welcome p{max-width:440px!important;color:#c1b3ce!important;font-size:12px!important;line-height:1.7!important}
+html body .zuno-admin-shell .admin-welcome-art{z-index:1!important;width:112px!important;height:112px!important;border:1px solid #d58af355!important;border-radius:30px!important;background:linear-gradient(145deg,#d58af32a,#6f43a333)!important;color:#e6b5f8!important;box-shadow:0 15px 40px #0004,inset 0 1px #ffffff22!important}
+html body .zuno-admin-shell .zuno-admin-section-title{margin:29px 0 13px!important}
+html body .zuno-admin-shell .zuno-admin-section-title h2{margin:0!important;color:#f5eff9!important;font-size:16px!important;font-weight:800!important}
+html body .zuno-admin-shell .zuno-admin-section-title p{margin:5px 0 0!important;color:#8f849b!important;font-size:10px!important}
+html body .zuno-admin-shell .zuno-admin-stats article{min-height:104px!important;padding:17px!important;border:1px solid #ffffff15!important;border-radius:17px!important;background:linear-gradient(150deg,#1b1825,#121019)!important;box-shadow:0 12px 32px #0003!important}
+html body .zuno-admin-shell .admin-stat-icon{width:39px!important;height:39px!important;border-radius:13px!important}
+html body .zuno-admin-shell .zuno-admin-stats article small{color:#a69bad!important;font-size:10px!important}
+html body .zuno-admin-shell .zuno-admin-stats article strong{font-size:25px!important;font-weight:850!important;letter-spacing:-.8px!important}
+html body .zuno-admin-shell .zuno-admin-stats article em{font-size:9px!important;color:#81778b!important}
+html body .zuno-admin-shell .zuno-admin-module{min-height:82px!important;padding:17px!important;border:1px solid #ffffff15!important;border-radius:16px!important;background:linear-gradient(140deg,#1a1723,#121019)!important;box-shadow:0 10px 28px #0002!important}
+html body .zuno-admin-shell .zuno-admin-module:hover{border-color:#c77ce477!important;background:linear-gradient(140deg,#241a30,#171321)!important;box-shadow:0 15px 32px #0004!important}
+html body .zuno-admin-shell .admin-module-icon{width:44px!important;height:44px!important;border-radius:14px!important;background:linear-gradient(145deg,#b44bd52c,#7446a522)!important}
+html body .zuno-admin-shell .admin-module-copy strong{font-size:12px!important;color:#f7effb!important}
+html body .zuno-admin-shell .admin-module-copy small{font-size:10px!important;color:#94899f!important}
+html body .zuno-admin-shell .zuno-admin-info-card{border-radius:16px!important;background:linear-gradient(145deg,#181520,#100e16)!important;box-shadow:0 10px 28px #0002!important}
+html body .zuno-admin-shell .zuno-admin-workspace{border-radius:21px!important;background:radial-gradient(ellipse at 50% 0%,#a34fc225,transparent 58%),linear-gradient(145deg,#191522,#100e16)!important;box-shadow:0 18px 50px #0003!important}
+@media(max-width:760px){
+ html body .zuno-admin-shell .zuno-admin-layout{width:calc(100% - 26px)!important;margin:0 13px!important;padding:16px 0 35px!important}
+ html body .zuno-admin-shell .zuno-admin-sidebar{border-radius:16px!important;background:#15121d!important}
+ html body .zuno-admin-shell .zuno-admin-sidebar-heading{display:none!important}
+ html body .zuno-admin-shell .zuno-admin-sidebar nav button{min-height:40px!important;padding:0 12px!important;border-radius:10px!important}
+ html body .zuno-admin-shell .zuno-admin-page-heading h1{font-size:30px!important}
+ html body .zuno-admin-shell .zuno-admin-welcome{min-height:170px!important;padding:22px 19px!important}
+ html body .zuno-admin-shell .admin-welcome-art{width:72px!important;height:72px!important;border-radius:21px!important}
+ html body .zuno-admin-shell .zuno-admin-stats article{min-height:90px!important}
+}
