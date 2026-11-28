@@ -1446,3 +1446,18 @@ button{touch-action:manipulation}
 .notification-resolution{display:flex;align-items:center;gap:8px;margin:8px 42px 8px 52px;padding:9px 12px;border-radius:10px;background:rgba(46,204,113,.09);color:#b9f3d0;font-size:13px}
 .notification-resolution svg{flex:0 0 auto;color:#48d597}
 .notification-resolution time{margin-left:auto;color:var(--muted,#9aa4b2);font-size:11px}
+
+
+/* ZUNO in-app location map modal */
+.zuno-location-map-backdrop{position:fixed;inset:0;z-index:5000;background:#080711f2;display:flex;align-items:stretch;justify-content:center}
+.zuno-location-map-panel{position:relative;width:100%;height:100dvh;min-height:100dvh;overflow:hidden;background:#09090d;color:#fff}
+.zuno-location-map-panel>header{position:absolute;z-index:2;top:env(safe-area-inset-top);left:12px;right:12px;min-height:58px;display:flex;align-items:center;gap:12px;padding:8px 12px;border:1px solid #ffffff24;border-radius:16px;background:#111116ed;backdrop-filter:blur(16px)}
+.zuno-location-map-panel>header>div{display:flex;flex:1;flex-direction:column;gap:3px}
+.zuno-location-map-panel>header strong{font-size:14px}
+.zuno-location-map-panel>header small{font-size:11px;color:#bdb5c7}
+.zuno-location-map-panel>header button{width:42px;height:42px;display:grid;place-items:center;border:1px solid #ffffff20;border-radius:12px;background:#ffffff12;color:#fff}
+.zuno-location-map-canvas{position:absolute!important;inset:0;width:100%;height:100%;background:#17171d}
+.zuno-location-map-canvas .leaflet-control-attribution{font-size:9px}
+.chat-location-message button{grid-column:2;justify-self:start;border:0;border-radius:8px;padding:6px 10px;background:#743047;color:#fff;font-size:12px;cursor:pointer}
+.chat-live-location>button:first-of-type{border:0;border-radius:8px;padding:7px 9px;background:#302638;color:#f6eaf7;font-size:11px;cursor:pointer}
+@media(max-width:650px){.zuno-location-map-panel>header{left:10px;right:10px}.zuno-location-map-canvas{touch-action:pan-x pan-y}}
