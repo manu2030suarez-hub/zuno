@@ -2042,3 +2042,28 @@ html body .zuno-admin-shell .admin-communication-success{
 .zuno-maintenance-card h1{margin:12px 0;font-size:clamp(27px,6vw,38px);color:#fff}
 .zuno-maintenance-card p{margin:0;color:#c9bbd2;line-height:1.7}
 @media(max-width:640px){.zuno-admin-shell .admin-platform-settings-card{padding:17px}.zuno-admin-shell .admin-platform-settings-actions{align-items:stretch;flex-direction:column}.zuno-admin-shell .admin-platform-settings-actions button{width:100%;justify-content:center}}
+
+
+/* Descubrir: acercar historias al encabezado y darles ancho real de borde a borde */
+@media(max-width:760px){
+  .home-content{padding-top:14px!important}
+  .zuno-stories{
+    position:relative!important;
+    left:auto!important;
+    transform:none!important;
+    width:calc(100% + 30px)!important;
+    max-width:none!important;
+    margin-left:-15px!important;
+    margin-right:0!important;
+    padding:10px 20px 9px!important;
+    box-sizing:border-box!important;
+  }
+}
+@media(max-width:600px){
+  .home-content{padding-top:9px!important}
+  .zuno-stories{
+    width:calc(100% + 24px)!important;
+    margin-left:-12px!important;
+    padding:9px 18px 8px!important;
+  }
+}
