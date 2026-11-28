@@ -1227,7 +1227,8 @@ button{touch-action:manipulation}
 .profile-detail-shell{padding:0 0 80px}
 .profile-detail-screen{width:min(100%,760px);max-width:760px;min-height:0;margin:0 auto;padding:0 0 34px}
 .profile-photo-stage{position:relative;width:100%;height:min(78dvh,820px);min-height:510px;overflow:hidden;background:#08080b;color:#fff;isolation:isolate;touch-action:none}
-.profile-stage-image{display:block;width:100%;height:100%;object-fit:cover;object-position:center;cursor:zoom-in}
+@keyframes profile-photo-swipe-in{from{opacity:.55;transform:translate3d(0,22px,0) scale(.985);filter:blur(3px)}to{opacity:1;transform:translate3d(0,0,0) scale(1);filter:blur(0)}}
+.profile-stage-image{display:block;width:100%;height:100%;object-fit:cover;object-position:center;cursor:zoom-in;animation:profile-photo-swipe-in .32s cubic-bezier(.2,.75,.25,1) both;will-change:transform,opacity,filter}
 .profile-stage-empty{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#b8adbf;background:linear-gradient(145deg,#201827,#08080b)}
 .profile-stage-top{position:absolute;z-index:3;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:calc(env(safe-area-inset-top) + 14px) 17px 15px;background:linear-gradient(#0008,transparent)}
 .profile-stage-top button{width:42px;height:42px;display:grid;place-items:center;border:0;border-radius:50%;background:#0005;color:#fff;cursor:pointer;backdrop-filter:blur(8px)}
@@ -1449,14 +1450,14 @@ button{touch-action:manipulation}
 
 
 /* ZUNO in-app location map modal */
-.zuno-location-map-backdrop{position:fixed;inset:0;z-index:5000;background:#080711f2;display:flex;align-items:stretch;justify-content:center}
-.zuno-location-map-panel{position:relative;width:100%;height:100dvh;min-height:100dvh;overflow:hidden;background:#09090d;color:#fff}
-.zuno-location-map-panel>header{position:absolute;z-index:2;top:env(safe-area-inset-top);left:12px;right:12px;min-height:58px;display:flex;align-items:center;gap:12px;padding:8px 12px;border:1px solid #ffffff24;border-radius:16px;background:#111116ed;backdrop-filter:blur(16px)}
+.zuno-location-map-backdrop{position:fixed;inset:0;z-index:5000;background:#080711f2;display:flex;align-items:stretch;justify-content:center;isolation:isolate}
+.zuno-location-map-panel{position:relative;width:100%;height:100dvh;min-height:100dvh;overflow:hidden;background:#09090d;color:#fff;isolation:isolate}
+.zuno-location-map-panel>header{position:absolute;z-index:10000;top:env(safe-area-inset-top);left:12px;right:12px;min-height:58px;display:flex;align-items:center;gap:12px;padding:8px 12px;border:1px solid #ffffff24;border-radius:16px;background:#111116ed;backdrop-filter:blur(16px)}
 .zuno-location-map-panel>header>div{display:flex;flex:1;flex-direction:column;gap:3px}
 .zuno-location-map-panel>header strong{font-size:14px}
 .zuno-location-map-panel>header small{font-size:11px;color:#bdb5c7}
 .zuno-location-map-panel>header button{width:42px;height:42px;display:grid;place-items:center;border:1px solid #ffffff20;border-radius:12px;background:#ffffff12;color:#fff}
-.zuno-location-map-canvas{position:absolute!important;inset:0;width:100%;height:100%;background:#17171d}
+.zuno-location-map-canvas{position:absolute!important;z-index:0!important;inset:0;width:100%;height:100%;background:#17171d}
 .zuno-location-map-canvas .leaflet-control-attribution{font-size:9px}
 .chat-location-message button{grid-column:2;justify-self:start;border:0;border-radius:8px;padding:6px 10px;background:#743047;color:#fff;font-size:12px;cursor:pointer}
 .chat-live-location>button:first-of-type{border:0;border-radius:8px;padding:7px 9px;background:#302638;color:#f6eaf7;font-size:11px;cursor:pointer}
