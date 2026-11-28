@@ -338,7 +338,6 @@ Deno.serve(async (req: Request) => {
               console.error("No se pudo guardar una imagen de referencia:", imageSave.status);
             }
           }
-        }
       } catch (imageError) {
         console.warn("Falló la búsqueda opcional de imágenes:", imageError);
       }
