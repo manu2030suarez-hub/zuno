@@ -89,6 +89,10 @@ export default function App() {
   const [adminRetainedLoading, setAdminRetainedLoading] = useState(false)
   const [adminRetainedError, setAdminRetainedError] = useState('')
   const [adminRetainedRefresh, setAdminRetainedRefresh] = useState(0)
+  const [adminStats, setAdminStats] = useState(null)
+  const [adminStatsLoading, setAdminStatsLoading] = useState(false)
+  const [adminStatsError, setAdminStatsError] = useState('')
+  const [adminStatsRefresh, setAdminStatsRefresh] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -194,6 +198,25 @@ export default function App() {
     loadAdminReports()
     return () => { active = false }
   }, [view, adminAuthorized, adminSection, adminReportsFilter, adminReportsRefresh])
+
+  useEffect(() => {
+    let active = true
+    async function loadAdminStats() {
+      if (view !== 'admin' || !adminAuthorized || adminSection !== 'overview') return
+      setAdminStatsLoading(true)
+      setAdminStatsError('')
+      const { data, error: statsError } = await supabase.rpc('admin_get_dashboard_stats')
+      if (!active) return
+      if (statsError) {
+        setAdminStatsError(statsError.message || 'No se pudieron cargar las estadísticas.')
+      } else {
+        setAdminStats(Array.isArray(data) ? (data[0] || null) : data)
+      }
+      setAdminStatsLoading(false)
+    }
+    loadAdminStats()
+    return () => { active = false }
+  }, [view, adminAuthorized, adminSection, adminStatsRefresh])
 
   useEffect(() => {
     let active = true
@@ -2839,13 +2862,18 @@ export default function App() {
             <div className="zuno-admin-security-notice"><ShieldCheck size={18}/><div><strong>Acceso administrativo verificado</strong><span>Supabase confirmó tu rol de administrador. Las consultas y acciones sensibles se validan nuevamente en el servidor.</span></div></div>
             {adminSection==='overview' ? <>
               <div className="zuno-admin-welcome"><div><span className="admin-welcome-kicker">CENTRO DE CONTROL</span><h2>Hola, administrador.</h2><p>Desde acá vas a poder supervisar la comunidad y mantener ZUNO seguro.</p></div><div className="admin-welcome-art"><ShieldCheck size={54}/><span/></div></div>
-              <div className="zuno-admin-section-title"><div><h2>Actividad de esta sesión</h2><p>Datos locales cargados en tu sesión actual; no representan totales de toda la plataforma.</p></div></div>
-              <div className="zuno-admin-stats">
-                <article><span className="admin-stat-icon purple"><Users size={19}/></span><div><small>Perfiles cargados</small><strong>{people.length.toLocaleString('es-UY')}</strong><em>En esta sesión</em></div></article>
-                <article><span className="admin-stat-icon pink"><MessageCircle size={19}/></span><div><small>Conversaciones</small><strong>{conversations.length.toLocaleString('es-UY')}</strong><em>Visibles para tu cuenta</em></div></article>
-                <article><span className="admin-stat-icon blue"><Bell size={19}/></span><div><small>Notificaciones</small><strong>{notifications.length.toLocaleString('es-UY')}</strong><em>De tu cuenta</em></div></article>
-                <article><span className="admin-stat-icon orange"><Activity size={19}/></span><div><small>Estado del panel</small><strong>Conectado</strong><em>Herramientas admin activas</em></div></article>
+              <div className="zuno-admin-section-title admin-stats-heading"><div><h2>Estadísticas de ZUNO</h2><p>Indicadores generales consultados directamente en Supabase.</p></div><button type="button" className="admin-refresh" onClick={()=>setAdminStatsRefresh(value=>value+1)} disabled={adminStatsLoading}><RefreshCw size={15}/> {adminStatsLoading?'Actualizando...':'Actualizar cifras'}</button></div>
+              {adminStatsError && <div className="admin-users-error"><CircleAlert size={16}/>{adminStatsError}</div>}
+              <div className="zuno-admin-stats zuno-admin-live-stats">
+                <article><span className="admin-stat-icon purple"><Users size={19}/></span><div><small>Usuarios registrados</small><strong>{Number(adminStats?.total_users||0).toLocaleString('es-UY')}</strong><em>Total de perfiles</em></div></article>
+                <article><span className="admin-stat-icon pink"><Activity size={19}/></span><div><small>Activos visibles ahora</small><strong>{Number(adminStats?.active_visible_5m||0).toLocaleString('es-UY')}</strong><em>Últimos 5 minutos</em></div></article>
+                <article><span className="admin-stat-icon blue"><Users size={19}/></span><div><small>Activos visibles 24 h</small><strong>{Number(adminStats?.active_visible_24h||0).toLocaleString('es-UY')}</strong><em>Últimas 24 horas</em></div></article>
+                <article><span className="admin-stat-icon orange"><UserPlus size={19}/></span><div><small>Registros de hoy</small><strong>{Number(adminStats?.registrations_today||0).toLocaleString('es-UY')}</strong><em>{Number(adminStats?.registrations_7d||0).toLocaleString('es-UY')} en los últimos 7 días</em></div></article>
+                <article><span className="admin-stat-icon purple"><Flag size={19}/></span><div><small>Denuncias recibidas</small><strong>{Number(adminStats?.total_reports||0).toLocaleString('es-UY')}</strong><em>{Number(adminStats?.pending_reports||0).toLocaleString('es-UY')} pendientes</em></div></article>
+                <article><span className="admin-stat-icon pink"><ShieldCheck size={19}/></span><div><small>Sanciones activas</small><strong>{Number(adminStats?.active_sanctions||0).toLocaleString('es-UY')}</strong><em>{Number(adminStats?.total_sanctions||0).toLocaleString('es-UY')} medidas registradas</em></div></article>
               </div>
+              <section className="admin-stats-chart-card"><div className="admin-stats-chart-heading"><div><h3>Registros de los últimos 7 días</h3><p>Altas nuevas por día, según la fecha de creación del perfil.</p></div><span>7 DÍAS</span></div><div className="admin-stats-bars">{(Array.isArray(adminStats?.registrations_by_day)?adminStats.registrations_by_day:[]).map((item,index)=>{const maximum=Math.max(1,...(adminStats?.registrations_by_day||[]).map(day=>Number(day.count)||0));const count=Number(item.count)||0;return <div className="admin-stats-bar-column" key={item.day||index}><strong>{count}</strong><div className="admin-stats-bar-track"><span style={{height:Math.max(5,Math.round(count/maximum*100))+'%'}}/></div><small>{item.day}</small></div>})}{!adminStatsLoading && !adminStats?.registrations_by_day?.length && <p className="admin-stats-no-data">Todavía no hay datos de registros.</p>}</div></section>
+              <p className="admin-stats-privacy-note">La actividad se cuenta únicamente entre perfiles que permiten mostrar su estado en línea. Las cifras se actualizan al entrar al resumen o al pulsar «Actualizar cifras».</p>
               <div className="zuno-admin-section-title"><div><h2>Herramientas de administración</h2><p>Módulos previstos para gestionar la plataforma.</p></div></div>
               <div className="zuno-admin-module-grid">{adminModules.map(item=>{const Icon=item.icon;return <button type="button" key={item.id} className="zuno-admin-module" onClick={()=>setAdminSection(item.id)}><span className="admin-module-icon"><Icon size={20}/></span><span className="admin-module-copy"><strong>{item.title}</strong><small>{item.description}</small></span><ChevronRight size={18}/></button>})}</div>
               <div className="zuno-admin-bottom-grid"><article className="zuno-admin-info-card"><div><Database size={18}/><strong>Base de datos</strong></div><p>Las denuncias y los mensajes conservados se consultan mediante funciones protegidas y con auditoría.</p><span className="admin-status-pending"><ShieldCheck size={13}/> Consultas protegidas</span></article><article className="zuno-admin-info-card"><div><CheckCircle2 size={18}/><strong>Acceso actual</strong></div><p>El acceso se valida con la función zuno_is_admin() de Supabase.</p><span className="admin-status-pending"><CheckCircle2 size={13}/> Rol verificado</span></article></div>
