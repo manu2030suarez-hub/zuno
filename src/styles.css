@@ -1839,3 +1839,21 @@ html body .zuno-admin-shell .admin-user-media-unavailable{display:flex;min-heigh
 .admin-report-reply button{border:0;border-radius:9px;padding:10px 14px;background:var(--accent,#7c3aed);color:white;font-weight:750;font-size:12px;cursor:pointer}
 .admin-report-reply button:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:600px){.admin-report-reply>div{align-items:stretch;flex-direction:column}.admin-report-reply button{width:100%}}
+
+
+/* ZUNO ADMIN · account sanctions */
+.admin-sanction-panel{margin:22px 0;padding:20px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(145deg,rgba(139,92,246,.10),rgba(15,23,42,.32));display:grid;gap:14px}
+.admin-sanction-panel h3{margin:5px 0;font-size:19px}
+.admin-sanction-panel p{margin:5px 0;color:var(--muted,#a1a1aa);font-size:13px;line-height:1.5}
+.admin-sanction-panel label{display:grid;gap:7px;font-size:12px;font-weight:700;color:var(--muted,#c4b5fd)}
+.admin-sanction-panel select,.admin-sanction-panel textarea{width:100%;box-sizing:border-box;border:1px solid rgba(255,255,255,.14);border-radius:11px;background:rgba(7,10,22,.72);color:inherit;padding:11px 12px;font:inherit}
+.admin-sanction-panel textarea{min-height:88px;resize:vertical}
+.admin-sanction-submit{border:0;border-radius:11px;padding:12px 16px;background:linear-gradient(110deg,#ef4444,#be123c);color:white;font-weight:800;cursor:pointer}
+.admin-sanction-submit:disabled{opacity:.5;cursor:not-allowed}
+.admin-sanction-feedback{padding:10px 12px;border-radius:10px;background:rgba(16,185,129,.09);border:1px solid rgba(16,185,129,.2)}
+.admin-sanction-history-load{justify-self:start;background:transparent;border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:9px 12px;color:inherit;cursor:pointer}
+.admin-sanction-history-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid rgba(255,255,255,.09)}
+.admin-sanction-history-item>div{display:grid;gap:4px;min-width:0}
+.admin-sanction-history-item small{color:var(--muted,#a1a1aa);font-size:12px;overflow-wrap:anywhere}
+.admin-sanction-history-item button{flex:0 0 auto;border:1px solid rgba(16,185,129,.35);border-radius:9px;background:rgba(16,185,129,.1);color:#a7f3d0;padding:8px 10px;cursor:pointer}
+@media(max-width:600px){.admin-sanction-panel{padding:15px}.admin-sanction-history-item{align-items:flex-start;flex-direction:column}}
