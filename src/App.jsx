@@ -1340,7 +1340,7 @@ export default function App() {
     let map = leafletMapRef.current
     if (!map) {
       map = L.map(mapContainerRef.current, { zoomControl: false }).setView([-34.9011, -56.1645], 11)
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 18,
         attribution: '&copy; OpenStreetMap &copy; CARTO'
       }).addTo(map)
