@@ -47,9 +47,9 @@ begin
   values (v_admin, 'reports_list_view', jsonb_build_object('status_filter', p_status));
 
   return query
-  select r.id, r.reporter_id, r.reported_user_id, r.reason, r.details, r.status, r.created_at,
-         reporter.username, reporter.display_name,
-         reported.username, reported.display_name
+  select r.id, r.reporter_id, r.reported_user_id, r.reason::text, r.details::text, r.status::text, r.created_at,
+         reporter.username::text, reporter.display_name::text,
+         reported.username::text, reported.display_name::text
   from public.user_reports r
   left join public.profiles reporter on reporter.id = r.reporter_id
   left join public.profiles reported on reported.id = r.reported_user_id
