@@ -2319,3 +2319,32 @@ main.app-shell:has(> .zuno-stories) > .home-content > .empty-state{width:100%;ma
 @media(max-width:600px){
   .bot-location-picker-panel>footer{align-items:stretch!important;flex-direction:column!important}
 }
+
+/* Mantener visibles juntos los dos controles del selector de ubicación del bot */
+.bot-location-picker-panel>footer{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto auto!important;
+  align-items:center!important;
+  gap:10px!important;
+}
+.bot-location-picker-panel>footer span{min-width:0!important;overflow-wrap:anywhere}
+.bot-location-picker-panel>footer .logout-btn,
+.bot-location-picker-panel>footer .submit-btn{
+  display:flex!important;
+  width:auto!important;
+  min-width:132px!important;
+  min-height:42px!important;
+  height:auto!important;
+  margin:0!important;
+  padding:10px 14px!important;
+  align-items:center!important;
+  justify-content:center!important;
+  white-space:nowrap!important;
+  flex:none!important;
+}
+@media(max-width:600px){
+  .bot-location-picker-panel>footer{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important}
+  .bot-location-picker-panel>footer span{grid-column:1/-1!important}
+  .bot-location-picker-panel>footer .logout-btn,
+  .bot-location-picker-panel>footer .submit-btn{min-width:0!important;width:100%!important}
+}
