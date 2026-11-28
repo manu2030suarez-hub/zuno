@@ -3473,7 +3473,7 @@ export default function App() {
               <p className="person-username">Este es tu perfil</p>
             </div>
           </article>}
-          {(view === 'home' ? discoveryPeople : view === 'favorites' ? people.filter(person => favoriteIds.includes(person.id)) : people).map(person => <article className={`person-card${person.isBot ? ' person-card-bot' : ' person-card-clickable'}`} key={person.id} {...(!person.isBot ? { role:'button', tabIndex:0, onClick:()=>openMemberProfile(person,false), onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openMemberProfile(person,false)}} } : {})}>
+          {(view === 'home' ? discoveryPeople : view === 'favorites' ? people.filter(person => favoriteIds.includes(person.id)) : people).map(person => <article className={`person-card${person.isBot ? ' person-card-bot' : ' person-card-clickable'}`} key={person.id} role="button" tabIndex={0} onClick={()=>openMemberProfile(person,false)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openMemberProfile(person,false)}}}>
             <div className="person-card-gallery">
               {person.photos?.length ? <img src={person.photos[0].url} alt={`Foto de ${person.display_name || 'usuario'}`}/> : <ProfileAvatar person={person}/>}
               
