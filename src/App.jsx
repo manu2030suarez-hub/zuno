@@ -1892,7 +1892,7 @@ export default function App() {
     if (discoveryLookingFor && !(person.looking_for || []).includes(discoveryLookingFor)) return false
     if (discoveryVerifiedOnly && !person.zuno_verified) return false
     if (discoveryWithPhotos && !(person.photos || []).length) return false
-    if (person.isBot && ((discoveryAgeMin && Number(person.age) < Number(discoveryAgeMin)) || (discoveryAgeMax && Number(person.age) > Number(discoveryAgeMax)) || discoveryDistanceKm || discoveryOnlineRecently)) return false
+    if (person.isBot && ((discoveryAgeMin && Number(person.age) < Number(discoveryAgeMin)) || (discoveryAgeMax && Number(person.age) > Number(discoveryAgeMax)) || discoveryOnlineRecently || (discoveryDistanceKm && (person.approximateDistanceKm == null || person.approximateDistanceKm > Number(discoveryDistanceKm))))) return false
     return true
   }).sort((a,b) => discoverySort === 'name' ? (a.display_name || '').localeCompare(b.display_name || '') : discoverySort === 'oldest' ? new Date(a.created_at || 0)-new Date(b.created_at || 0) : new Date(b.created_at || 0)-new Date(a.created_at || 0))
   const discoveryFiltersActive = Boolean(discoverySearch || discoveryCity || discoveryInterest || discoveryLookingFor || discoveryVerifiedOnly || discoveryWithPhotos || discoverySort !== 'recent' || discoveryAgeMin || discoveryAgeMax || discoveryDistanceKm || discoveryOnlineRecently)
