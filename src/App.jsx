@@ -2840,6 +2840,10 @@ export default function App() {
     </main>
   )
 
+  if (publicPlatformSettings?.maintenance_mode && !(session?.user && String(profile?.username||'').trim().toLowerCase()==='manu.german')) return (
+    <main className="app-shell zuno-maintenance-screen"><div className="zuno-maintenance-card"><span className="zuno-maintenance-icon"><Settings size={30}/></span><span className="admin-welcome-kicker">ZUNO · EN MANTENIMIENTO</span><h1>Volvemos enseguida.</h1><p>{publicPlatformSettings.maintenance_message || 'Estamos realizando mejoras. Volvé a intentarlo en unos minutos.'}</p></div></main>
+  )
+
   if (session?.user && profileLoading) return (
     <main className="app-shell">{callOverlay}<header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header><section className="loading-state"><div className="card-icon"><Heart size={21}/></div><h2>Preparando tu espacio…</h2><p>Estamos cargando tu perfil.</p></section></main>
   )
@@ -3364,10 +3368,6 @@ export default function App() {
         </div>
       </section><ZunoBottomNav view={view} setView={setView} onLogout={logout} adminVisible={String(profile?.username||'').trim().toLowerCase()==='manu.german'} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
     </main>
-  )
-
-  if (publicPlatformSettings?.maintenance_mode && !(session?.user && String(profile?.username||'').trim().toLowerCase()==='manu.german')) return (
-    <main className="app-shell zuno-maintenance-screen"><div className="zuno-maintenance-card"><span className="zuno-maintenance-icon"><Settings size={30}/></span><span className="admin-welcome-kicker">ZUNO · EN MANTENIMIENTO</span><h1>Volvemos enseguida.</h1><p>{publicPlatformSettings.maintenance_message || 'Estamos realizando mejoras. Volvé a intentarlo en unos minutos.'}</p></div></main>
   )
 
   return (
