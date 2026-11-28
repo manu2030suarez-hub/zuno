@@ -1462,3 +1462,43 @@ button{touch-action:manipulation}
 .chat-location-message button{grid-column:2;justify-self:start;border:0;border-radius:8px;padding:6px 10px;background:#743047;color:#fff;font-size:12px;cursor:pointer}
 .chat-live-location>button:first-of-type{border:0;border-radius:8px;padding:7px 9px;background:#302638;color:#f6eaf7;font-size:11px;cursor:pointer}
 @media(max-width:650px){.zuno-location-map-panel>header{left:10px;right:10px}.zuno-location-map-canvas{touch-action:pan-x pan-y}}
+
+
+/* Ajustes finales de ancho y tacto para móvil: historias a todo el viewport */
+.zuno-stories{
+  position:relative!important;
+  left:50%!important;
+  transform:translateX(-50%)!important;
+  width:100vw!important;
+  max-width:100vw!important;
+  margin:0 0 18px!important;
+  padding:10px 16px 9px!important;
+  box-sizing:border-box!important;
+  overflow:hidden!important;
+}
+.stories-heading{width:100%;min-width:0}
+.stories-heading>strong{min-width:0}
+.stories-heading>span{min-width:0;text-align:right}
+.stories-rail{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  box-sizing:border-box;
+  overflow-x:auto;
+  overscroll-behavior-x:contain;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+.stories-rail::-webkit-scrollbar{display:none}
+.story-create,.story-person{flex:0 0 62px;min-width:62px}
+@media(max-width:600px){
+  .zuno-stories{left:50%!important;width:100vw!important;max-width:100vw!important;padding:9px 12px 8px!important;margin-bottom:14px!important}
+  .stories-heading{gap:6px}
+  .stories-heading>strong{font-size:14px}
+  .stories-heading>span{font-size:10px;white-space:nowrap}
+  .stories-rail{gap:11px!important;padding:0 1px 4px!important}
+  .story-create,.story-person{flex-basis:58px;min-width:58px;font-size:10px}
+  .story-create-avatar,.story-ring{width:52px!important;height:52px!important;min-width:52px!important;min-height:52px!important;flex-basis:52px!important}
+  .profile-photo-stage{touch-action:none;-webkit-user-select:none;user-select:none}
+  .profile-stage-image{touch-action:none;-webkit-user-drag:none}
+}
