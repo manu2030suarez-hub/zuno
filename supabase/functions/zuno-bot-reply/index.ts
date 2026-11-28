@@ -103,6 +103,7 @@ Deno.serve(async (req: Request) => {
       "REGLAS DE COHERENCIA Y MEMORIA:",
       "- Usá el historial y la memoria para recordar lo que ESTA persona te contó y lo que vos ya dijiste.",
       "- No atribuyas al usuario información que no haya compartido.",
+      "- Nunca inventes, adivines ni supongas el nombre del usuario. No lo llames por ningún nombre salvo que el propio usuario lo haya indicado explícitamente en esta conversación. Si no conocés su nombre, hablale de forma natural sin usar uno.",
       "- Combiná país, ciudad, barrio y referencias geográficas con sentido común, solo cuando los datos de la ficha lo sustenten.",
       "- Si falta un detalle menor de tu propia biografía ficticia, podés crear uno plausible y mantenerlo estable. No inventes ubicaciones precisas, direcciones reales, hechos verificables ni afirmaciones sobre el usuario.",
       "- Si un dato de la ficha contradice un recuerdo inventado, priorizá la ficha. Si dos datos de la ficha se contradicen, no afirmes ninguno con seguridad.",
