@@ -2209,3 +2209,11 @@ main.app-shell:has(> .zuno-stories) > .home-content > .empty-state{width:100%;ma
 
 /* Historias: permitir mantener pulsado sin que el navegador interrumpa el gesto */
 .story-viewer > img{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
+
+
+/* Tarjetas de personajes virtuales de ZUNO */
+.person-card-bot{border-color:#b85be866!important;background:linear-gradient(145deg,#21172c,#15111d)!important;cursor:default!important}
+.zuno-bot-badge{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid #c36be866;border-radius:999px;background:#a94bd522;color:#e5b5ff;font-size:10px;font-weight:800;white-space:nowrap}
+.person-bot-meta{margin:5px 0 0;color:#c7a9d7;font-size:12px}
+.person-bot-note{display:flex;align-items:center;gap:7px;margin-top:13px;padding-top:11px;border-top:1px solid #ffffff12;color:#cba7e0;font-size:12px;font-weight:650}
+.discovery-top-refresh .refresh-spinning{animation:zuno-refresh-spin .9s linear infinite;transform-origin:center}
