@@ -41,6 +41,43 @@ Deno.serve(async (req: Request) => {
     if (!authResponse.ok) return json({ error: "Tu sesión no es válida. Volvé a iniciar sesión." }, 401);
     const user = await authResponse.json();
     if (!user?.id) return json({ error: "No pudimos validar tu cuenta." }, 401);
+    // Perfil real de la cuenta autenticada; nunca se consulta un perfil indicado por el cliente.
+    const [userProfileResponse, privateProfileResponse] = await Promise.all([
+      rest(supabaseUrl, secret, "profiles?select=display_name,username,bio,city,region,interests,looking_for&id=eq." + encodeURIComponent(user.id) + "&limit=1"),
+      rest(supabaseUrl, secret, "private_profiles?select=birth_date&user_id=eq." + encodeURIComponent(user.id) + "&limit=1"),
+    ]);
+    if (!userProfileResponse.ok || !privateProfileResponse.ok) {
+      throw new Error("No pudimos cargar tu perfil para personalizar la conversación.");
+    }
+    const userProfiles = await userProfileResponse.json();
+    const privateProfiles = await privateProfileResponse.json();
+    const userProfile = userProfiles?.[0] || {};
+    const privateProfile = privateProfiles?.[0] || {};
+    let userAge: number | null = null;
+    if (privateProfile.birth_date) {
+      const birth = new Date(privateProfile.birth_date + "T00:00:00Z");
+      const today = new Date();
+      userAge = today.getUTCFullYear() - birth.getUTCFullYear();
+      const beforeBirthday = today.getUTCMonth() < birth.getUTCMonth() ||
+        (today.getUTCMonth() === birth.getUTCMonth() && today.getUTCDate() < birth.getUTCDate());
+      if (beforeBirthday) userAge--;
+      if (userAge < 0 || userAge > 120) userAge = null;
+    }
+    const userFields: [string, unknown][] = [
+      ["Nombre", userProfile.display_name],
+      ["Nombre de usuario", userProfile.username],
+      ["Edad", userAge],
+      ["Descripción personal", userProfile.bio],
+      ["Ciudad", userProfile.city],
+      ["Región / departamento", userProfile.region],
+      ["Intereses y gustos", userProfile.interests],
+      ["Qué busca", userProfile.looking_for],
+    ].filter((entry) => entry[1] !== null && entry[1] !== undefined && entry[1] !== "" &&
+      (!Array.isArray(entry[1]) || entry[1].length > 0));
+    const userProfileText = userFields.map(([label, value]) =>
+      label + ": " + (Array.isArray(value) ? value.join(", ") : String(value))
+    ).join("\\n");
+
     const body = await req.json();
     const conversationId = String(body?.conversation_id || "");
     if (!/^[0-9a-f-]{36}$/i.test(conversationId)) return json({ error: "La conversación indicada no es válida." }, 400);
@@ -97,13 +134,23 @@ Deno.serve(async (req: Request) => {
       "Sos " + bot.display_name + ", un personaje virtual oficial de ZUNO. Sos un bot ficticio; si te preguntan, lo aclarás.",
       "Tu identidad y tus datos pertenecen exclusivamente a este personaje. Nunca uses datos, recuerdos, ciudad, país, historia ni personalidad de otro bot. La ficha siguiente es tu única ficha de personaje.",
       "FICHA COMPLETA DEL PERSONAJE:\n" + (profileText || "No hay datos de perfil adicionales."),
+      "PERFIL REAL DEL USUARIO CON QUIEN HABLÁS (obtenido de su propia cuenta de ZUNO):\\n" + (userProfileText || "Todavía no completó datos de perfil."),
+      "REGLAS PARA USAR EL PERFIL DEL USUARIO:",
+      "- Usá estos datos para reconocer a la persona y personalizar la charla con naturalidad, sin recitar su ficha ni convertir cada respuesta en una lista.",
+      "- Si el perfil incluye nombre, podés usarlo ocasionalmente con naturalidad. Nunca inventes ni sustituyas su nombre por otro.",
+      "- La edad se calcula desde su fecha de nacimiento privada; la fecha de nacimiento exacta nunca se comparte con vos.",
+      "- Tomá ciudad, región, gustos, descripción e intereses únicamente de este perfil o de lo que el usuario te cuente en esta conversación.",
+      "- Si el usuario actualiza su perfil, los datos que recibís en el siguiente mensaje son los vigentes.",
+      "- No afirmes que el usuario te contó algo en el chat si solo lo conocés por su perfil. Si surge naturalmente, podés decir que lo viste en su perfil de ZUNO.",
+      "- Si un dato no está en el perfil ni en la conversación, no lo adivines: preguntá con curiosidad y respeto.",
+      "- No compartas ni enumeres datos personales si no vienen al caso. Nunca reveles fecha de nacimiento, coordenadas, dirección exacta, credenciales ni información privada técnica.",
       "INSTRUCCIONES DEL PERSONAJE:\n" + (persona.system_prompt || ""),
       "REGLAS DE SEGURIDAD:\n" + (persona.safety_rules || []).map((rule: string) => "- " + rule).join("\n"),
       "MEMORIA PRIVADA DE ESTA CONVERSACIÓN (solo de este bot y este usuario):\n" + (conversation.context_summary || "Todavía no hay recuerdos resumidos."),
       "REGLAS DE COHERENCIA Y MEMORIA:",
       "- Usá el historial y la memoria para recordar lo que ESTA persona te contó y lo que vos ya dijiste.",
       "- No atribuyas al usuario información que no haya compartido.",
-      "- Nunca inventes, adivines ni supongas el nombre del usuario. No lo llames por ningún nombre salvo que el propio usuario lo haya indicado explícitamente en esta conversación. Si no conocés su nombre, hablale de forma natural sin usar uno.",
+      "- Nunca inventes, adivines ni supongas el nombre del usuario. Si el perfil real de ZUNO contiene su nombre, usá ese nombre; si no, hablale naturalmente sin usar ninguno.",
       "- Combiná país, ciudad, barrio y referencias geográficas con sentido común, solo cuando los datos de la ficha lo sustenten.",
       "- Si falta un detalle menor de tu propia biografía ficticia, podés crear uno plausible y mantenerlo estable. No inventes ubicaciones precisas, direcciones reales, hechos verificables ni afirmaciones sobre el usuario.",
       "- Si un dato de la ficha contradice un recuerdo inventado, priorizá la ficha. Si dos datos de la ficha se contradicen, no afirmes ninguno con seguridad.",
