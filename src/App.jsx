@@ -1533,6 +1533,38 @@ export default function App() {
   }, [session])
 
   useEffect(() => {
+    if (!session?.user || view !== 'home') return
+    let startY = 0
+    let pulling = false
+    const onStart = event => {
+      if (window.scrollY > 0 || event.touches.length !== 1 || showDiscoveryFilters) { pulling = false; return }
+      startY = event.touches[0].clientY
+      pulling = startY < 90
+    }
+    const onMove = event => {
+      if (!pulling || event.touches.length !== 1) return
+      const distance = event.touches[0].clientY - startY
+      if (distance > 12 && window.scrollY <= 0) event.preventDefault()
+    }
+    const onEnd = event => {
+      if (!pulling) return
+      const endY = event.changedTouches?.[0]?.clientY ?? startY
+      const distance = endY - startY
+      if (distance >= 85 && window.scrollY <= 0 && !peopleLoading) setPeopleRefresh(value => value + 1)
+      pulling = false
+      startY = 0
+    }
+    window.addEventListener('touchstart', onStart, {passive:true})
+    window.addEventListener('touchmove', onMove, {passive:false})
+    window.addEventListener('touchend', onEnd, {passive:true})
+    return () => {
+      window.removeEventListener('touchstart', onStart)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onEnd)
+    }
+  }, [session?.user?.id, view, peopleLoading, showDiscoveryFilters])
+
+  useEffect(() => {
     if (!session?.user || !['home', 'favorites', 'connections'].includes(view)) return
     let active = true
     if (!people.length) setPeopleLoading(true); setPeopleError('')
@@ -3306,7 +3338,7 @@ export default function App() {
 
   if (session?.user && ['home', 'favorites', 'connections'].includes(view)) return (
     <main className="app-shell">{callOverlay}
-      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span></div></header>
+      <header className="topbar discovery-topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="discovery-topbar-actions"><span className="verification-badge">{profile?.zuno_verified ? "✓ Cuenta verificada" : "Cuenta no verificada"}</span>{view === "home" && <button type="button" className="discovery-filter-trigger discovery-top-filter" onClick={()=>setShowDiscoveryFilters(true)} aria-label="Abrir filtros y secciones"><SlidersHorizontal size={17}/> Filtros{discoveryFiltersActive && <span className="filter-active-dot" aria-label="Filtros activos"/>}</button>}</div></header>
       {view === 'home' && (
         <section className="zuno-stories" aria-label="Historias de 24 horas">
           <div className="stories-heading"><strong>Historias</strong><span>Desaparecen en 24 horas</span></div>
@@ -3341,17 +3373,13 @@ export default function App() {
           {storyViewer.user_id === session.user.id && <button type="button" className="story-delete" disabled={storyBusy} onClick={() => deleteStory(storyViewer)}><Trash2 size={16}/> Eliminar historia</button>}
         </section></div>}
         {showStoryArchive && <div className="story-viewer-backdrop" onClick={() => setShowStoryArchive(false)}><section className="story-archive-panel" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}><div className="story-viewers-sheet-heading"><div><strong>Historias archivadas</strong><small>Solo vos podés verlas</small></div><button type="button" onClick={() => setShowStoryArchive(false)} aria-label="Cerrar archivo"><X size={19}/></button></div><div className="story-archive-grid">{archivedStories.length ? archivedStories.map(item => <button type="button" key={item.id} onClick={() => { setShowStoryArchive(false); openStory(item) }}>{item.media_type === 'video' ? <video src={item.url} muted playsInline/> : <img src={item.url} alt="Historia archivada"/>}<span>{new Date(item.archived_at).toLocaleDateString('es-UY')}{item.expires_at && new Date(item.expires_at).getTime() > Date.now() ? ' · Disponible para restaurar' : ' · Vencida'}</span></button>) : <p>Todavía no archivaste historias.</p>}</div></section></div>}
-        {view === 'home' && <nav className="home-shortcuts" aria-label="Secciones de descubrir">
-          <button type="button" className="selected" onClick={()=>setView('home')}><Compass size={15}/> Cerca de vos</button>
-          <button type="button" onClick={()=>setView('favorites')}><Heart size={15}/> Favoritos <span>{favoriteIds.length}</span></button>
-          <button type="button" onClick={()=>setView('connections')}><Users size={15}/> Conexiones <span>{connectionRows.filter(row=>row.status==='accepted').length}</span></button>
-          <button type="button" className="home-shortcut-refresh" onClick={()=>setPeopleRefresh(value=>value+1)} disabled={peopleLoading}><RefreshCw size={15} className={peopleLoading?'refresh-spinning':''}/> Actualizar</button>{' '}<button type="button" className="discovery-filter-trigger home-shortcut-filter" onClick={()=>setShowDiscoveryFilters(true)}><SlidersHorizontal size={15}/> Filtros{discoveryFiltersActive && <span className="filter-active-dot" aria-label="Filtros activos"/>}</button>
-        </nav>}
+        
         {peopleError && <div className="notice error">{peopleError}</div>}
         {peopleLoading && !people.length ? <div className="empty-state">Buscando perfiles…</div> : (
           <>
           {view === 'home' && showDiscoveryFilters && <div className="discovery-modal-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setShowDiscoveryFilters(false)}}><section className="discovery-filter-modal" role="dialog" aria-modal="true" aria-labelledby="discovery-filter-title">
             <div className="discovery-modal-heading"><div><span className="discovery-modal-icon"><SlidersHorizontal size={20}/></span><div><h2 id="discovery-filter-title">Filtros de búsqueda</h2><small>{discoveryPeople.length} perfiles coinciden con tu búsqueda</small></div></div><button type="button" className="discovery-modal-close" onClick={()=>setShowDiscoveryFilters(false)} aria-label="Cerrar filtros"><X size={21}/></button></div>
+            <nav className="discovery-modal-shortcuts" aria-label="Secciones de descubrir"><button type="button" className="selected" onClick={()=>setShowDiscoveryFilters(false)}><Compass size={16}/> Cerca de vos</button><button type="button" onClick={()=>{setShowDiscoveryFilters(false);setView('favorites')}}><Heart size={16}/> Favoritos <span>{favoriteIds.length}</span></button><button type="button" onClick={()=>{setShowDiscoveryFilters(false);setView('connections')}}><Users size={16}/> Conexiones <span>{connectionRows.filter(row=>row.status==='accepted').length}</span></button><button type="button" className="home-shortcut-refresh" onClick={()=>{setShowDiscoveryFilters(false);setPeopleRefresh(value=>value+1)}} disabled={peopleLoading}><RefreshCw size={16} className={peopleLoading?'refresh-spinning':''}/> Actualizar</button></nav>
             <div className="discovery-filter-grid">
               <label className="discovery-search-field"><span>Buscar personas</span><input type="search" value={discoverySearch} onChange={event=>setDiscoverySearch(event.target.value)} placeholder="Nombre, usuario, bio o intereses…"/></label>
               <label><span>Ciudad o región</span><input type="search" value={discoveryCity} onChange={event=>setDiscoveryCity(event.target.value)} placeholder="Ej. Montevideo"/></label>
