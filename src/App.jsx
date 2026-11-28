@@ -1973,8 +1973,9 @@ export default function App() {
     setBotBlockedIds(current => current.includes(bot.id) ? current : [...current, bot.id])
     setPeople(current => current.filter(item => item.id !== bot.id))
     setSelectedProfile(null)
+    setPeopleRefresh(value => value + 1)
     setView('home')
-    setPeopleError('Personaje bloqueado. Ya no aparecerá entre tus perfiles.')
+    setPeopleError('Cuenta bloqueada. Ya no aparecerá entre tus perfiles.')
   }
 
   function botUnavailableAction(label) {
@@ -3594,7 +3595,7 @@ export default function App() {
             <h2>Conexiones aceptadas</h2>
             {connectionRows.filter(row=>row.status==='accepted').length ? connectionRows.filter(row=>row.status==='accepted').map(row=>{const otherId=row.sender_id===session.user.id?row.receiver_id:row.sender_id;const person=people.find(item=>item.id===otherId);return <div className="connection-row" key={row.id}><div><strong>{person?.display_name || 'Miembro de ZUNO'}</strong><span>{person?.username ? '@'+person.username : 'Conexión aceptada'}</span></div><div className="connection-actions"><span className="connected-label"><Check size={14}/> Conectados</span><button className="remove-connection-btn" disabled={connectionBusy===row.id} onClick={()=>deleteConnection(row.id)}><Trash size={14}/> Eliminar</button></div></div>}) : <p className="connections-empty">Todavía no tenés conexiones aceptadas.</p>}
           </section>}
-          {view === 'favorites' && !peopleLoading && !people.some(person => favoriteIds.includes(person.id)) && <div className="empty-state"><div className="empty-icon"><Heart size={24}/></div><h2>Todavía no guardaste favoritos</h2><p>Cuando encuentres un perfil que te interese, tocá el corazón para guardarlo acá.</p><button className="submit-btn home-refresh" onClick={()=>setView('home')}>Explorar perfiles <span>→</span></button></div>}
+          {view === 'favorites' && !peopleLoading && !people.some(person => person.isBot ? botFavoriteIds.includes(person.id) : favoriteIds.includes(person.id)) && <div className="empty-state"><div className="empty-icon"><Heart size={24}/></div><h2>Todavía no guardaste favoritos</h2><p>Cuando encuentres un perfil que te interese, tocá el corazón para guardarlo acá.</p><button className="submit-btn home-refresh" onClick={()=>setView('home')}>Explorar perfiles <span>→</span></button></div>}
           </>
         )}
       </section><ZunoBottomNav view={view} setView={setView} onLogout={logout} adminVisible={String(profile?.username||'').trim().toLowerCase()==='manu.german'} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>!item.read_at).length} mapRequestCount={notifications.filter(item=>item.notification_type==='map_meetup_request'&&!item.read_at).length} albumRequestCount={notifications.filter(item=>item.notification_type==='album_access_request'&&!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
