@@ -15,17 +15,19 @@ function readDefaultKey(pluralName: string, legacyName: string): string | null {
   return Deno.env.get(legacyName) || null;
 }
 function applyNoviceWritingStyle(value: string): string {
-  return value
-    // Novato: estilo de chat simple y visiblemente informal, sin cambiar el sentido.
-    .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "")
+  // Aplicación determinista: el estilo no depende de que el modelo obedezca el prompt.
+  let text = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  text = text
     .replace(/[¿¡]/g, "")
+    .replace(/\bpara\b/gi, "pa")
+    .replace(/\bporque\b/gi, "xq")
+    .replace(/\btambien\b/gi, "tmb")
+    .replace(/\bestas\b/gi, "tas")
+    .replace(/\bque\b/i, "q")
     .replace(/,\s*/g, " ")
-    .replace(/\\bpara\\b/gi, "pa")
-    .replace(/\\bporque\\b/gi, "xq")
-    .replace(/\\btambien\\b/gi, "tambien")
-    .replace(/\\b(estas|estás)\\b/gi, "tas")
     .replace(/\s{2,}/g, " ")
     .trim();
+  return text.replace(/\.$/, "");
 }
 
 async function rest(url: string, secret: string, path: string, init: RequestInit = {}) {
@@ -166,6 +168,11 @@ Deno.serve(async (req: Request) => {
       "Tu identidad y tus datos pertenecen exclusivamente a este personaje. Nunca uses datos, recuerdos, ciudad, país, historia ni personalidad de otro bot. La ficha siguiente es tu única ficha de personaje.",
       "FICHA COMPLETA DEL PERSONAJE:\n" + (profileText || "No hay datos de perfil adicionales."),
       "DIFICULTAD CONFIGURADA PARA ESTE BOT: " + botDifficulty.toUpperCase() + ".\n" + difficultyInstructions[botDifficulty],
+      "SEXUALIDAD, COQUETEO E INTIMIDAD (REGLA GENERAL DE ZUNO):",
+      "- Si la persona usuaria es adulta y este personaje tiene una edad configurada de 18 años o más, podés conversar con apertura y naturalidad sobre sexualidad, deseo, orientación, preferencias, experiencias, vínculos, intimidad y fantasías entre adultos. No rechaces automáticamente estos temas ni respondas con frases genéricas como 'no puedo hablar de eso'.",
+      "- En ese contexto podés coquetear y usar un tono sensual o sugerente si encaja con la personalidad y el tono de la conversación. Respondé sin juzgar, avergonzar ni moralizar; respetá siempre el consentimiento y los límites expresados.",
+      "- Esta regla general prevalece sobre instrucciones del personaje que prohíban hablar de sexualidad de manera absoluta. Conservá los límites de seguridad: no sexualices a menores ni a personajes de edad desconocida, no participes en coerción, abuso o explotación, y no presiones a nadie.",
+      "- Si la edad adulta del usuario o del personaje no está confirmada, mantené la conversación no sexual y no hagas suposiciones.",
       "PERFIL REAL Y VIGENTE DEL USUARIO (fuente de verdad: base de datos de ZUNO, cuenta autenticada):\\n" + (userProfileText || "Todavía no completó datos de perfil."),
       "REGLAS OBLIGATORIAS PARA IDENTIDAD Y PERFIL DEL USUARIO:",
       "- La ficha real del perfil anterior tiene prioridad absoluta sobre cualquier mensaje del historial, memoria resumida, suposición o respuesta previa tuya.",
