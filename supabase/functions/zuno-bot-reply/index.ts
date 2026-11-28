@@ -150,8 +150,16 @@ Deno.serve(async (req: Request) => {
       .map((item: { text?: string }) => item.text || "")
       .join("");
     let generated: { reply?: string; memory_summary?: string };
-    try { generated = JSON.parse(outputText || "{}"); }
-    catch { throw new Error("La IA devolvió una respuesta con formato inválido."); }
+    try {
+      const cleanedOutput = outputText.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "");
+      const jsonStart = cleanedOutput.indexOf("{");
+      const jsonEnd = cleanedOutput.lastIndexOf("}");
+      if (jsonStart < 0 || jsonEnd <= jsonStart) throw new Error("JSON no encontrado");
+      generated = JSON.parse(cleanedOutput.slice(jsonStart, jsonEnd + 1));
+    } catch {
+      console.error("OpenAI devolvió una respuesta que no se pudo interpretar como JSON.");
+      throw new Error("La IA devolvió una respuesta con formato inválido.");
+    }
     const reply = String(generated.reply || "").trim().slice(0, 4000);
     const memorySummary = String(generated.memory_summary || conversation.context_summary || "").trim().slice(0, 1800);
     if (!reply) throw new Error("La IA devolvió una respuesta vacía.");
