@@ -371,7 +371,7 @@ export default function App() {
     setAdminBotsFeedback('')
     setAdminBotsError('')
     setAdminBotEditor({
-      id:'',slug:'',display_name:'',age:25,gender:'',bot_role:'',bio:'',interests:[],looking_for:[],
+      id:'',slug:'',display_name:'',age:25,gender:'',bot_role:'',bio:'',difficulty:'normal',interests:[],looking_for:[],
       avatar_url:'',country:'Uruguay',city:'Montevideo',neighborhood:'',street:'',occupation:'',workplace:'',
       employed_since:'',work_schedule:'',education:'',family_story:'',daily_routine:'',
       can_initiate:false,can_send_taps:true,proactive_min_minutes:180,proactive_max_minutes:720,
@@ -403,6 +403,8 @@ export default function App() {
     const {data,error}=await supabase.rpc('admin_save_bot',{p_bot:payload})
     if(error){setAdminBotsSaving(false);setAdminBotsError(error.message||'No se pudo guardar el bot.');return}
     const saved=Array.isArray(data)?data[0]:data
+    const {error:difficultyError}=await supabase.rpc('admin_set_bot_difficulty',{p_bot_id:saved.id,p_difficulty:adminBotEditor.difficulty||'normal'})
+    if(difficultyError){setAdminBotsSaving(false);setAdminBotsError('El bot se guardó, pero no pudimos guardar su dificultad: '+difficultyError.message);return}
     const {error:locationError}=await supabase.rpc('admin_set_bot_location',{p_bot_id:saved.id,p_latitude:adminBotEditor.latitude ?? null,p_longitude:adminBotEditor.longitude ?? null,p_location_label:adminBotEditor.location_label ?? null})
     setAdminBotsSaving(false)
     if(locationError){setAdminBotsError('El bot se guardó, pero no pudimos guardar su ubicación: '+locationError.message);return}
@@ -3641,6 +3643,9 @@ export default function App() {
               {adminBotsFeedback && <div className="admin-communication-success"><CheckCircle2 size={16}/>{adminBotsFeedback}</div>}
               {adminBotsLoading ? <div className="admin-users-empty"><RefreshCw size={20}/> Cargando bots...</div> : adminBotEditor ? <form className="admin-bot-editor" onSubmit={saveAdminBot}>
                 <div className="admin-users-toolbar"><div><span className="admin-welcome-kicker">{adminBotEditor.id?'EDITAR PERSONAJE':'NUEVO PERSONAJE'}</span><h2>{adminBotEditor.display_name||'Bot sin nombre'}</h2></div><button type="button" className="admin-user-back" onClick={()=>setAdminBotEditor(null)}>Cancelar</button></div>
+                <section className="admin-platform-settings-card"><div className="admin-platform-settings-card-heading"><span><Sparkles size={19}/></span><div><h3>Dificultad de conversación</h3><p>Elegí cómo escribe y se expresa este personaje en el chat.</p></div></div>
+                  <label className="admin-communication-field">Dificultad<select value={adminBotEditor.difficulty||'normal'} onChange={event=>setAdminBotEditor(current=>({...current,difficulty:event.target.value}))}><option value="novato">Novato · Escritura sencilla y espontánea</option><option value="normal">Normal · Conversación natural y equilibrada</option><option value="inteligente">Inteligente · Vocabulario amplio y respuestas elaboradas</option></select></label>
+                </section>
                 <section className="admin-platform-settings-card"><div className="admin-platform-settings-card-heading"><span><UserRound size={19}/></span><div><h3>Identidad y perfil</h3><p>Datos de presentación del personaje. Los datos privados no se muestran en su tarjeta.</p></div></div>
                   <div className="admin-bot-fields">
                     {[
@@ -3672,7 +3677,7 @@ export default function App() {
                   <label className="admin-platform-toggle"><span><strong>Visible en Explorar</strong><small>Desactivá el bot sin eliminar su perfil ni su historial.</small></span><input type="checkbox" checked={!!adminBotEditor.is_active} onChange={event=>setAdminBotEditor(current=>({...current,is_active:event.target.checked}))}/></label>
                 </section>
                 <div className="admin-communication-footer"><small>Los cambios se guardan de forma segura en Supabase.</small><button type="submit" disabled={adminBotsSaving}>{adminBotsSaving?'Guardando...':'Guardar bot'}</button></div>
-              </form> : adminBots.length ? <div className="admin-bot-list">{adminBots.map(bot=><article className="admin-bot-row" key={bot.id}><div className="admin-bot-avatar">{bot.avatar_url?<img src={bot.avatar_url} alt=""/>:<UserRound size={22}/>}</div><div className="admin-bot-copy"><strong>{bot.display_name} · {bot.age}</strong><small>{[bot.city,bot.country,bot.bot_role].filter(Boolean).join(' · ')}</small><span>{bot.is_active?'Activo en Explorar':'Desactivado'} · {bot.can_initiate?'Puede iniciar chats':'Solo responde'} · {bot.can_send_taps?'Puede mandar taps':'Sin taps'}</span></div><button type="button" className="admin-refresh" onClick={()=>setAdminBotEditor({...bot,persona:bot.persona||{personality:'',speaking_style:'',backstory:'',system_prompt:'',safety_rules:[]}})}>Editar</button><button type="button" className="admin-user-back" onClick={()=>deleteAdminBot(bot)} aria-label={'Eliminar '+bot.display_name}><Trash2 size={16}/></button></article>)}</div> : <div className="admin-users-empty"><Sparkles size={24}/><strong>Todavía no hay bots</strong><span>Creá el primer personaje virtual de ZUNO.</span></div>}
+              </form> : adminBots.length ? <div className="admin-bot-list">{adminBots.map(bot=><article className="admin-bot-row" key={bot.id}><div className="admin-bot-avatar">{bot.avatar_url?<img src={bot.avatar_url} alt=""/>:<UserRound size={22}/>}</div><div className="admin-bot-copy"><strong>{bot.display_name} · {bot.age}</strong><small>{[bot.city,bot.country,bot.bot_role].filter(Boolean).join(' · ')}</small><span>{bot.is_active?'Activo en Explorar':'Desactivado'} · {bot.can_initiate?'Puede iniciar chats':'Solo responde'} · {bot.can_send_taps?'Puede mandar taps':'Sin taps'}</span></div><button type="button" className="admin-refresh" onClick={()=>setAdminBotEditor({...bot,difficulty:bot.difficulty||'normal',persona:bot.persona||{personality:'',speaking_style:'',backstory:'',system_prompt:'',safety_rules:[]}})}>Editar</button><button type="button" className="admin-user-back" onClick={()=>deleteAdminBot(bot)} aria-label={'Eliminar '+bot.display_name}><Trash2 size={16}/></button></article>)}</div> : <div className="admin-users-empty"><Sparkles size={24}/><strong>Todavía no hay bots</strong><span>Creá el primer personaje virtual de ZUNO.</span></div>}
             </section> : adminSection==='settings' ? <section className="admin-moderation-workspace admin-platform-settings">
               <div className="admin-users-toolbar"><div><span className="admin-welcome-kicker">PREFERENCIAS GENERALES</span><h2>Configuración de ZUNO</h2><p>Controlá la identidad, el registro y la disponibilidad de la plataforma.</p></div><button type="button" className="admin-refresh" onClick={()=>setAdminSection('settings')}><RefreshCw size={15}/> Recargar</button></div>
               {adminPlatformLoading ? <div className="admin-users-empty">Cargando configuración...</div> : <form className="admin-platform-settings-form" onSubmit={saveAdminPlatformSettings}>
