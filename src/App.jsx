@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
-import { Heart, Flame, Ruler, ArrowDownRight, Clock3, Eye, EyeOff, MoreVertical, Archive, ArchiveRestore, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, StopCircle, Ban, Flag, SlidersHorizontal, Bell, Phone, PhoneOff, Video, MicOff, VideoOff } from 'lucide-react'
+import { Heart, Flame, Ruler, ArrowDownRight, Clock3, Eye, EyeOff, MoreVertical, Archive, ArchiveRestore, ShieldCheck, Users, MessageCircle, Send, LogOut, UserRound, Sparkles, Compass, Pencil, RefreshCw, ImagePlus, Images, Trash2, Mic, UserPlus, Check, X, Trash, MapPin, Navigation, ChevronLeft, LocateFixed, Route, StopCircle, Ban, Flag, SlidersHorizontal, Bell, Phone, PhoneOff, Video, MicOff, VideoOff } from 'lucide-react'
 import L from 'leaflet'
 
 function formatApproxDistance(km) {
@@ -133,6 +133,13 @@ export default function App() {
   const [mapUsers, setMapUsers] = useState([])
   const [mapCenter, setMapCenter] = useState(null)
   const [mapStatus, setMapStatus] = useState('')
+  const [mapProfiles, setMapProfiles] = useState({})
+  const [selectedMapPerson, setSelectedMapPerson] = useState(null)
+  const [mapInvites, setMapInvites] = useState([])
+  const [mapInviteBusy, setMapInviteBusy] = useState(false)
+  const [activeMapRoute, setActiveMapRoute] = useState(null)
+  const [mapOrigin, setMapOrigin] = useState(null)
+  const mapRouteLayerRef = useRef(null)
   const mapContainerRef = useRef(null)
   const leafletMapRef = useRef(null)
   const mapMarkersRef = useRef([])
@@ -1332,10 +1339,10 @@ export default function App() {
     let cancelled = false
     let map = leafletMapRef.current
     if (!map) {
-      map = L.map(mapContainerRef.current, { zoomControl: true }).setView([-34.9011, -56.1645], 11)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      map = L.map(mapContainerRef.current, { zoomControl: false }).setView([-34.9011, -56.1645], 11)
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         maxZoom: 18,
-        attribution: '&copy; OpenStreetMap contributors'
+        attribution: '&copy; OpenStreetMap &copy; CARTO'
       }).addTo(map)
       leafletMapRef.current = map
     }
@@ -1350,8 +1357,11 @@ export default function App() {
       if (nearbyError) { setMapStatus('No pudimos cargar los usuarios cercanos: ' + nearbyError.message); return }
       setMapVisible(Boolean(ownLocation?.map_visible))
       setMapUsers(nearby || [])
+      setMapOrigin(ownLocation?.latitude != null ? [Number(ownLocation.latitude),Number(ownLocation.longitude)] : null)
+      const profilesById = await loadStoryPeople((nearby || []).map(person => person.user_id))
+      if (!cancelled) setMapProfiles(profilesById)
       if (ownLocation?.latitude != null && ownLocation?.longitude != null && ownLocation?.updated_at && new Date(ownLocation.updated_at).getTime() > Date.now() - 86400000) {
-        const center = [Number(Number(ownLocation.latitude).toFixed(2)), Number(Number(ownLocation.longitude).toFixed(2))]
+        const center = [Number(ownLocation.latitude), Number(ownLocation.longitude)]
         setMapCenter(center)
         map.setView(center, 11)
       } else if ((nearby || []).length) {
@@ -1376,15 +1386,44 @@ export default function App() {
     if (view !== 'map' || !map) return
     mapMarkersRef.current.forEach(marker => marker.remove())
     mapMarkersRef.current = mapUsers.map(person => {
-      const safeName = String(person.display_name || 'Usuario ZUNO').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
-      const marker = L.circleMarker(
-        [Number(person.approximate_latitude), Number(person.approximate_longitude)],
-        { radius: 9, color: '#ffffff', weight: 2, fillColor: '#7657e8', fillOpacity: 0.95 }
-      ).bindPopup('<strong>' + safeName + '</strong><br>Distancia aproximada: ' + (person.approximate_distance_km ?? '—') + ' km')
+      const avatar = mapProfiles[person.user_id]?.avatar_url
+      const html = avatar ? '<div class="zuno-map-avatar"><img src="'+String(avatar).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" alt=""/></div>' : '<div class="zuno-map-avatar zuno-map-avatar-fallback">Z</div>'
+      const icon = L.divIcon({className:'zuno-map-marker-shell',html,iconSize:[50,50],iconAnchor:[25,25]})
+      const marker = L.marker([Number(person.approximate_latitude),Number(person.approximate_longitude)],{icon})
+      marker.on('click',()=>setSelectedMapPerson({...person,profile:mapProfiles[person.user_id]||null}))
       marker.addTo(map)
       return marker
     })
-  }, [mapUsers, view])
+  }, [mapUsers,mapProfiles,view])
+
+  useEffect(() => {
+    if (view !== 'map' || !session?.user) return
+    let active = true
+    const loadInvites = async () => {
+      const {data,error} = await supabase.from('map_meetup_requests').select('*').or('sender_id.eq.'+session.user.id+',receiver_id.eq.'+session.user.id).order('created_at',{ascending:false}).limit(30)
+      if (!active) return
+      if (error) { setMapStatus('No pudimos consultar las invitaciones: '+error.message); return }
+      setMapInvites(data || [])
+      const accepted = (data || []).find(item=>item.status==='accepted')
+      if (!accepted || !mapOrigin) { setActiveMapRoute(null); return }
+      const otherId = accepted.sender_id===session.user.id ? accepted.receiver_id : accepted.sender_id
+      const person = mapUsers.find(item=>item.user_id===otherId)
+      if (!person) return
+      try {
+        const dest=[Number(person.approximate_latitude),Number(person.approximate_longitude)]
+        const response=await fetch('https://router.project-osrm.org/route/v1/driving/'+mapOrigin[1]+','+mapOrigin[0]+';'+dest[1]+','+dest[0]+'?overview=full&geometries=geojson')
+        const routeData=await response.json()
+        if (!active || !routeData.routes?.[0]) return
+        const route=routeData.routes[0]
+        setActiveMapRoute({request:accepted,distance:route.distance,duration:route.duration})
+        const map=leafletMapRef.current
+        if(map){if(mapRouteLayerRef.current)mapRouteLayerRef.current.remove();mapRouteLayerRef.current=L.geoJSON(route.geometry,{style:{color:'#f044b8',weight:6,opacity:.95}}).addTo(map);map.fitBounds(mapRouteLayerRef.current.getBounds(),{padding:[60,60]})}
+      } catch(e) { if(active)setMapStatus('No pudimos calcular la ruta en este momento.') }
+    }
+    loadInvites()
+    const timer=window.setInterval(loadInvites,8000)
+    return ()=>{active=false;window.clearInterval(timer)}
+  },[view,session?.user?.id,mapUsers,mapOrigin])
 
   useEffect(() => () => {
     if (leafletMapRef.current) {
@@ -1393,6 +1432,23 @@ export default function App() {
       mapMarkersRef.current = []
     }
   }, [])
+
+  async function inviteMapMeetup(person) {
+    if (!person?.user_id || mapInviteBusy) return
+    setMapInviteBusy(true)
+    const {error}=await supabase.from('map_meetup_requests').insert({sender_id:session.user.id,receiver_id:person.user_id,status:'pending'})
+    setMapStatus(error?'No pudimos enviar la invitación: '+error.message:'Invitación enviada. La ruta se habilitará cuando la otra persona acepte.')
+    setMapInviteBusy(false)
+  }
+
+  async function respondMapMeetup(request,status) {
+    if (!request || mapInviteBusy) return
+    setMapInviteBusy(true)
+    const {error}=await supabase.from('map_meetup_requests').update({status,updated_at:new Date().toISOString()}).eq('id',request.id).eq('receiver_id',session.user.id)
+    if(error)setMapStatus('No pudimos responder: '+error.message)
+    else {setMapInvites(current=>current.map(item=>item.id===request.id?{...item,status}:item));setMapStatus(status==='accepted'?'Aceptaste. Calculando la ruta aproximada…':'Invitación rechazada.')}
+    setMapInviteBusy(false)
+  }
 
   async function refreshMyMapLocation() {
     if (mapBusy) return
@@ -2218,23 +2274,16 @@ export default function App() {
   )
 
   if (session?.user && view === 'map') return (
-    <main className="app-shell">{callOverlay}
-      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
-      <section className="map-page">
-        <div className="home-heading"><div><div className="eyebrow"><span/> COMUNIDAD CERCANA</div><h1>Mapa de <span>usuarios.</span></h1><p>Encontrá personas cerca sin compartir tu dirección exacta.</p></div><button className="refresh-btn" onClick={()=>setView('home')}>Volver a descubrir</button></div>
-        <div className="map-privacy-panel">
-          <div><strong>{mapVisible ? 'Aparecés en el mapa' : 'No aparecés en el mapa'}</strong><p>{mapVisible ? 'Tu posición se muestra de forma aproximada. La ubicación no se actualiza sola.' : 'Tu ubicación permanece oculta hasta que decidas activarla.'}</p></div>
-          <button type="button" className={mapVisible ? 'map-hide-btn' : 'submit-btn'} disabled={mapBusy} onClick={()=>setMyMapVisibility(!mapVisible)}>{mapBusy ? 'Guardando…' : mapVisible ? 'Desaparecer del mapa' : 'Activar visibilidad'}</button>
-          <button type="button" className="refresh-btn" disabled={mapBusy} onClick={refreshMyMapLocation}><Navigation size={16}/>{mapBusy ? 'Actualizando…' : 'Actualizar mi ubicación'}</button>
-        </div>
-        <p className="map-consent-note"><ShieldCheck size={16}/> Al actualizar, el navegador te pedirá permiso. ZUNO guarda tu ubicación para calcular la zona, pero solo muestra un punto aproximado. No hacemos seguimiento en segundo plano.</p>
-        {mapStatus && <div className={mapStatus.startsWith('No pudimos') ? 'notice error' : 'notice success'}>{mapStatus}</div>}
-        <div className="map-results-heading"><strong>{mapUsers.length} {mapUsers.length === 1 ? 'persona cercana' : 'personas cercanas'}</strong><span>Radio de búsqueda: 50 km · Distancias aproximadas</span></div>
-        <div ref={mapContainerRef} className="zuno-map-canvas" aria-label="Mapa de usuarios cercanos"/>
-        {!mapVisible && <p className="map-empty-hint">Activá tu visibilidad y aceptá los términos de ubicación para ver personas cercanas.</p>}
-        {mapVisible && mapUsers.length === 0 && <p className="map-empty-hint">Todavía no hay otros usuarios visibles en tu zona. Podés volver a actualizar más tarde.</p>}
-      </section>
-      <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+    <main className="app-shell zuno-map-fullscreen">{callOverlay}
+      <div className="zuno-map-topbar"><button type="button" onClick={()=>setView('home')} aria-label="Volver"><ChevronLeft size={22}/></button><div><strong>ZUNO <span>MAPA</span></strong><small>{mapUsers.length} personas cerca · hasta 50 km</small></div><button type="button" onClick={refreshMyMapLocation} disabled={mapBusy} aria-label="Actualizar ubicación"><Navigation size={19}/></button></div>
+      <div ref={mapContainerRef} className="zuno-map-canvas zuno-map-canvas-full" aria-label="Mapa de personas cercanas"/>
+      <div className="zuno-map-floating-actions"><button type="button" onClick={()=>setMyMapVisibility(!mapVisible)} disabled={mapBusy}><MapPin size={16}/>{mapVisible?'Aparecés en el mapa':'Estás oculto'}</button><button type="button" onClick={refreshMyMapLocation} disabled={mapBusy}><LocateFixed size={17}/></button></div>
+      {mapStatus && <div className="zuno-map-toast">{mapStatus}</div>}
+      {selectedMapPerson && <div className="zuno-map-person-card"><button type="button" className="zuno-map-card-close" onClick={()=>setSelectedMapPerson(null)}><X size={18}/></button><div className="zuno-map-card-person"><span className="zuno-map-card-avatar">{selectedMapPerson.profile?.avatar_url?<img src={selectedMapPerson.profile.avatar_url} alt=""/>:<UserRound/>}</span><div><strong>{selectedMapPerson.display_name||selectedMapPerson.profile?.display_name||'Persona cercana'}</strong><small>{selectedMapPerson.approximate_distance_km??'—'} km aproximadamente</small></div></div><button type="button" className="zuno-map-meet-button" onClick={()=>inviteMapMeetup(selectedMapPerson)} disabled={mapInviteBusy}><Navigation size={17}/>{mapInviteBusy?'Enviando…':'Cómo llegar · Invitar a encontrarse'}</button><p>La ruta solo se activa si la otra persona acepta. Se muestra una ubicación aproximada.</p></div>}
+      {mapInvites.filter(item=>item.receiver_id===session.user.id&&item.status==='pending').slice(0,1).map(item=><div className="zuno-map-invite-card" key={item.id}><strong>Te invitaron a encontrarse</strong><p>¿Aceptás que ZUNO muestre una ruta aproximada para llegar?</p><div><button type="button" onClick={()=>respondMapMeetup(item,'accepted')} disabled={mapInviteBusy}>Aceptar</button><button type="button" onClick={()=>respondMapMeetup(item,'rejected')} disabled={mapInviteBusy}>Ahora no</button></div></div>)}
+      {activeMapRoute && <div className="zuno-map-route-pill"><Route size={17}/><span>Ruta aproximada · {(activeMapRoute.distance/1000).toFixed(1)} km · {Math.max(1,Math.round(activeMapRoute.duration/60))} min</span><button type="button" onClick={async()=>{const {error}=await supabase.from('map_meetup_requests').update({status:'cancelled',updated_at:new Date().toISOString()}).eq('id',activeMapRoute.request.id);if(!error){setActiveMapRoute(null);if(mapRouteLayerRef.current){mapRouteLayerRef.current.remove();mapRouteLayerRef.current=null}}}}>Finalizar</button></div>}
+      {!selectedMapPerson && !mapInvites.some(item=>item.receiver_id===session.user.id&&item.status==='pending') && !activeMapRoute && <div className="zuno-map-bottom-hint"><strong>Personas cerca de vos</strong><span>Tocá una foto para invitarla a encontrarse.</span><small>Solo aparecen quienes activaron su visibilidad. Las ubicaciones son aproximadas.</small></div>}
+      <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)}/>
     </main>
   )
 
