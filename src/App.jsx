@@ -2433,7 +2433,7 @@ export default function App() {
   }
 
   async function prepareEditedImage(item) {
-    const image = new Image()
+    const image = new window.Image()
     image.src = item.url
     await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject })
     const angle = ((item.rotation % 360) + 360) % 360
