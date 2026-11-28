@@ -581,6 +581,8 @@ export default function App() {
   const [ephemeralBusy, setEphemeralBusy] = useState(false)
   const [chatMessages, setChatMessages] = useState([])
   const [activeBotConversation, setActiveBotConversation] = useState(null)
+  const [botFavoriteIds, setBotFavoriteIds] = useState([])
+  const [botBlockedIds, setBotBlockedIds] = useState([])
   const [botChatMessages, setBotChatMessages] = useState([])
   const [botChatDraft, setBotChatDraft] = useState('')
   const [otherUserTyping, setOtherUserTyping] = useState(false)
@@ -1659,12 +1661,12 @@ export default function App() {
             created_at: bot.created_at
           }))
         }
-        setPeople([...mappedProfiles, ...botProfiles])
+        setPeople([...mappedProfiles, ...botProfiles.filter(bot => !botBlockedIds.includes(bot.id))])
         setPeopleLoading(false)
     }
     loadDiscoveryProfiles()
     return () => { active = false }
-  }, [session, view, peopleRefresh, discoveryAgeMin, discoveryAgeMax, discoveryDistanceKm, discoveryOnlineRecently])
+  }, [session, view, peopleRefresh, discoveryAgeMin, discoveryAgeMax, discoveryDistanceKm, discoveryOnlineRecently, botBlockedIds])
 
   useEffect(() => {
     if (!session?.user) { setBlockedUsers([]); return }
@@ -1892,6 +1894,53 @@ export default function App() {
     if (error) setPeopleError('No pudimos cambiar el modo efímero. ' + error.message)
     else setActiveConversation(current => current ? { ...current, ephemeral_duration_minutes: minutes } : current)
     setEphemeralBusy(false); setShowEphemeralMenu(false)
+  }
+
+  useEffect(() => {
+    if (!session?.user) { setBotFavoriteIds([]); setBotBlockedIds([]); return }
+    let active = true
+    Promise.all([
+      supabase.from('zuno_bot_favorites').select('bot_id').eq('user_id', session.user.id),
+      supabase.from('zuno_bot_blocks').select('bot_id').eq('user_id', session.user.id)
+    ]).then(([favorites, blocks]) => {
+      if (!active) return
+      if (favorites.error) console.warn('No se pudieron cargar favoritos de bots:', favorites.error.message)
+      if (blocks.error) console.warn('No se pudieron cargar bloqueos de bots:', blocks.error.message)
+      setBotFavoriteIds((favorites.data || []).map(row => 'bot:' + row.bot_id))
+      setBotBlockedIds((blocks.data || []).map(row => 'bot:' + row.bot_id))
+    })
+    return () => { active = false }
+  }, [session])
+
+  async function toggleBotFavorite(bot) {
+    if (!session?.user || !bot?.id?.startsWith('bot:') || favoriteBusy) return
+    const botId = bot.id.slice(4)
+    const exists = botFavoriteIds.includes(bot.id)
+    setFavoriteBusy(bot.id)
+    const result = exists
+      ? await supabase.from('zuno_bot_favorites').delete().eq('user_id', session.user.id).eq('bot_id', botId)
+      : await supabase.from('zuno_bot_favorites').insert({ user_id: session.user.id, bot_id: botId })
+    setFavoriteBusy('')
+    if (result.error) { setPeopleError('No pudimos actualizar el favorito. ' + result.error.message); return }
+    setBotFavoriteIds(current => exists ? current.filter(id => id !== bot.id) : [...current, bot.id])
+  }
+
+  async function blockBot(bot) {
+    if (!session?.user || !bot?.id?.startsWith('bot:') || blockBusy) return
+    const botId = bot.id.slice(4)
+    setBlockBusy(bot.id)
+    const { error } = await supabase.from('zuno_bot_blocks').insert({ user_id: session.user.id, bot_id: botId })
+    setBlockBusy('')
+    if (error && error.code !== '23505') { setPeopleError('No pudimos bloquear este bot. ' + error.message); return }
+    setBotBlockedIds(current => current.includes(bot.id) ? current : [...current, bot.id])
+    setPeople(current => current.filter(item => item.id !== bot.id))
+    setSelectedProfile(null)
+    setView('home')
+    setPeopleError('Personaje bloqueado. Ya no aparecerá entre tus perfiles.')
+  }
+
+  function botUnavailableAction(label) {
+    setPeopleError(label + ' para personajes virtuales todavía no está disponible.')
   }
 
   async function openBotChat(bot) {
@@ -3068,20 +3117,26 @@ export default function App() {
             <div className="profile-stage-top">
               <button type="button" className="profile-stage-back" onClick={()=>{setSelectedProfile(null);setView('home')}} aria-label="Volver a descubrir"><X size={23}/></button>
               <div className="profile-stage-top-actions profile-top-five-actions">
-                {!selectedProfile.isOwn && (selectedProfile.isBot ? <button type="button" onClick={()=>openBotChat(selectedProfile)} aria-label="Chatear con el bot" title="Chatear"><MessageCircle size={19}/></button> : <>
+                {!selectedProfile.isOwn && (selectedProfile.isBot ? <>
+                  <button type="button" onClick={()=>toggleBotFavorite(selectedProfile)} aria-label="Favorito" title="Favorito"><Heart size={19} fill={botFavoriteIds.includes(selectedProfile.id)?'currentColor':'none'}/></button>
+                  <button type="button" onClick={()=>openBotChat(selectedProfile)} aria-label="Chatear" title="Chatear"><MessageCircle size={19}/></button>
+                  <button type="button" disabled={blockBusy===selectedProfile.id} onClick={()=>blockBot(selectedProfile)} aria-label="Bloquear" title="Bloquear"><Ban size={19}/></button>
+                  <button type="button" onClick={()=>botUnavailableAction('Denunciar')} aria-label="Denunciar" title="Denunciar"><Flag size={19}/></button>
+                  <button type="button" onClick={()=>botUnavailableAction('Ocultar')} aria-label="Ocultar" title="Ocultar"><EyeOff size={19}/></button>
+                </> : <>
                   <button type="button" onClick={()=>toggleFavorite(selectedProfile.id)} aria-label="Favorito" title="Favorito"><Heart size={19} fill={favoriteIds.includes(selectedProfile.id)?'currentColor':'none'}/></button>
                   <button type="button" onClick={()=>openChat(selectedProfile)} aria-label="Abrir chat" title="Chat"><MessageCircle size={19}/></button>
                   <button type="button" disabled={blockBusy===selectedProfile.id} onClick={()=>blockUser(selectedProfile)} aria-label="Bloquear" title="Bloquear"><Ban size={19}/></button>
                   <button type="button" onClick={()=>{setReportTarget(selectedProfile);setReportReason('harassment');setReportDetails('')}} aria-label="Denunciar" title="Denunciar"><Flag size={19}/></button>
                   <button type="button" onClick={()=>{setHiddenProfileIds(items=>items.includes(selectedProfile.id)?items:[...items,selectedProfile.id]);setSelectedProfile(null);setView('home')}} aria-label="Ocultar" title="Ocultar"><EyeOff size={19}/></button>
                 </>)}
-                <button type="button" onClick={()=>setShowProfileAlbum(true)} aria-label="Álbum privado" title="Álbum"><Images size={19}/></button>
+                <button type="button" onClick={()=>selectedProfile.isBot?botUnavailableAction('Solicitar álbum privado'):setShowProfileAlbum(true)} aria-label="Álbum privado" title="Álbum"><Images size={19}/></button>
               </div>
             </div>
             {publicPhotos.length>1 && <div className="profile-photo-segments" aria-label="Fotos del perfil">{publicPhotos.map((photo,index)=><button key={photo.id||photo.url||index} type="button" className={index===profilePhotoIndex?'active':''} onClick={()=>setProfilePhotoIndex(index)} aria-label={`Ver foto ${index+1}`}/>)}</div>}
 
             <div className="profile-stage-caption">
-              <div className="profile-stage-name-row"><div className="profile-stage-name">{selectedProfile.display_name || 'Usuario ZUNO'}{selectedProfile.age ? <span> {selectedProfile.age}</span> : null}</div>{!selectedProfile.isOwn&&<button type="button" className={"profile-name-fire "+(activeTapIds.includes(selectedProfile.id)?"is-active":"")} disabled={favoriteBusy===selectedProfile.id||activeTapIds.includes(selectedProfile.id)} onClick={()=>sendProfileTap(selectedProfile.id)} aria-label="Enviar tap de fuego" title="Enviar tap 🔥"><Flame size={24} fill="currentColor"/></button>}</div>
+              <div className="profile-stage-name-row"><div className="profile-stage-name">{selectedProfile.display_name || 'Usuario ZUNO'}{selectedProfile.age ? <span> {selectedProfile.age}</span> : null}</div>{!selectedProfile.isOwn&&<button type="button" className={"profile-name-fire "+(activeTapIds.includes(selectedProfile.id)?"is-active":"")} disabled={selectedProfile.isBot||favoriteBusy===selectedProfile.id||activeTapIds.includes(selectedProfile.id)} onClick={()=>selectedProfile.isBot?botUnavailableAction('Tap'):sendProfileTap(selectedProfile.id)} aria-label="Enviar tap de fuego" title="Enviar tap 🔥"><Flame size={24} fill="currentColor"/></button>}</div>
               {selectedProfile.username && <div className="profile-stage-username">@{selectedProfile.username}</div>}
               {!selectedProfile.isOwn && !selectedProfile.isBot && <form className="profile-quick-message" onSubmit={sendProfileQuickMessage}><input aria-label="Escribir mensaje" value={profileMessageDraft} onChange={event=>setProfileMessageDraft(event.target.value)} placeholder="Escribí un mensaje…" maxLength={4000}/><button type="submit" disabled={!profileMessageDraft.trim()||profileMessageBusy} aria-label="Enviar mensaje" title="Enviar mensaje">{profileMessageBusy?'…':<Send size={18}/>}</button></form>}
               {selectedProfile.visibleCity && <div className="profile-stage-city"><Compass size={14}/>{selectedProfile.visibleCity}</div>}
@@ -3107,8 +3162,8 @@ export default function App() {
             {selectedProfile.isOwn && <p className="detail-private-note">Este es tu perfil. Podés administrar tu álbum privado desde el botón Álbum.</p>}
           </div>
           {!selectedProfile.isOwn && <div className="profile-contact-bar">
-            <button type="button" className="profile-message-action" onClick={()=>openChat(selectedProfile)}><MessageCircle size={19}/> Enviar mensaje</button>
-            <button type="button" className="profile-fire-action" disabled={favoriteBusy===selectedProfile.id} onClick={()=>toggleFavorite(selectedProfile.id)} aria-label="Agregar a favoritos"><Heart size={25} fill={favoriteIds.includes(selectedProfile.id)?'currentColor':'none'}/></button>
+            <button type="button" className="profile-message-action" onClick={()=>selectedProfile.isBot?openBotChat(selectedProfile):openChat(selectedProfile)}><MessageCircle size={19}/> Chatear</button>
+            <button type="button" className="profile-fire-action" disabled={favoriteBusy===selectedProfile.id} onClick={()=>selectedProfile.isBot?toggleBotFavorite(selectedProfile):toggleFavorite(selectedProfile.id)} aria-label="Agregar a favoritos"><Heart size={25} fill={(selectedProfile.isBot?botFavoriteIds:favoriteIds).includes(selectedProfile.id)?'currentColor':'none'}/></button>
           </div>}
         </section>
         {profilePhotoFullscreen && currentPhoto?.url && <div className="profile-photo-fullscreen" role="dialog" aria-modal="true" onClick={()=>setProfilePhotoFullscreen(false)}><button type="button" aria-label="Cerrar foto" onClick={()=>setProfilePhotoFullscreen(false)}><X size={27}/></button><img src={currentPhoto.url} alt="Foto ampliada" onClick={event=>event.stopPropagation()}/></div>}
@@ -3489,7 +3544,7 @@ export default function App() {
               {person.interests?.length > 0 && <div className="person-tags">{person.interests.slice(0,5).map(tag=><span key={tag}>{tag}</span>)}</div>}
               {person.looking_for?.length > 0 && <p className="person-looking"><strong>Busca:</strong> {person.looking_for.join(' · ')}</p>}
               {!person.isBot && <div className="person-card-actions"><button type="button" className="chat-start-btn" onClick={event=>{event.stopPropagation();openChat(person)}}><MessageCircle size={15}/> Chatear</button><ConnectionAction personId={person.id} currentUserId={session.user.id} rows={connectionRows} busy={connectionBusy} onSend={sendConnectionRequest} onRespond={respondToConnection}/></div>}
-              {person.isBot && <div className="person-card-actions"><button type="button" className="chat-start-btn" onClick={event=>{event.stopPropagation();openBotChat(person)}}><MessageCircle size={15}/> Chatear</button></div>}
+              {person.isBot && <div className="person-card-actions"><button type="button" className="favorite-btn" aria-label="Agregar a favoritos" title="Favoritos" onClick={event=>{event.stopPropagation();toggleBotFavorite(person)}}><Heart size={17} fill={botFavoriteIds.includes(person.id)?'currentColor':'none'}/></button><button type="button" className="chat-start-btn" onClick={event=>{event.stopPropagation();openBotChat(person)}}><MessageCircle size={15}/> Chatear</button></div>}
             </div>
           </article>)}</div>
           {view === 'home' && !discoveryPeople.length && <div className="connections-empty">No encontramos perfiles con esos filtros. Probá cambiar alguno o limpiar la búsqueda.</div>}
