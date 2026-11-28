@@ -75,6 +75,8 @@ export default function App() {
   const [adminReportsFilter, setAdminReportsFilter] = useState('all')
   const [adminReportsRefresh, setAdminReportsRefresh] = useState(0)
   const [adminReportBusy, setAdminReportBusy] = useState('')
+  const [adminReportReplies, setAdminReportReplies] = useState({})
+  const [adminReportReplyBusy, setAdminReportReplyBusy] = useState('')
   const [adminReportContexts, setAdminReportContexts] = useState({})
   const [adminReportContextBusy, setAdminReportContextBusy] = useState('')
   const [adminRetainedMessages, setAdminRetainedMessages] = useState([])
@@ -216,6 +218,23 @@ export default function App() {
     if (contextError) setAdminReportsError(contextError.message || 'No se pudo consultar el contexto de la denuncia.')
     else setAdminReportContexts(current => ({ ...current, [reportId]: Array.isArray(data) ? data[0] : data }))
     setAdminReportContextBusy('')
+  }
+
+  async function sendAdminReportReply(reportId) {
+    const message = String(adminReportReplies[reportId] || '').trim()
+    if (!reportId || !message || adminReportReplyBusy) return
+    setAdminReportReplyBusy(reportId)
+    setAdminReportsError('')
+    const { error: replyError } = await supabase.rpc('admin_reply_to_user_report', {
+      p_report_id: reportId,
+      p_message: message
+    })
+    if (replyError) setAdminReportsError(replyError.message || 'No se pudo enviar la respuesta al denunciante.')
+    else {
+      setAdminReportReplies(current => ({ ...current, [reportId]: '' }))
+      setAdminReportsError('Respuesta enviada como notificación al usuario que realizó la denuncia.')
+    }
+    setAdminReportReplyBusy('')
   }
 
   async function updateAdminReport(reportId, nextStatus) {
@@ -1069,7 +1088,7 @@ export default function App() {
     const loadNotifications = async () => {
       const { data, error: notificationError } = await supabase.from('notifications')
         .select('id,recipient_id,actor_id,notification_type,entity_id,title,body,created_at,read_at,metadata')
-        .eq('recipient_id', session.user.id).in('notification_type',['favorite','tap','album_access_request','map_meetup_request']).order('created_at', { ascending: false }).limit(100)
+        .eq('recipient_id', session.user.id).in('notification_type',['favorite','tap','album_access_request','map_meetup_request','report_response']).order('created_at', { ascending: false }).limit(100)
       if (!active) return
       if (notificationError) { setPeopleError('No pudimos cargar las notificaciones. ' + notificationError.message); return }
       setNotifications(data || [])
@@ -1084,7 +1103,7 @@ export default function App() {
     const channel = supabase.channel('zuno-notifications-' + session.user.id)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: 'recipient_id=eq.' + session.user.id }, async payload => {
         const item = payload.new
-        if (!['favorite','tap','album_access_request','map_meetup_request'].includes(item.notification_type)) return
+        if (!['favorite','tap','album_access_request','map_meetup_request','report_response'].includes(item.notification_type)) return
         const peerId = activeConversation?.person?.id
         if (item.notification_type === 'message' && view === 'chat' && peerId === item.actor_id) return
         setNotifications(current => current.some(existing => existing.id === item.id) ? current : [item, ...current].slice(0, 100))
@@ -2660,7 +2679,7 @@ export default function App() {
           </div>}
         </section></div>}
         {reportTarget && <div className="security-modal-backdrop" role="presentation"><form className="security-modal" onSubmit={submitUserReport}><div className="security-modal-heading"><h2>{reportTarget.messageId?'Denunciar mensaje':reportTarget.contentType==='story'?'Denunciar historia':'Denunciar perfil'}</h2><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)} aria-label="Cerrar"><X size={17}/></button></div><p>Tu denuncia sobre {reportTarget.display_name || 'este usuario'} será privada y revisada por el equipo de ZUNO.{reportTarget.messageId?' Se adjuntará la referencia del mensaje para que moderación pueda revisar su contexto.':''}</p><label>Motivo<select value={reportReason} onChange={event=>setReportReason(event.target.value)}><option value="fake_profile">Perfil falso o suplantación</option><option value="harassment">Acoso o amenazas</option><option value="inappropriate_content">Contenido inapropiado</option><option value="spam">Spam</option><option value="underage">Posible menor de edad</option><option value="scam">Estafa o fraude</option><option value="other">Otro motivo</option></select></label><label>Detalles (opcional)<textarea rows="4" maxLength="2000" value={reportDetails} onChange={event=>setReportDetails(event.target.value)} placeholder="Contanos qué pasó…"/></label><div className="security-modal-actions"><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)}>Cancelar</button><button type="submit" className="submit-btn" disabled={reportBusy}>{reportBusy?'Enviando…':'Enviar denuncia'}</button></div></form></div>}
-        <ZunoBottomNav view={view} setView={setView} onLogout={logout} adminVisible={String(profile?.username||'').trim().toLowerCase()==='manu.german'} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>['favorite','tap','album_access_request','map_meetup_request'].includes(item.notification_type)&&!item.read_at).length} mapRequestCount={notifications.filter(item=>item.notification_type==='map_meetup_request'&&!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+        <ZunoBottomNav view={view} setView={setView} onLogout={logout} adminVisible={String(profile?.username||'').trim().toLowerCase()==='manu.german'} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>['favorite','tap','album_access_request','map_meetup_request','report_response'].includes(item.notification_type)&&!item.read_at).length} mapRequestCount={notifications.filter(item=>item.notification_type==='map_meetup_request'&&!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
       </main>
     )
   }
@@ -2703,18 +2722,19 @@ export default function App() {
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
       <section className="notifications-page">
         <div className="home-heading notifications-heading"><div><h1>Notificaciones</h1></div>
-          {notifications.some(item=>['favorite','tap','album_access_request','map_meetup_request'].includes(item.notification_type)&&!item.read_at) && <button type="button" className="refresh-btn" onClick={async()=>{const now=new Date().toISOString();const {error}=await supabase.from('notifications').update({read_at:now}).eq('recipient_id',session.user.id).in('notification_type',['favorite','tap','album_access_request','map_meetup_request']).is('read_at',null);if(!error)setNotifications(current=>current.map(item=>({...item,read_at:item.read_at||now})))}}>Marcar todas leídas</button>}
+          {notifications.some(item=>['favorite','tap','album_access_request','map_meetup_request'].includes(item.notification_type)&&!item.read_at) && <button type="button" className="refresh-btn" onClick={async()=>{const now=new Date().toISOString();const {error}=await supabase.from('notifications').update({read_at:now}).eq('recipient_id',session.user.id).in('notification_type',['favorite','tap','album_access_request','map_meetup_request','report_response']).is('read_at',null);if(!error)setNotifications(current=>current.map(item=>({...item,read_at:item.read_at||now})))}}>Marcar todas leídas</button>}
         </div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         <div className="notifications-list">
           {notifications.filter(item=>['favorite','tap','album_access_request','map_meetup_request'].includes(item.notification_type)).length ? notifications.filter(item=>['favorite','tap','album_access_request','map_meetup_request'].includes(item.notification_type)).map(item=>{const actor=notificationActors[item.actor_id];const name=actor?.display_name||actor?.username||'Un miembro de ZUNO';return <article className={'notification-card '+(!item.read_at?'unread':'')} key={item.id}>
             <button type="button" className="notification-main" onClick={()=>openNotification(item)}>
-              <span className={'notification-symbol '+item.notification_type}>{item.notification_type==='map_meetup_request'?<MapPin size={19}/>:item.notification_type==='album_access_request'?<Images size={19}/>:item.notification_type==='tap'?<Flame size={19}/>:<Heart size={19}/>}</span>
-              <span className="notification-copy"><strong>{item.title}</strong><span>{name} · {item.body}</span><time>{new Date(item.created_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}</time></span>
+              <span className={'notification-symbol '+item.notification_type}>{item.notification_type==='report_response'?<ShieldCheck size={19}/>:item.notification_type==='map_meetup_request'?<MapPin size={19}/>:item.notification_type==='album_access_request'?<Images size={19}/>:item.notification_type==='tap'?<Flame size={19}/>:<Heart size={19}/>}</span>
+              <span className="notification-copy"><strong>{item.title}</strong><span>{item.notification_type==='report_response'?'Equipo de ZUNO':name} · {item.body}</span><time>{new Date(item.created_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}</time></span>
               {!item.read_at && <i className="notification-unread-dot"/>}
             </button>
 
             {item.notification_type==='map_meetup_request' && (()=>{const request=mapInvites.find(row=>row.id===item.entity_id);const status=request?.status||'pending';return status==='pending'?<div className="notification-actions"><button type="button" className="accept-btn" disabled={mapInviteBusy} onClick={()=>respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status},'accepted')}><Check size={15}/> Aceptar</button><button type="button" className="reject-btn" disabled={mapInviteBusy} onClick={()=>respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status},'rejected')}><X size={15}/> Rechazar</button><button type="button" className="reject-btn" disabled={mapInviteBusy} onClick={()=>respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status},'ignored')}>Ignorar</button></div>:<div className="notification-resolution"><Check size={15}/><span>{status==='accepted'?'Solicitud aceptada':status==='rejected'?'Solicitud rechazada':status==='ignored'?'Solicitud ignorada':status==='cancelled'?'Encuentro finalizado':'Solicitud '+status}</span><time>{request?.updated_at?new Date(request.updated_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}):'Guardado en el historial'}</time></div>})()}
+            {item.notification_type==='report_response' && <div className="notification-resolution"><ShieldCheck size={15}/><span>Respuesta del equipo de moderación sobre tu denuncia.</span></div>}
             {item.notification_type==='album_access_request' && <div className="notification-actions"><button type="button" className="accept-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'approved')}><Check size={15}/> {notificationBusy===item.id?'Guardando…':'Permitir'}</button><button type="button" className="reject-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'rejected')}><X size={15}/> Rechazar</button><button type="button" className="later-btn" disabled={notificationBusy===item.id} onClick={()=>markNotificationRead(item.id)}>Más tarde</button></div>}
             <button type="button" className="notification-delete" aria-label="Eliminar notificación" onClick={()=>deleteNotification(item.id)}><Trash2 size={15}/></button>
           </article>}) : <div className="empty-state"><Bell size={28}/><h3>Todo al día</h3><p>Cuando alguien te dé un tap, solicite acceso a tu álbum o quiera encontrarse con vos, aparecerá acá.</p></div>}
@@ -2830,6 +2850,7 @@ export default function App() {
                 <div className="admin-report-people"><div><small>Denunciante</small><strong>{report.reporter_display_name || 'Usuario'} {report.reporter_username ? '@'+report.reporter_username : ''}</strong><code>{report.reporter_id}</code></div><div><small>Cuenta denunciada</small><strong>{report.reported_display_name || 'Usuario'} {report.reported_username ? '@'+report.reported_username : ''}</strong><code>{report.reported_user_id}</code></div></div>
                 <p className="admin-report-details">{report.details || 'La denuncia no incluye detalles adicionales.'}</p>
                 {report.message_id && <div className="admin-report-context"><button type="button" disabled={adminReportContextBusy===report.report_id} onClick={()=>loadAdminReportContext(report.report_id)}>{adminReportContextBusy===report.report_id?'Consultando…':'Ver contenido denunciado'}</button>{adminReportContexts[report.report_id] && <div className="admin-report-context-result"><strong>{({active_message:'Mensaje activo',retained_message:'Mensaje conservado',message_unavailable:'Mensaje no disponible',not_linked:'Sin mensaje asociado'})[adminReportContexts[report.report_id].content_state] || 'Contexto del reporte'}</strong><p>{adminReportContexts[report.report_id].message_body || (adminReportContexts[report.report_id].has_media?'El mensaje incluía un archivo adjunto.':'No hay texto disponible.')}</p><small>Tipo: {adminReportContexts[report.report_id].message_type || adminReportContexts[report.report_id].content_type || '—'} · Archivo adjunto: {adminReportContexts[report.report_id].has_media?'Sí':'No'}</small></div>}</div>}
+                <div className="admin-report-reply"><label htmlFor={'admin-report-reply-'+report.report_id}>Responder al denunciante</label><textarea id={'admin-report-reply-'+report.report_id} value={adminReportReplies[report.report_id] || ''} onChange={event=>setAdminReportReplies(current=>({...current,[report.report_id]:event.target.value}))} placeholder="Ej.: Gracias por tu reporte. Revisamos la situación y tomaremos las medidas correspondientes…" maxLength={1000} rows={3}/><div><small>Se enviará de forma privada a quien realizó la denuncia.</small><button type="button" disabled={adminReportReplyBusy===report.report_id || !String(adminReportReplies[report.report_id]||'').trim()} onClick={()=>sendAdminReportReply(report.report_id)}>{adminReportReplyBusy===report.report_id?'Enviando…':'Enviar notificación'}</button></div></div>
                 <div className="admin-report-actions">
                   <button type="button" disabled={adminReportBusy===report.report_id || report.status==='reviewed'} onClick={()=>updateAdminReport(report.report_id,'reviewed')}>Marcar en revisión</button>
                   <button type="button" disabled={adminReportBusy===report.report_id || report.status==='resolved'} onClick={()=>updateAdminReport(report.report_id,'resolved')}>Resolver</button>
