@@ -823,7 +823,7 @@ export default function App() {
     const loadNotifications = async () => {
       const { data, error: notificationError } = await supabase.from('notifications')
         .select('id,recipient_id,actor_id,notification_type,entity_id,title,body,created_at,read_at,metadata')
-        .eq('recipient_id', session.user.id).in('notification_type',['favorite','tap','album_access_request']).order('created_at', { ascending: false }).limit(100)
+        .eq('recipient_id', session.user.id).in('notification_type',['favorite','tap','album_access_request','map_meetup_request']).order('created_at', { ascending: false }).limit(100)
       if (!active) return
       if (notificationError) { setPeopleError('No pudimos cargar las notificaciones. ' + notificationError.message); return }
       setNotifications(data || [])
@@ -838,7 +838,7 @@ export default function App() {
     const channel = supabase.channel('zuno-notifications-' + session.user.id)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: 'recipient_id=eq.' + session.user.id }, async payload => {
         const item = payload.new
-        if (!['favorite','tap','album_access_request'].includes(item.notification_type)) return
+        if (!['favorite','tap','album_access_request','map_meetup_request'].includes(item.notification_type)) return
         const peerId = activeConversation?.person?.id
         if (item.notification_type === 'message' && view === 'chat' && peerId === item.actor_id) return
         setNotifications(current => current.some(existing => existing.id === item.id) ? current : [item, ...current].slice(0, 100))
@@ -1393,16 +1393,41 @@ export default function App() {
     const map = leafletMapRef.current
     if (view !== 'map' || !map) return
     mapMarkersRef.current.forEach(marker => marker.remove())
-    mapMarkersRef.current = mapUsers.map(person => {
+    const markers = []
+    const ownAvatar = profile?.avatar_url
+    const ownImg = ownAvatar ? '<img src="'+String(ownAvatar).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" alt=""/>' : '<span class="zuno-map-avatar-fallback">T</span>'
+    const ownPerson = {isMe:true,user_id:session?.user?.id,display_name:profile?.display_name||'Tu perfil',profile,approximate_distance_km:0}
+    const closePerson = mapUsers.find(person=>Number(person.approximate_distance_km)<=1)
+    if (mapVisible && mapOrigin) {
+      if (closePerson) {
+        const otherAvatar = mapProfiles[closePerson.user_id]?.avatar_url
+        const otherImg = otherAvatar ? '<img src="'+String(otherAvatar).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" alt=""/>' : '<span class="zuno-map-avatar-fallback">Z</span>'
+        const html = '<div class="zuno-map-pair-marker"><span class="zuno-map-pair-avatar" data-map-person="me">'+ownImg+'</span><span class="zuno-map-pair-avatar" data-map-person="other">'+otherImg+'</span></div>'
+        const icon=L.divIcon({className:'zuno-map-marker-shell',html,iconSize:[104,54],iconAnchor:[52,27]})
+        const marker=L.marker(mapOrigin,{icon})
+        marker.on('click',event=>{
+          const target=event.originalEvent?.target?.closest?.('[data-map-person]')
+          if(target?.dataset?.mapPerson==='me') setSelectedMapPerson(ownPerson)
+          else setSelectedMapPerson({...closePerson,profile:mapProfiles[closePerson.user_id]||null})
+        })
+        marker.addTo(map);markers.push(marker)
+      } else {
+        const icon=L.divIcon({className:'zuno-map-marker-shell',html:'<div class="zuno-map-avatar zuno-map-own-avatar">'+ownImg+'</div>',iconSize:[50,50],iconAnchor:[25,25]})
+        const marker=L.marker(mapOrigin,{icon})
+        marker.on('click',()=>setSelectedMapPerson(ownPerson))
+        marker.addTo(map);markers.push(marker)
+      }
+    }
+    mapUsers.filter(person=>person!==closePerson).forEach(person=>{
       const avatar = mapProfiles[person.user_id]?.avatar_url
       const html = avatar ? '<div class="zuno-map-avatar"><img src="'+String(avatar).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" alt=""/></div>' : '<div class="zuno-map-avatar zuno-map-avatar-fallback">Z</div>'
       const icon = L.divIcon({className:'zuno-map-marker-shell',html,iconSize:[50,50],iconAnchor:[25,25]})
       const marker = L.marker([Number(person.approximate_latitude),Number(person.approximate_longitude)],{icon})
       marker.on('click',()=>setSelectedMapPerson({...person,profile:mapProfiles[person.user_id]||null}))
-      marker.addTo(map)
-      return marker
+      marker.addTo(map);markers.push(marker)
     })
-  }, [mapUsers,mapProfiles,view])
+    mapMarkersRef.current = markers
+  }, [mapUsers,mapProfiles,mapOrigin,mapVisible,profile,session?.user?.id,view])
 
   useEffect(() => {
     if (view !== 'map' || !session?.user) return
@@ -1442,10 +1467,13 @@ export default function App() {
   }, [])
 
   async function inviteMapMeetup(person) {
-    if (!person?.user_id || mapInviteBusy) return
+    if (!person?.user_id || person.user_id===session?.user?.id || mapInviteBusy) return
     setMapInviteBusy(true)
+    const {data:existing}=await supabase.from('map_meetup_requests').select('id,status').eq('sender_id',session.user.id).eq('receiver_id',person.user_id).eq('status','pending').maybeSingle()
+    if(existing){setMapStatus('Ya enviaste una invitación a esta persona.');setMapInviteBusy(false);return}
     const {error}=await supabase.from('map_meetup_requests').insert({sender_id:session.user.id,receiver_id:person.user_id,status:'pending'})
-    setMapStatus(error?'No pudimos enviar la invitación: '+error.message:'Invitación enviada. La ruta se habilitará cuando la otra persona acepte.')
+    if(error)setMapStatus('No pudimos enviar la invitación: '+error.message)
+    else {setMapStatus('Invitación enviada. Le llegó una notificación para aceptar o rechazar.');setSelectedMapPerson(null)}
     setMapInviteBusy(false)
   }
 
@@ -1454,7 +1482,7 @@ export default function App() {
     setMapInviteBusy(true)
     const {error}=await supabase.from('map_meetup_requests').update({status,updated_at:new Date().toISOString()}).eq('id',request.id).eq('receiver_id',session.user.id)
     if(error)setMapStatus('No pudimos responder: '+error.message)
-    else {setMapInvites(current=>current.map(item=>item.id===request.id?{...item,status}:item));setMapStatus(status==='accepted'?'Aceptaste. Calculando la ruta aproximada…':'Invitación rechazada.')}
+    else {setMapInvites(current=>current.map(item=>item.id===request.id?{...item,status}:item));setMapStatus(status==='accepted'?'Aceptaste. Calculando la ruta aproximada…':'Invitación rechazada.');if(status==='accepted'){setSelectedMapPerson(null);setPeopleRefresh(value=>value+1)}}
     setMapInviteBusy(false)
   }
 
@@ -2257,7 +2285,7 @@ export default function App() {
           </div>}
         </section></div>}
         {reportTarget && <div className="security-modal-backdrop" role="presentation"><form className="security-modal" onSubmit={submitUserReport}><div className="security-modal-heading"><h2>Denunciar perfil</h2><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)} aria-label="Cerrar"><X size={17}/></button></div><p>Tu denuncia sobre {reportTarget.display_name || 'este usuario'} será privada y revisada por el equipo de ZUNO.</p><label>Motivo<select value={reportReason} onChange={event=>setReportReason(event.target.value)}><option value="fake_profile">Perfil falso o suplantación</option><option value="harassment">Acoso o amenazas</option><option value="inappropriate_content">Contenido inapropiado</option><option value="spam">Spam</option><option value="underage">Posible menor de edad</option><option value="scam">Estafa o fraude</option><option value="other">Otro motivo</option></select></label><label>Detalles (opcional)<textarea rows="4" maxLength="2000" value={reportDetails} onChange={event=>setReportDetails(event.target.value)} placeholder="Contanos qué pasó…"/></label><div className="security-modal-actions"><button type="button" className="logout-btn" onClick={()=>setReportTarget(null)}>Cancelar</button><button type="submit" className="submit-btn" disabled={reportBusy}>{reportBusy?'Enviando…':'Enviar denuncia'}</button></div></form></div>}
-        <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>['favorite','tap','album_access_request'].includes(item.notification_type)&&!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
+        <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>['favorite','tap','album_access_request','map_meetup_request'].includes(item.notification_type)&&!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
       </main>
     )
   }
@@ -2287,7 +2315,7 @@ export default function App() {
       <div ref={mapContainerRef} className="zuno-map-canvas zuno-map-canvas-full" aria-label="Mapa de personas cercanas"/>
       <div className="zuno-map-floating-actions"><button type="button" onClick={()=>setMyMapVisibility(!mapVisible)} disabled={mapBusy}><MapPin size={16}/>{mapVisible?'Aparecés en el mapa':'Estás oculto'}</button><button type="button" onClick={refreshMyMapLocation} disabled={mapBusy}><LocateFixed size={17}/></button></div>
       {mapStatus && <div className="zuno-map-toast">{mapStatus}</div>}
-      {selectedMapPerson && <div className="zuno-map-person-card"><button type="button" className="zuno-map-card-close" onClick={()=>setSelectedMapPerson(null)}><X size={18}/></button><div className="zuno-map-card-person"><span className="zuno-map-card-avatar">{selectedMapPerson.profile?.avatar_url?<img src={selectedMapPerson.profile.avatar_url} alt=""/>:<UserRound/>}</span><div><strong>{selectedMapPerson.display_name||selectedMapPerson.profile?.display_name||'Persona cercana'}</strong><small>{selectedMapPerson.approximate_distance_km??'—'} km aproximadamente</small></div></div><button type="button" className="zuno-map-meet-button" onClick={()=>inviteMapMeetup(selectedMapPerson)} disabled={mapInviteBusy}><Navigation size={17}/>{mapInviteBusy?'Enviando…':'Cómo llegar · Invitar a encontrarse'}</button><p>La ruta solo se activa si la otra persona acepta. Se muestra una ubicación aproximada.</p></div>}
+      {selectedMapPerson && <div className="zuno-map-person-card"><button type="button" className="zuno-map-card-close" onClick={()=>setSelectedMapPerson(null)}><X size={18}/></button><div className="zuno-map-card-person"><span className="zuno-map-card-avatar">{selectedMapPerson.profile?.avatar_url?<img src={selectedMapPerson.profile.avatar_url} alt=""/>:<UserRound/>}</span><div><strong>{selectedMapPerson.isMe?'Eres tú':selectedMapPerson.display_name||selectedMapPerson.profile?.display_name||'Persona cercana'}</strong><small>{selectedMapPerson.isMe?'Tu perfil':(selectedMapPerson.approximate_distance_km??'—')+' km aproximadamente'}</small></div></div>{!selectedMapPerson.isMe && <><button type="button" className="zuno-map-meet-button" onClick={()=>inviteMapMeetup(selectedMapPerson)} disabled={mapInviteBusy}><Navigation size={17}/>{mapInviteBusy?'Enviando…':'Cómo llegar · Invitar a encontrarse'}</button><p>La ruta solo se activa si la otra persona acepta. Se muestra una ubicación aproximada.</p></>}</div>}
       {mapInvites.filter(item=>item.receiver_id===session.user.id&&item.status==='pending').slice(0,1).map(item=><div className="zuno-map-invite-card" key={item.id}><strong>Te invitaron a encontrarse</strong><p>¿Aceptás que ZUNO muestre una ruta aproximada para llegar?</p><div><button type="button" onClick={()=>respondMapMeetup(item,'accepted')} disabled={mapInviteBusy}>Aceptar</button><button type="button" onClick={()=>respondMapMeetup(item,'rejected')} disabled={mapInviteBusy}>Ahora no</button></div></div>)}
       {activeMapRoute && <div className="zuno-map-route-pill"><Route size={17}/><span>Ruta aproximada · {(activeMapRoute.distance/1000).toFixed(1)} km · {Math.max(1,Math.round(activeMapRoute.duration/60))} min</span><button type="button" onClick={async()=>{const {error}=await supabase.from('map_meetup_requests').update({status:'cancelled',updated_at:new Date().toISOString()}).eq('id',activeMapRoute.request.id);if(!error){setActiveMapRoute(null);if(mapRouteLayerRef.current){mapRouteLayerRef.current.remove();mapRouteLayerRef.current=null}}}}>Finalizar</button></div>}
       {!selectedMapPerson && !mapInvites.some(item=>item.receiver_id===session.user.id&&item.status==='pending') && !activeMapRoute && <div className="zuno-map-bottom-hint"><strong>Personas cerca de vos</strong><span>Tocá una foto para invitarla a encontrarse.</span><small>Solo aparecen quienes activaron su visibilidad. Las ubicaciones son aproximadas.</small></div>}
@@ -2300,20 +2328,21 @@ export default function App() {
       <header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a><div className="account-actions"><button className="logout-btn" onClick={()=>setView('home')}><Compass size={15}/> Descubrir</button></div></header>
       <section className="notifications-page">
         <div className="home-heading notifications-heading"><div><h1>Notificaciones</h1></div>
-          {notifications.some(item=>['favorite','tap','album_access_request'].includes(item.notification_type)&&!item.read_at) && <button type="button" className="refresh-btn" onClick={async()=>{const now=new Date().toISOString();const {error}=await supabase.from('notifications').update({read_at:now}).eq('recipient_id',session.user.id).in('notification_type',['favorite','tap','album_access_request']).is('read_at',null);if(!error)setNotifications(current=>current.map(item=>({...item,read_at:item.read_at||now})))}}>Marcar todas leídas</button>}
+          {notifications.some(item=>['favorite','tap','album_access_request','map_meetup_request'].includes(item.notification_type)&&!item.read_at) && <button type="button" className="refresh-btn" onClick={async()=>{const now=new Date().toISOString();const {error}=await supabase.from('notifications').update({read_at:now}).eq('recipient_id',session.user.id).in('notification_type',['favorite','tap','album_access_request','map_meetup_request']).is('read_at',null);if(!error)setNotifications(current=>current.map(item=>({...item,read_at:item.read_at||now})))}}>Marcar todas leídas</button>}
         </div>
         {peopleError && <div className="notice error">{peopleError}</div>}
         <div className="notifications-list">
-          {notifications.filter(item=>['favorite','tap','album_access_request'].includes(item.notification_type)).length ? notifications.filter(item=>['favorite','tap','album_access_request'].includes(item.notification_type)).map(item=>{const actor=notificationActors[item.actor_id];const name=actor?.display_name||actor?.username||'Un miembro de ZUNO';return <article className={'notification-card '+(!item.read_at?'unread':'')} key={item.id}>
+          {notifications.filter(item=>['favorite','tap','album_access_request','map_meetup_request'].includes(item.notification_type)).length ? notifications.filter(item=>['favorite','tap','album_access_request','map_meetup_request'].includes(item.notification_type)).map(item=>{const actor=notificationActors[item.actor_id];const name=actor?.display_name||actor?.username||'Un miembro de ZUNO';return <article className={'notification-card '+(!item.read_at?'unread':'')} key={item.id}>
             <button type="button" className="notification-main" onClick={()=>openNotification(item)}>
-              <span className={'notification-symbol '+item.notification_type}>{item.notification_type==='album_access_request'?<Images size={19}/>:item.notification_type==='tap'?<Flame size={19}/>:<Heart size={19}/>}</span>
+              <span className={'notification-symbol '+item.notification_type}>{item.notification_type==='map_meetup_request'?<MapPin size={19}/>:item.notification_type==='album_access_request'?<Images size={19}/>:item.notification_type==='tap'?<Flame size={19}/>:<Heart size={19}/>}</span>
               <span className="notification-copy"><strong>{item.title}</strong><span>{name} · {item.body}</span><time>{new Date(item.created_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}</time></span>
               {!item.read_at && <i className="notification-unread-dot"/>}
             </button>
 
+            {item.notification_type==='map_meetup_request' && <div className="notification-actions"><button type="button" className="accept-btn" disabled={mapInviteBusy} onClick={()=>{respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status:'pending'},'accepted').then(()=>markNotificationRead(item.id))}}><Check size={15}/> Aceptar</button><button type="button" className="reject-btn" disabled={mapInviteBusy} onClick={()=>{respondMapMeetup({id:item.entity_id,sender_id:item.actor_id,receiver_id:session.user.id,status:'pending'},'rejected').then(()=>markNotificationRead(item.id))}}><X size={15}/> Rechazar</button></div>}
             {item.notification_type==='album_access_request' && <div className="notification-actions"><button type="button" className="accept-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'approved')}><Check size={15}/> {notificationBusy===item.id?'Guardando…':'Permitir'}</button><button type="button" className="reject-btn" disabled={notificationBusy===item.id} onClick={()=>decidePrivateAlbumRequest(item,'rejected')}><X size={15}/> Rechazar</button><button type="button" className="later-btn" disabled={notificationBusy===item.id} onClick={()=>markNotificationRead(item.id)}>Más tarde</button></div>}
             <button type="button" className="notification-delete" aria-label="Eliminar notificación" onClick={()=>deleteNotification(item.id)}><Trash2 size={15}/></button>
-          </article>}) : <div className="empty-state"><Bell size={28}/><h3>Todo al día</h3><p>Cuando alguien te dé un tap o solicite acceso a tu álbum privado, aparecerá acá.</p></div>}
+          </article>}) : <div className="empty-state"><Bell size={28}/><h3>Todo al día</h3><p>Cuando alguien te dé un tap, solicite acceso a tu álbum o quiera encontrarse con vos, aparecerá acá.</p></div>}
         </div>
       </section>
       <ZunoBottomNav view={view} setView={setView} onLogout={logout} unreadCount={Object.values(unreadCounts).reduce((sum,count)=>sum+count,0)} notificationCount={notifications.filter(item=>!item.read_at).length}/><footer>© 2026 ZUNO <span>BE YOURSELF. FIND YOUR CONNECTION.</span></footer>
