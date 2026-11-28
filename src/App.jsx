@@ -52,6 +52,7 @@ function ChatAudioPlayer({ src, error }) {
 
 export default function App() {
   const [session, setSession] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const [profile, setProfile] = useState(null)
   const CURRENT_POLICY_VERSION = '2026-11-28-v3'
   const [policyStatus, setPolicyStatus] = useState('loading')
@@ -860,10 +861,18 @@ export default function App() {
   }, [localCallStream, remoteCallStream, callSession?.call_type])
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return
-    supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession))
-    return () => listener.subscription.unsubscribe()
+    if (!isSupabaseConfigured) { setAuthLoading(false); return }
+    let active = true
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) return
+      setSession(data.session)
+      setAuthLoading(false)
+    })
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession)
+      setAuthLoading(false)
+    })
+    return () => { active = false; listener.subscription.unsubscribe() }
   }, [])
 
   useEffect(() => {
@@ -880,6 +889,7 @@ export default function App() {
   }, [session, privacy.show_online, profile])
 
   useEffect(() => {
+    if (authLoading) return
     if (!session?.user) { setProfile(null); setProfileLoading(false); setView('profile'); return }
     setProfileLoading(true)
     setProfileLoadError('')
@@ -915,7 +925,7 @@ export default function App() {
         setProfileLoading(false)
       })
     return () => { active = false }
-  }, [session?.user?.id])
+  }, [session?.user?.id, authLoading])
 
   useEffect(() => {
     if (!session?.user) { setPrivateAlbumPhotos([]); setPrivateAlbumRequests([]); return }
@@ -2709,6 +2719,10 @@ export default function App() {
       </section></div>}
     </>
   ) : null
+
+  if (authLoading) return (
+    <main className="app-shell"><header className="topbar"><a className="brand" href="#"><span className="brand-mark">z</span> zuno</a></header><section className="loading-state"><div className="card-icon"><Heart size={21}/></div><h2>Conectando con ZUNO…</h2></section></main>
+  )
 
   if (session?.user && !emailConfirmed) return (
     <main className="app-shell">{callOverlay}
