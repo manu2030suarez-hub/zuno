@@ -10,7 +10,7 @@ alter table public.zuno_bots
   check (
     (latitude is null and longitude is null)
     or
-    (latitude between -90 and 90 and longitude between -180 and 180)
+    (latitude is not null and longitude is not null and latitude between -90 and 90 and longitude between -180 and 180)
   );
 
 create or replace function public.admin_set_bot_location(
