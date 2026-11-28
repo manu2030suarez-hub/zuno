@@ -1371,8 +1371,16 @@ export default function App() {
       window.setTimeout(() => map.invalidateSize(), 100)
     }
     loadMapData()
+    const nearbyTimer = window.setInterval(async () => {
+      const { data: nearby, error } = await supabase.rpc('get_nearby_map_users', { p_radius_km: 50 })
+      if (cancelled || error) return
+      setMapUsers(nearby || [])
+      const profilesById = await loadStoryPeople((nearby || []).map(person => person.user_id))
+      if (!cancelled) setMapProfiles(profilesById)
+    }, 30000)
     return () => {
       cancelled = true
+      window.clearInterval(nearbyTimer)
       if (leafletMapRef.current) {
         leafletMapRef.current.remove()
         leafletMapRef.current = null
