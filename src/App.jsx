@@ -93,6 +93,17 @@ export default function App() {
   const [adminStatsLoading, setAdminStatsLoading] = useState(false)
   const [adminStatsError, setAdminStatsError] = useState('')
   const [adminStatsRefresh, setAdminStatsRefresh] = useState(0)
+  const [communicationMode, setCommunicationMode] = useState('all')
+  const [communicationTitle, setCommunicationTitle] = useState('')
+  const [communicationBody, setCommunicationBody] = useState('')
+  const [communicationSearch, setCommunicationSearch] = useState('')
+  const [communicationUsers, setCommunicationUsers] = useState([])
+  const [communicationTarget, setCommunicationTarget] = useState(null)
+  const [communicationBusy, setCommunicationBusy] = useState(false)
+  const [communicationFeedback, setCommunicationFeedback] = useState('')
+  const [communicationError, setCommunicationError] = useState('')
+  const [communicationHistory, setCommunicationHistory] = useState([])
+  const [communicationHistoryLoading, setCommunicationHistoryLoading] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -238,6 +249,65 @@ export default function App() {
     loadAdminRetainedMessages()
     return () => { active = false }
   }, [view, adminAuthorized, adminSection, adminRetainedRefresh])
+
+  useEffect(() => {
+    let active = true
+    async function loadCommunicationHistory() {
+      if (view !== 'admin' || !adminAuthorized || adminSection !== 'announcements') return
+      setCommunicationHistoryLoading(true)
+      setCommunicationError('')
+      const { data, error: historyError } = await supabase.rpc('admin_list_communications', { p_limit: 30, p_offset: 0 })
+      if (!active) return
+      if (historyError) {
+        setCommunicationError(historyError.message || 'No se pudo cargar el historial.')
+        setCommunicationHistory([])
+      } else setCommunicationHistory(Array.isArray(data) ? data : [])
+      setCommunicationHistoryLoading(false)
+    }
+    loadCommunicationHistory()
+    return () => { active = false }
+  }, [view, adminAuthorized, adminSection])
+
+  async function searchCommunicationUsers() {
+    setCommunicationError('')
+    const { data, error: searchError } = await supabase.rpc('admin_list_users', {
+      p_query: communicationSearch.trim() || null, p_limit: 20, p_offset: 0
+    })
+    if (searchError) {
+      setCommunicationError(searchError.message || 'No se pudieron buscar usuarios.')
+      setCommunicationUsers([])
+    } else setCommunicationUsers(Array.isArray(data) ? data : [])
+  }
+
+  async function sendAdminCommunication(event) {
+    event?.preventDefault?.()
+    if (communicationBusy || !communicationTitle.trim() || !communicationBody.trim()) return
+    if (communicationMode === 'individual' && !communicationTarget?.id) {
+      setCommunicationError('Buscá y seleccioná un usuario antes de enviar.')
+      return
+    }
+    setCommunicationBusy(true)
+    setCommunicationError('')
+    setCommunicationFeedback('')
+    const { data, error: sendError } = await supabase.rpc('admin_send_communication', {
+      p_title: communicationTitle.trim(),
+      p_message: communicationBody.trim(),
+      p_target_user_id: communicationMode === 'individual' ? communicationTarget.id : null
+    })
+    if (sendError) setCommunicationError(sendError.message || 'No se pudo enviar la comunicación.')
+    else {
+      const result = Array.isArray(data) ? data[0] : data
+      setCommunicationFeedback('Aviso enviado correctamente a ' + (result?.recipients ?? (communicationMode === 'individual' ? 1 : 'todos los')) + ' destinatario(s).')
+      setCommunicationTitle('')
+      setCommunicationBody('')
+      setCommunicationTarget(null)
+      setCommunicationUsers([])
+      setCommunicationSearch('')
+      const { data: history } = await supabase.rpc('admin_list_communications', { p_limit: 30, p_offset: 0 })
+      setCommunicationHistory(Array.isArray(history) ? history : [])
+    }
+    setCommunicationBusy(false)
+  }
 
   async function loadAdminReportContext(reportId) {
     if (!reportId || adminReportContextBusy) return
@@ -2938,6 +3008,23 @@ export default function App() {
                 <p className="admin-retained-body">{item.body || (item.has_media ? 'Este mensaje contenía un archivo adjunto.' : 'Mensaje sin texto.')}</p>
                 <div className="admin-retained-meta"><span>Remitente: <code>{item.sender_id}</code></span><span>Conversación: <code>{item.conversation_id}</code></span><span>Conservado: {item.preserved_at ? new Date(item.preserved_at).toLocaleString('es-UY') : '—'}</span><span>Retención hasta: {item.retention_until ? new Date(item.retention_until).toLocaleString('es-UY') : '—'}</span></div>
               </article>)}</div> : <div className="admin-users-empty"><MessageCircle size={24}/><strong>No hay mensajes conservados</strong><span>Los mensajes aparecerán acá cuando hayan sido archivados por el sistema.</span></div>}
+            </section> : adminSection==='announcements' ? <section className="admin-moderation-workspace">
+              <div className="admin-users-toolbar">
+                <div><span className="admin-welcome-kicker">AVISOS DE LA PLATAFORMA</span><h2>Enviar comunicación</h2><p>Los avisos se entregan como notificaciones dentro de ZUNO.</p></div>
+                <button type="button" className="admin-refresh" onClick={async()=>{setCommunicationHistoryLoading(true);const {data,error}=await supabase.rpc('admin_list_communications',{p_limit:30,p_offset:0});if(error)setCommunicationError(error.message);else setCommunicationHistory(Array.isArray(data)?data:[]);setCommunicationHistoryLoading(false)}} disabled={communicationHistoryLoading}><RefreshCw size={15}/> Actualizar historial</button>
+              </div>
+              <form className="admin-communication-form" onSubmit={sendAdminCommunication}>
+                <div className="admin-communication-mode"><label><input type="radio" name="communication-mode" value="all" checked={communicationMode==='all'} onChange={()=>{setCommunicationMode('all');setCommunicationTarget(null)}}/> Toda la comunidad</label><label><input type="radio" name="communication-mode" value="individual" checked={communicationMode==='individual'} onChange={()=>{setCommunicationMode('individual');setCommunicationTarget(null)}}/> Usuario individual</label></div>
+                {communicationMode==='individual' && <div className="admin-communication-recipient"><label>Buscar destinatario</label><div className="admin-communication-search"><input value={communicationSearch} onChange={event=>setCommunicationSearch(event.target.value)} placeholder="Nombre o @usuario..."/><button type="button" onClick={searchCommunicationUsers}><Search size={15}/> Buscar</button></div>{communicationTarget && <div className="admin-communication-selected"><ProfileAvatar person={communicationTarget}/><span><strong>{communicationTarget.display_name || communicationTarget.username}</strong><small>@{communicationTarget.username}</small></span><button type="button" onClick={()=>setCommunicationTarget(null)}>Cambiar</button></div>}{communicationUsers.length>0 && !communicationTarget && <div className="admin-communication-results">{communicationUsers.map(user=><button type="button" key={user.id} onClick={()=>{setCommunicationTarget(user);setCommunicationUsers([])}}><ProfileAvatar person={user}/><span><strong>{user.display_name || user.username || 'Usuario'}</strong><small>@{user.username || 'sin-usuario'}</small></span><ChevronRight size={16}/></button>)}</div>}</div>}
+                <label className="admin-communication-field">Título<input value={communicationTitle} onChange={event=>setCommunicationTitle(event.target.value)} placeholder="Ej.: Novedades de ZUNO" maxLength={120} required/></label>
+                <label className="admin-communication-field">Mensaje<textarea value={communicationBody} onChange={event=>setCommunicationBody(event.target.value)} placeholder="Escribí el aviso que recibirá el usuario..." maxLength={2000} rows={5} required/></label>
+                <div className="admin-communication-footer"><small>{communicationTitle.length}/120 · {communicationBody.length}/2000 caracteres</small><button type="submit" disabled={communicationBusy || !communicationTitle.trim() || !communicationBody.trim() || (communicationMode==='individual' && !communicationTarget)}><Send size={16}/>{communicationBusy?'Enviando...':'Enviar notificación'}</button></div>
+              </form>
+              {communicationError && <div className="admin-users-error"><CircleAlert size={16}/>{communicationError}</div>}
+              {communicationFeedback && <div className="admin-communication-success"><CheckCircle2 size={17}/>{communicationFeedback}</div>}
+              <div className="admin-communication-history"><div className="admin-users-toolbar"><div><span className="admin-welcome-kicker">REGISTRO AUDITADO</span><h2>Comunicaciones enviadas</h2><p>Historial de avisos enviados desde el panel administrativo.</p></div></div>
+                {communicationHistoryLoading ? <div className="admin-users-empty">Cargando historial...</div> : communicationHistory.length ? <div className="admin-communication-history-list">{communicationHistory.map(item=><article key={item.id}><div><strong>{item.title}</strong><small>{new Date(item.created_at).toLocaleString('es-UY')} · {item.target_type==='all'?'Toda la comunidad':'Usuario individual'} · {item.recipient_count} destinatario(s)</small></div><p>{item.body}</p></article>)}</div> : <div className="admin-users-empty"><Megaphone size={22}/><strong>Todavía no enviaste comunicaciones</strong><span>Los avisos enviados aparecerán acá.</span></div>}
+              </div>
             </section> : <div className="zuno-admin-workspace">
               <div className="zuno-admin-workspace-icon"><AdminIcon size={28}/></div>
               <span className="admin-welcome-kicker">MÓDULO DE ADMINISTRACIÓN</span>
