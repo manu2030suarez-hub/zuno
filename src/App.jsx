@@ -133,6 +133,7 @@ export default function App() {
   const [profilePhotoFullscreen, setProfilePhotoFullscreen] = useState(false)
   const [showProfileAlbum, setShowProfileAlbum] = useState(false)
   const profileTouchStartX = useRef(null)
+  const profileTouchStartY = useRef(null)
   const [mapVisible, setMapVisible] = useState(true)
   const [mapBusy, setMapBusy] = useState(false)
   const [mapUsers, setMapUsers] = useState([])
@@ -2341,8 +2342,8 @@ export default function App() {
       <main className="app-shell profile-detail-shell">{callOverlay}
         <section className="member-detail profile-detail-screen">
           <div className="profile-photo-stage"
-            onTouchStart={event=>{profileTouchStartX.current=event.touches?.[0]?.clientX ?? null}}
-            onTouchEnd={event=>{const startX=profileTouchStartX.current;const endX=event.changedTouches?.[0]?.clientX;profileTouchStartX.current=null;if(startX!==null&&endX!==undefined&&Math.abs(endX-startX)>45&&publicPhotos.length>1)setProfilePhotoIndex(index=>Math.max(0,Math.min(publicPhotos.length-1,index+(endX<startX?1:-1))))}}>
+            onTouchStart={event=>{profileTouchStartX.current=event.touches?.[0]?.clientX ?? null;profileTouchStartY.current=event.touches?.[0]?.clientY ?? null}}
+            onTouchEnd={event=>{const startX=profileTouchStartX.current;const startY=profileTouchStartY.current;const endX=event.changedTouches?.[0]?.clientX;const endY=event.changedTouches?.[0]?.clientY;profileTouchStartX.current=null;profileTouchStartY.current=null;if(publicPhotos.length>1&&startX!==null&&startY!==null&&endX!==undefined&&endY!==undefined){const deltaX=endX-startX;const deltaY=endY-startY;if(Math.abs(deltaY)>45&&Math.abs(deltaY)>Math.abs(deltaX))setProfilePhotoIndex(index=>Math.max(0,Math.min(publicPhotos.length-1,index+(deltaY<0?1:-1))));else if(Math.abs(deltaX)>45&&Math.abs(deltaX)>Math.abs(deltaY))setProfilePhotoIndex(index=>Math.max(0,Math.min(publicPhotos.length-1,index+(deltaX<0?1:-1))))}}}>
             {currentPhoto?.url ? <img className="profile-stage-image" src={currentPhoto.url} alt={`Foto de ${selectedProfile.display_name || 'usuario'}`} onClick={()=>setProfilePhotoFullscreen(true)}/> : <div className="profile-stage-empty"><UserRound size={66}/><span>Sin fotos por ahora</span></div>}
             <div className="profile-stage-top">
               <button type="button" className="profile-stage-back" onClick={()=>{setSelectedProfile(null);setView('home')}} aria-label="Volver a descubrir"><X size={23}/></button>
