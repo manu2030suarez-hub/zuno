@@ -2189,3 +2189,19 @@ html body .zuno-admin-shell .admin-communication-success{
 @media(max-width:380px){
  .discovery-modal-shortcuts{grid-template-columns:1fr}
 }
+
+
+/* Descubrir: actualizar junto a filtros y contenido a todo el ancho */
+.discovery-topbar-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0}
+.discovery-top-refresh{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:0 14px;border:1px solid #e34dbb88;border-radius:12px;background:linear-gradient(110deg,#f02b9a,#743bff);color:#fff;font:750 12px 'DM Sans',sans-serif;white-space:nowrap;cursor:pointer;box-shadow:0 5px 22px #9b35e64d;transition:filter .2s,transform .2s}
+.discovery-top-refresh:hover:not(:disabled){filter:brightness(1.12);transform:translateY(-1px)}
+.discovery-top-refresh:disabled{opacity:.65;cursor:wait}
+.discovery-top-refresh svg{flex:0 0 auto}
+main.app-shell:has(> .zuno-stories) > .home-content{width:100%;max-width:none;margin-left:0;margin-right:0;padding-left:clamp(12px,3.5vw,28px);padding-right:clamp(12px,3.5vw,28px);box-sizing:border-box}
+main.app-shell:has(> .zuno-stories) > .home-content > .empty-state{width:100%;max-width:none;margin-left:0;margin-right:0;box-sizing:border-box}
+@media(max-width:600px){
+ .discovery-topbar-actions{gap:7px}
+ .discovery-top-refresh{min-height:38px;padding:0 10px;font-size:11px;border-radius:10px}
+ .discovery-top-refresh svg{width:14px;height:14px}
+ main.app-shell:has(> .zuno-stories) > .home-content{padding-left:0;padding-right:0}
+}
