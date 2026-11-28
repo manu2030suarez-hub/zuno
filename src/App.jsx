@@ -1642,7 +1642,7 @@ export default function App() {
           visibleCity: person.show_location ? [person.city, person.region].filter(Boolean).join(', ') : ''
         }))
         let botProfiles = []
-        if (view === 'home') {
+        if (view === 'home' || view === 'favorites') {
           const { data: bots, error: botsError } = await supabase.from('zuno_bots')
             .select('id,slug,display_name,age,gender,bot_role,bio,interests,looking_for,avatar_url,is_active,sort_order,created_at')
             .eq('is_active', true).order('sort_order', { ascending: true })
@@ -1653,6 +1653,7 @@ export default function App() {
             id: 'bot:' + bot.id,
             username: bot.slug,
             isBot: true,
+            role: bot.bot_role,
             photos: bot.avatar_url ? [{ url: bot.avatar_url }] : [],
             visibleCity: '',
             show_location: false,
@@ -3544,7 +3545,7 @@ export default function App() {
               {person.interests?.length > 0 && <div className="person-tags">{person.interests.slice(0,5).map(tag=><span key={tag}>{tag}</span>)}</div>}
               {person.looking_for?.length > 0 && <p className="person-looking"><strong>Busca:</strong> {person.looking_for.join(' · ')}</p>}
               {!person.isBot && <div className="person-card-actions"><button type="button" className="chat-start-btn" onClick={event=>{event.stopPropagation();openChat(person)}}><MessageCircle size={15}/> Chatear</button><ConnectionAction personId={person.id} currentUserId={session.user.id} rows={connectionRows} busy={connectionBusy} onSend={sendConnectionRequest} onRespond={respondToConnection}/></div>}
-              {person.isBot && <div className="person-card-actions"><button type="button" className="favorite-btn" aria-label="Agregar a favoritos" title="Favoritos" onClick={event=>{event.stopPropagation();toggleBotFavorite(person)}}><Heart size={17} fill={botFavoriteIds.includes(person.id)?'currentColor':'none'}/></button><button type="button" className="chat-start-btn" onClick={event=>{event.stopPropagation();openBotChat(person)}}><MessageCircle size={15}/> Chatear</button></div>}
+              {person.isBot && <div className="person-card-actions"><button type="button" className="favorite-btn" aria-label="Agregar a favoritos" title="Favoritos" onClick={event=>{event.stopPropagation();toggleBotFavorite(person)}}><Heart size={17} fill={botFavoriteIds.includes(person.id)?'currentColor':'none'}/></button><button type="button" className="favorite-btn" aria-label="Enviar tap" title="Tap" onClick={event=>{event.stopPropagation();botUnavailableAction('Tap')}}><Flame size={17}/></button><button type="button" className="chat-start-btn" onClick={event=>{event.stopPropagation();openBotChat(person)}}><MessageCircle size={15}/> Chatear</button></div>}
             </div>
           </article>)}</div>
           {view === 'home' && !discoveryPeople.length && <div className="connections-empty">No encontramos perfiles con esos filtros. Probá cambiar alguno o limpiar la búsqueda.</div>}
