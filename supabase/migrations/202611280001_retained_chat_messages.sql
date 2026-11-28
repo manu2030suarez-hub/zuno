@@ -67,10 +67,10 @@ begin
 
   insert into public.retained_chat_messages (
     original_message_id, conversation_id, sender_id, body, message_type,
-    media_path, original_created_at, expired_at, deletion_reason
+    media_path, original_created_at, expired_at, deletion_reason, retention_until
   )
   select m.id, m.conversation_id, m.sender_id, m.body, m.message_type,
-         m.media_path, m.created_at, m.expires_at, 'expired'
+         m.media_path, m.created_at, m.expires_at, 'expired', m.expires_at + interval '90 days'
   from public.messages m
   where m.conversation_id = p_conversation_id
     and m.expires_at is not null
@@ -108,11 +108,11 @@ begin
 
   insert into public.retained_chat_messages (
     original_message_id, conversation_id, sender_id, body, message_type,
-    media_path, original_created_at, expired_at, deletion_reason
+    media_path, original_created_at, expired_at, deletion_reason, retention_until
   ) values (
     v_message.id, v_message.conversation_id, v_message.sender_id, v_message.body,
     v_message.message_type, v_message.media_path, v_message.created_at,
-    v_message.expires_at, 'deleted_for_everyone'
+    v_message.expires_at, 'deleted_for_everyone', now() + interval '90 days'
   )
   on conflict (original_message_id) do nothing;
 
