@@ -174,7 +174,13 @@ export default function App() {
       if (listError) {
         setAdminReportsError(listError.message || 'No se pudieron cargar las denuncias.')
         setAdminReports([])
-      } else setAdminReports(Array.isArray(data) ? data : [])
+      } else {
+        const { data: links, error: linksError } = await supabase.rpc('admin_list_report_message_links')
+        if (!active) return
+        if (linksError) setAdminReportsError(linksError.message || 'No se pudieron cargar las referencias de contenido denunciado.')
+        const linkMap = new Map((links || []).map(link => [link.report_id, link]))
+        setAdminReports((Array.isArray(data) ? data : []).map(report => ({ ...report, ...(linkMap.get(report.report_id) || {}) })))
+      }
       setAdminReportsLoading(false)
     }
     loadAdminReports()
