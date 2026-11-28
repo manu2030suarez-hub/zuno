@@ -224,7 +224,7 @@ Deno.serve(async (req: Request) => {
       "- No digas que sos humano ni que tenés experiencias físicas reales. No prometas encuentros ni acciones fuera de ZUNO.",
       "- No solicites dinero, contraseñas, códigos ni información financiera.",
       "Actualizá la memoria resumida con hechos estables y útiles de ESTA conversación: preferencias e información que el usuario compartió, temas pendientes, acuerdos y detalles ficticios propios establecidos. No incluyas conjeturas sobre el usuario ni datos sensibles innecesarios.",
-      'Devolvé exclusivamente un JSON válido con dos claves: "reply" (respuesta natural para el usuario) y "memory_summary" (resumen actualizado, máximo 1800 caracteres).',
+      'Si el usuario pide una foto/imagen o compartir una referencia visual aporta claramente a la charla, podés completar también image_search_query con una búsqueda breve (máximo 100 caracteres) para el catálogo de escenas de Perverzija DB. Si no corresponde buscar imágenes, dejá image_search_query como cadena vacía. No inventes resultados ni enlaces. No busques datos privados ni imágenes de personas particulares. Devolvé exclusivamente JSON válido con tres claves: reply, memory_summary (máximo 1800 caracteres) e image_search_query.',
     ].join("\n\n");
 
     const chatMessages = [
@@ -251,7 +251,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: "La IA no pudo generar una respuesta. Intentá nuevamente." }, 502);
     }
     const outputText = aiData?.choices?.[0]?.message?.content || "";
-    let generated: { reply?: string; memory_summary?: string };
+    let generated: { reply?: string; memory_summary?: string; image_search_query?: string };
     try {
       const cleanedOutput = outputText.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "");
       const jsonStart = cleanedOutput.indexOf("{");
@@ -285,7 +285,47 @@ Deno.serve(async (req: Request) => {
     });
     if (!saveResponse.ok) throw new Error("No pudimos guardar la respuesta del bot.");
     const saved = await saveResponse.json();
-    return json({ message: saved?.[0] || null });
+    const botMessages = [saved?.[0]].filter(Boolean);
+    const imageQuery = String(generated.image_search_query || "").trim().slice(0, 100);
+    if (imageQuery && adultIntimacyAllowed) {
+      try {
+        const imageUrl = "https://api.perverzija.com/v1/scenes?q=" + encodeURIComponent(imageQuery) + "&per_page=3";
+        const imageResponse = await fetch(imageUrl, { headers: { Accept: "application/json" } });
+        if (imageResponse.ok) {
+          const imageData = await imageResponse.json();
+          const candidates = (Array.isArray(imageData?.data) ? imageData.data : [])
+            .filter((scene: any) => typeof scene?.cover === "string" &&
+              scene.cover.startsWith("https://") &&
+              typeof (scene?.urls?.watch || scene?.urls?.page) === "string" &&
+              (scene.urls.watch || scene.urls.page).startsWith("https://"))
+            .slice(0, 2);
+          for (const scene of candidates) {
+            const imageSave = await rest(supabaseUrl, secret, "zuno_bot_messages", {
+              method: "POST", headers: { Prefer: "return=representation" },
+              body: JSON.stringify({
+                conversation_id: conversation.id,
+                sender_type: "bot",
+                body: String(scene.title || "Imagen de referencia") + "\\nFuente: Perverzija DB",
+                message_type: "image",
+                external_media_url: scene.cover,
+                media_source_url: scene.urls.watch || scene.urls.page,
+              }),
+            });
+            if (imageSave.ok) {
+              const rows = await imageSave.json();
+              if (rows?.[0]) botMessages.push(rows[0]);
+            } else {
+              console.error("No se pudo guardar una imagen de referencia:", imageSave.status);
+            }
+          }
+        } else {
+          console.warn("La búsqueda de imágenes no estuvo disponible:", imageResponse.status);
+        }
+      } catch (imageError) {
+        console.warn("Falló la búsqueda opcional de imágenes:", imageError);
+      }
+    }
+    return json({ message: botMessages[0] || null, messages: botMessages });
   } catch (error) {
     console.error("Error en zuno-bot-reply:", error);
     return json({ error: error instanceof Error ? error.message : "Ocurrió un error al responder." }, 500);
