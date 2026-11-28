@@ -915,7 +915,7 @@ export default function App() {
         setProfileLoading(false)
       })
     return () => { active = false }
-  }, [session])
+  }, [session?.user?.id])
 
   useEffect(() => {
     if (!session?.user) { setPrivateAlbumPhotos([]); setPrivateAlbumRequests([]); return }
