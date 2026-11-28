@@ -127,10 +127,13 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         model: "gpt-4.1-mini",
         instructions: systemPrompt,
-        input: messages.map((message: { sender_type: string; body: string }) => ({
-          role: message.sender_type === "bot" ? "assistant" : "user",
-          content: message.body,
-        })),
+        input: [
+          { role: "developer", content: "Respondé exclusivamente con un objeto JSON válido que contenga las claves reply y memory_summary." },
+          ...messages.map((message: { sender_type: string; body: string }) => ({
+            role: message.sender_type === "bot" ? "assistant" : "user",
+            content: message.body,
+          })),
+        ],
         text: { format: { type: "json_object" } },
         max_output_tokens: 650,
       }),
