@@ -2147,7 +2147,7 @@ export default function App() {
       setBotChatMessages(current=>[...current,{...data,media_url:signed.signedUrl}])
       const { data:replyData, error:replyError } = await supabase.functions.invoke('zuno-bot-reply',{body:{conversation_id:activeBotConversation.id}})
       if (replyError || replyData?.error) setPeopleError('La foto quedó enviada, pero el bot no pudo responder. '+(replyData?.error||replyError?.message||''))
-      else if (activeBotConversationRef.current?.id===activeBotConversation.id) setBotChatMessages(current=>[...current,...(replyData?.messages || [replyData?.message]).filter(Boolean)])
+      else if (activeBotConversationRef.current?.id===activeBotConversation.id) setBotChatMessages(current=>[...current,...(replyData?.messages || [replyData?.message]).filter(Boolean).map(message=>({...message,media_url:message.external_media_url||message.media_url||''}))])
     } catch (error) { setPeopleError('No pudimos enviar la foto. '+(error?.message||'')) }
     setChatMediaBusy(false)
   }
