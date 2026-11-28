@@ -215,7 +215,6 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         model: "openai/gpt-oss-120b",
         messages: chatMessages,
-        response_format: { type: "json_object" },
         max_completion_tokens: 650,
       }),
     });
@@ -233,8 +232,18 @@ Deno.serve(async (req: Request) => {
       if (jsonStart < 0 || jsonEnd <= jsonStart) throw new Error("JSON no encontrado");
       generated = JSON.parse(cleanedOutput.slice(jsonStart, jsonEnd + 1));
     } catch {
-      console.error("OpenAI devolvió una respuesta que no se pudo interpretar como JSON.");
-      throw new Error("La IA devolvió una respuesta con formato inválido.");
+      // Algunos modelos pueden devolver texto normal aunque se solicite JSON.
+      // No interrumpimos el chat: usamos el texto como respuesta y conservamos la memoria previa.
+      console.warn("Groq devolvió contenido no JSON; se utilizará como respuesta de texto.");
+      const replyMatch = outputText.match(/"reply"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"/s);
+      let recoveredReply = "";
+      if (replyMatch) {
+        try { recoveredReply = JSON.parse('"'+replyMatch[1]+'"'); } catch { /* usar texto original */ }
+      }
+      generated = {
+        reply: recoveredReply || outputText.trim().replace(/^```(?:json)?\\s*/i, "").replace(/\\s*```$/, ""),
+        memory_summary: conversation.context_summary || "",
+      };
     }
     const rawReply = String(generated.reply || "").trim().slice(0, 4000);
     const reply = (botDifficulty === "novato" ? applyNoviceWritingStyle(rawReply) : rawReply).slice(0, 4000);
