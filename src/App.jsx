@@ -733,44 +733,73 @@ export default function App() {
     event.preventDefault()
     const reply = storyReplyDraft.trim()
     if (!reply || !storyViewer || storyViewer.user_id === session?.user?.id || storyReplyBusy) return
+    if (!session?.user?.id) {
+      setStoryMessage('Iniciá sesión para responder a esta historia.')
+      return
+    }
     const person = storyViewer.owner
-    if (!person?.id) { setStoryMessage('No pudimos identificar al dueño de esta historia.'); return }
+    if (!person?.id) {
+      setStoryMessage('No pudimos identificar al dueño de esta historia.')
+      return
+    }
+
     setStoryReplyBusy(true)
-    const ids = [session.user.id, person.id].sort()
-    const { data: conversation, error: conversationError } = await supabase.from('conversations').upsert({ member_one: ids[0], member_two: ids[1] }, { onConflict: 'member_one,member_two' }).select('id').single()
-    if (conversationError) {
-      setStoryMessage('No se pudo abrir el chat: ' + conversationError.message)
-      setStoryReplyBusy(false)
-      return
-    }
-    const storyContext = storyViewer.caption ? '“' + storyViewer.caption + '”' : 'Historia'
-    const body = '↪️ Respondió a tu historia\n' + storyContext + '\n\n' + reply
+    setStoryMessage('')
     let mediaPath = null
-    let messageType = 'text'
     try {
+      const ids = [session.user.id, person.id].sort()
+      const { data: conversation, error: conversationError } = await supabase
+        .from('conversations')
+        .upsert({ member_one: ids[0], member_two: ids[1] }, { onConflict: 'member_one,member_two' })
+        .select('id')
+        .single()
+      if (conversationError) throw new Error('No se pudo abrir el chat: ' + conversationError.message)
+
+      const storyContext = storyViewer.caption ? '“' + storyViewer.caption + '”' : 'Historia'
+      const body = '↪️ Respondió a tu historia\\n' + storyContext + '\\n\\n' + reply
+
+      // Adjuntar la historia al mensaje para que la persona pueda identificar qué respondió.
       const response = await fetch(storyViewer.url)
-      if (!response.ok) throw new Error('No se pudo descargar el contenido de la historia.')
+      if (!response.ok) throw new Error('No se pudo cargar el contenido de la historia para adjuntarlo.')
       const blob = await response.blob()
-      const mime = storyViewer.media_type === 'video' ? (blob.type || 'video/mp4') : (blob.type || 'image/jpeg')
+      const mime = storyViewer.media_type === 'video'
+        ? (blob.type || 'video/mp4')
+        : (blob.type || 'image/jpeg')
       const ext = mime.includes('webm') ? 'webm' : mime.includes('quicktime') ? 'mov' : mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : mime.startsWith('video/') ? 'mp4' : 'jpg'
-      mediaPath = `${conversation.id}/${session.user.id}/${crypto.randomUUID()}.${ext}`
-      const { error: uploadError } = await supabase.storage.from('zuno-chat-media').upload(mediaPath, blob, { contentType: mime, upsert: false })
-      if (uploadError) throw uploadError
-      messageType = storyViewer.media_type === 'video' ? 'video' : 'image'
-    } catch (mediaError) {
+      mediaPath = conversation.id + '/' + session.user.id + '/' + crypto.randomUUID() + '.' + ext
+      const { error: uploadError } = await supabase.storage
+        .from('zuno-chat-media')
+        .upload(mediaPath, blob, { contentType: mime, upsert: false })
+      if (uploadError) throw new Error('No se pudo adjuntar la historia: ' + uploadError.message)
+
+      const { data: sentMessage, error: messageError } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: conversation.id,
+          sender_id: session.user.id,
+          body,
+          message_type: storyViewer.media_type === 'video' ? 'video' : 'image',
+          media_path: mediaPath
+        })
+        .select('id,conversation_id,sender_id,body,created_at,message_type,media_path,expires_at')
+        .single()
+      if (messageError) throw new Error('No se pudo enviar la respuesta: ' + messageError.message)
+
+      mediaPath = null
+      setStoryReplyDraft('')
+      setStoryPaused(false)
+      setStoryMessage('¡Respuesta enviada! Podés seguir viendo historias.')
+      if (activeConversation?.id === conversation.id && sentMessage) {
+        const [displayMessage] = await resolveChatMedia([sentMessage])
+        setChatMessages(current => current.some(item => item.id === sentMessage.id) ? current : [...current, displayMessage])
+      }
+    } catch (error) {
+      if (mediaPath) {
+        await supabase.storage.from('zuno-chat-media').remove([mediaPath]).catch(() => {})
+      }
+      setStoryMessage(error?.message || 'No se pudo enviar la respuesta. Intentá nuevamente.')
+    } finally {
       setStoryReplyBusy(false)
-      setStoryMessage('No se pudo adjuntar la historia: ' + mediaError.message)
-      return
-    }
-    const { data: sentMessage, error: messageError } = await supabase.from('messages').insert({ conversation_id: conversation.id, sender_id: session.user.id, body, message_type: messageType, media_path: mediaPath }).select('id,conversation_id,sender_id,body,created_at,message_type,media_path,expires_at').single()
-    setStoryReplyBusy(false)
-    if (messageError) { if (mediaPath) await supabase.storage.from('zuno-chat-media').remove([mediaPath]); setStoryMessage('No se pudo enviar la respuesta: ' + messageError.message); return }
-    setStoryReplyDraft('')
-    setStoryPaused(false)
-    setStoryMessage('¡Respuesta enviada! Podés seguir viendo historias.')
-    if (activeConversation?.id === conversation.id && sentMessage) {
-      const [displayMessage] = await resolveChatMedia([sentMessage])
-      setChatMessages(current => current.some(item => item.id === sentMessage.id) ? current : [...current, displayMessage])
     }
   }
 
