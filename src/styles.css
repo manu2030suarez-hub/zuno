@@ -1857,3 +1857,44 @@ html body .zuno-admin-shell .admin-user-media-unavailable{display:flex;min-heigh
 .admin-sanction-history-item small{color:var(--muted,#a1a1aa);font-size:12px;overflow-wrap:anywhere}
 .admin-sanction-history-item button{flex:0 0 auto;border:1px solid rgba(16,185,129,.35);border-radius:9px;background:rgba(16,185,129,.1);color:#a7f3d0;padding:8px 10px;cursor:pointer}
 @media(max-width:600px){.admin-sanction-panel{padding:15px}.admin-sanction-history-item{align-items:flex-start;flex-direction:column}}
+
+
+/* ZUNO ADMIN · live dashboard statistics */
+html body .zuno-admin-shell .admin-stats-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
+html body .zuno-admin-shell .admin-stats-heading>.admin-refresh{width:auto;flex:0 0 auto}
+html body .zuno-admin-shell .zuno-admin-live-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
+html body .zuno-admin-shell .zuno-admin-live-stats article{min-width:0;min-height:112px!important;display:flex;align-items:center;gap:13px;padding:17px!important}
+html body .zuno-admin-shell .zuno-admin-live-stats article>div{min-width:0}
+html body .zuno-admin-shell .zuno-admin-live-stats article small{display:block;line-height:1.45}
+html body .zuno-admin-shell .zuno-admin-live-stats article strong{display:block;margin:5px 0;font-variant-numeric:tabular-nums}
+html body .zuno-admin-shell .zuno-admin-live-stats article em{display:block;line-height:1.4}
+html body .zuno-admin-shell .admin-stats-chart-card{margin-top:20px;padding:22px;border:1px solid #ffffff16;border-radius:19px;background:linear-gradient(145deg,#191522,#100e16);box-shadow:0 15px 38px #0003}
+html body .zuno-admin-shell .admin-stats-chart-heading{display:flex;align-items:center;justify-content:space-between;gap:14px}
+html body .zuno-admin-shell .admin-stats-chart-heading h3{margin:0 0 5px;color:#f8effb;font:750 16px Manrope,sans-serif}
+html body .zuno-admin-shell .admin-stats-chart-heading p{margin:0;color:#95899e;font-size:11px;line-height:1.5}
+html body .zuno-admin-shell .admin-stats-chart-heading>span{padding:7px 10px;border:1px solid #bd70e744;border-radius:9px;background:#a94bd51a;color:#dca8f2;font-size:9px;font-weight:800;letter-spacing:1px}
+html body .zuno-admin-shell .admin-stats-bars{min-height:190px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));align-items:end;gap:12px;padding:20px 3px 0}
+html body .zuno-admin-shell .admin-stats-bar-column{height:160px;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:7px}
+html body .zuno-admin-shell .admin-stats-bar-column>strong{color:#e9d7f2;font-size:11px;font-variant-numeric:tabular-nums}
+html body .zuno-admin-shell .admin-stats-bar-track{width:min(100%,38px);height:105px;display:flex;align-items:flex-end;overflow:hidden;border-radius:9px;background:#ffffff08}
+html body .zuno-admin-shell .admin-stats-bar-track>span{display:block;width:100%;min-height:5px;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#e58acb,#8954cf);box-shadow:0 0 20px #bd70e733;transition:height .25s ease}
+html body .zuno-admin-shell .admin-stats-bar-column>small{color:#92869b;font-size:9px;white-space:nowrap}
+html body .zuno-admin-shell .admin-stats-no-data{grid-column:1/-1;align-self:center;color:#95899e;text-align:center;font-size:12px}
+html body .zuno-admin-shell .admin-stats-privacy-note{margin:11px 2px 0;color:#82778b;font-size:10px;line-height:1.6}
+@media(max-width:760px){
+ html body .zuno-admin-shell .zuno-admin-live-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+ html body .zuno-admin-shell .zuno-admin-live-stats article{min-height:105px!important;padding:13px!important;gap:9px}
+ html body .zuno-admin-shell .zuno-admin-live-stats article strong{font-size:22px!important}
+ html body .zuno-admin-shell .admin-stats-chart-card{padding:17px}
+ html body .zuno-admin-shell .admin-stats-bars{gap:6px}
+ html body .zuno-admin-shell .admin-stats-bar-column>small{font-size:8px}
+}
+@media(max-width:480px){
+ html body .zuno-admin-shell .admin-stats-heading{align-items:flex-start;flex-direction:column}
+ html body .zuno-admin-shell .admin-stats-heading>.admin-refresh{width:100%;justify-content:center}
+ html body .zuno-admin-shell .zuno-admin-live-stats{gap:8px}
+ html body .zuno-admin-shell .zuno-admin-live-stats article{align-items:flex-start;flex-direction:column;min-height:126px!important}
+ html body .zuno-admin-shell .admin-stats-chart-heading h3{font-size:14px}
+ html body .zuno-admin-shell .admin-stats-bars{gap:4px}
+ html body .zuno-admin-shell .admin-stats-bar-column>small{font-size:7px}
+}
