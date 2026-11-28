@@ -121,12 +121,18 @@ Deno.serve(async (req: Request) => {
         content: message.body,
       })),
     ];
-    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+    const aiResponse = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: { Authorization: "Bearer " + openAiKey, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gpt-4.1-mini", messages: chatMessages,
-        response_format: { type: "json_object" }, temperature: 0.8, max_tokens: 650,
+        model: "gpt-4.1-mini",
+        instructions: systemPrompt,
+        input: messages.map((message: { sender_type: string; body: string }) => ({
+          role: message.sender_type === "bot" ? "assistant" : "user",
+          content: message.body,
+        })),
+        text: { format: { type: "json_object" } },
+        max_output_tokens: 650,
       }),
     });
     const aiData = await aiResponse.json();
@@ -134,8 +140,13 @@ Deno.serve(async (req: Request) => {
       console.error("OpenAI error:", aiData?.error?.message || aiResponse.status);
       return json({ error: "La IA no pudo generar una respuesta. Intentá nuevamente." }, 502);
     }
+    const outputText = (aiData.output || [])
+      .flatMap((item: { content?: { type?: string; text?: string }[] }) => item.content || [])
+      .filter((item: { type?: string }) => item.type === "output_text")
+      .map((item: { text?: string }) => item.text || "")
+      .join("");
     let generated: { reply?: string; memory_summary?: string };
-    try { generated = JSON.parse(aiData?.choices?.[0]?.message?.content || "{}"); }
+    try { generated = JSON.parse(outputText || "{}"); }
     catch { throw new Error("La IA devolvió una respuesta con formato inválido."); }
     const reply = String(generated.reply || "").trim().slice(0, 4000);
     const memorySummary = String(generated.memory_summary || conversation.context_summary || "").trim().slice(0, 1800);
